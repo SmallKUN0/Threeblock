@@ -1,0 +1,2359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Backrooms Level 0 - v1.4</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-touch-callout: none; user-select: none; }
+html, body { width: 100%; height: 100%; overflow: hidden; font-family: "Microsoft YaHei", Arial, sans-serif; touch-action: none; background: #000; }
+
+#menu {
+    width: 100%; height: 100%; background: #e6c840; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 40px; position: absolute; z-index: 100;
+}
+.menu-btn {
+    width: 260px; height: 80px; border: 5px solid #000; background: transparent;
+    color: #000; font-size: 28px; font-weight: bold; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; transition: all 0.15s; letter-spacing: 4px;
+}
+.menu-btn:active { background: rgba(0,0,0,0.18); transform: scale(0.96); }
+
+#settings {
+    display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(8,8,8,0.96); z-index: 200; overflow-y: auto; padding: 36px 22px 80px;
+    color: #eee; touch-action: auto; -webkit-overflow-scrolling: touch;
+}
+.settings-title { font-size: 32px; text-align: center; margin-bottom: 32px; color: #e6c840; font-weight: bold; letter-spacing: 6px; }
+.setting-row { margin-bottom: 24px; }
+.setting-row label { display: block; margin-bottom: 8px; font-size: 16px; color: #ccc; }
+.setting-row input[type="range"] { width: 100%; height: 32px; accent-color: #e6c840; }
+.setting-row .value-display { text-align: right; font-size: 14px; color: #e6c840; margin-top: 4px; font-weight: bold; }
+.setting-row input[type="number"] { width: 100%; padding: 10px; font-size: 16px; border: 2px solid #e6c840; background: #1a1a1a; color: #fff; border-radius: 4px; }
+.setting-row select { width: 100%; padding: 10px; font-size: 16px; border: 2px solid #e6c840; background: #1a1a1a; color: #fff; border-radius: 4px; }
+.save-btn {
+    width: 100%; height: 56px; border: 3px solid #e6c840; background: transparent; color: #e6c840;
+    font-size: 22px; cursor: pointer; margin-top: 20px; margin-bottom: 40px; font-weight: bold;
+    letter-spacing: 4px; border-radius: 4px;
+}
+.save-btn:active { background: rgba(230,200,64,0.25); }
+
+#gameUI { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 50; pointer-events: none; }
+#gameUI > * { pointer-events: auto; }
+
+#joystick {
+    position: absolute; border: 3px solid rgba(255,255,255,0.4); border-radius: 50%;
+    background: rgba(255,255,255,0.1); display: none; touch-action: none;
+}
+#joystick-knob {
+    position: absolute; width: 42%; height: 42%; background: rgba(255,255,255,0.65);
+    border-radius: 50%; left: 29%; top: 29%; pointer-events: none; box-shadow: 0 0 10px rgba(255,255,255,0.3);
+}
+
+#lighterBtn, #backBtn, #interactBtn, #pickupBtn {
+    position: absolute; border: 2px solid rgba(255,255,255,0.8); background: rgba(0,0,0,0.55); color: #fff;
+    font-size: 14px; cursor: pointer; display: none; align-items: center; justify-content: center;
+    font-weight: bold; letter-spacing: 1px; border-radius: 4px; z-index: 52;
+}
+#lighterBtn.active { background: rgba(255,170,0,0.6); border-color: #ffcc33; color: #ffcc33; box-shadow: 0 0 12px rgba(255,170,0,0.4); }
+
+#crosshair {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 24px; height: 24px; pointer-events: none; z-index: 55; opacity: 0.85;
+}
+#crosshair-v { position: absolute; top: 0; left: 11px; width: 2px; height: 24px; background: #fff; transition: background 0.15s; }
+#crosshair-h { position: absolute; top: 11px; left: 0; width: 24px; height: 2px; background: #fff; transition: background 0.15s; }
+#crosshair-c { position: absolute; top: 11px; left: 11px; width: 2px; height: 2px; background: #fff; transition: background 0.15s; }
+
+#hidingUI {
+    display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.92); border: 3px solid #555; padding: 28px 55px; color: #fff;
+    font-size: 24px; font-weight: bold; z-index: 60; pointer-events: none; text-align: center; letter-spacing: 4px;
+}
+
+#fpsDisplay {
+    position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    color: #0f0; font-size: 16px; font-weight: bold; font-family: monospace;
+    text-shadow: 0 0 4px #000; display: none; pointer-events: none; z-index: 60;
+}
+
+#yellowFilter, #redFilter {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 40; opacity: 0; transition: opacity 0.3s;
+}
+#yellowFilter { background: radial-gradient(circle at center, transparent 50%, rgba(255,200,0,0.28) 100%); }
+#redFilter { background: radial-gradient(circle at center, transparent 40%, rgba(255,0,0,0.38) 100%); }
+
+.game-bar {
+    position: absolute; background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.25);
+    display: none; pointer-events: none; z-index: 45; overflow: hidden; border-radius: 2px;
+}
+.game-bar-fill { height: 100%; transition: width 0.2s linear; }
+
+#deathScreen, #winScreen, #sanityDeathScreen, #easterScreen {
+    display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 150; flex-direction: column; align-items: center; justify-content: center; pointer-events: auto;
+}
+#deathScreen { background: #87CEEB; color: #000; }
+#deathScreen .big-text { font-size: 40px; color: #000; font-weight: bold; letter-spacing: 6px; margin-bottom: 20px; }
+#winScreen { background: rgba(0,0,0,0.88); color: #fff; }
+#winScreen .big-text { font-size: 56px; color: #33ff66; font-weight: bold; letter-spacing: 8px; margin-bottom: 20px; }
+#sanityDeathScreen { background: #000; color: #ff0000; }
+#sanityDeathScreen .big-text { font-size: 48px; color: #ff0000; font-weight: bold; letter-spacing: 6px; margin-bottom: 20px; }
+#easterScreen { background: #000; color: #ff69b4; }
+#easterScreen .big-text { font-size: 36px; color: #ff69b4; font-weight: bold; letter-spacing: 4px; margin-bottom: 20px; }
+.countdown { font-size: 24px; margin-top: 12px; }
+#winScreen .countdown { color: #ccc; }
+#sanityDeathScreen .countdown { color: #aaa; }
+#easterScreen .countdown { color: #aaa; }
+
+.toggle-switch { position: relative; display: inline-block; width: 60px; height: 34px; vertical-align: middle; }
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .3s; border-radius: 34px; }
+.slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .3s; border-radius: 50%; }
+input:checked + .slider { background-color: #e6c840; }
+input:checked + .slider:before { transform: translateX(26px); }
+
+#buttonEditor {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #B8860B; z-index: 300; overflow: hidden; touch-action: none;
+}
+#buttonEditor .edit-btn {
+    position: absolute; border: 3px solid #000; background: rgba(0,0,0,0.35);
+    color: #fff; font-size: 14px; font-weight: bold; display: flex;
+    align-items: center; justify-content: center; cursor: grab;
+    user-select: none; touch-action: none; letter-spacing: 1px;
+}
+#buttonEditor .edit-btn:active { cursor: grabbing; background: rgba(0,0,0,0.55); }
+#btnEditMenu {
+    display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: #1a1a1a; border: 3px solid #e6c840; padding: 28px; z-index: 400;
+    width: 300px; color: #fff; border-radius: 6px;
+}
+#btnEditMenu h3 { color: #e6c840; text-align: center; margin-bottom: 24px; font-size: 20px; letter-spacing: 2px; }
+
+#pcKeyEditor {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #1a1a1a; z-index: 300; overflow-y: auto; padding: 36px 22px 80px; color: #eee;
+}
+
+#highlightBox {
+    display: none; position: absolute; left: 50%; top: 12%; transform: translateX(-50%);
+    background: rgba(0,255,0,0.25); border: 1px solid #00ff00; padding: 10px 24px;
+    color: #00008B; font-size: 15px; font-weight: bold; pointer-events: none; z-index: 55;
+    white-space: nowrap; border-radius: 4px; text-align: center; letter-spacing: 1px;
+}
+
+#canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+
+<div id="menu">
+    <div style="position:absolute;top:40px;left:50%;transform:translateX(-50%);font-size:48px;font-weight:bold;color:#000;letter-spacing:12px;text-shadow:0 2px 0 rgba(255,255,255,0.3);">逃离后室</div>
+    <div class="menu-btn" id="btnStart">开始游戏</div>
+    <div class="menu-btn" id="btnSettings">设置</div>
+    <div id="statsDisplay" style="position:absolute;bottom:50px;left:20px;color:#000;font-size:14px;font-weight:bold;letter-spacing:1px;">累计死亡0次，逃脱0次。</div>
+    <button id="btnResetStats" style="position:absolute;bottom:20px;left:20px;width:80px;height:30px;border:2px solid #000;background:transparent;color:#000;font-size:12px;font-weight:bold;cursor:pointer;letter-spacing:1px;">重置</button>
+    <div style="position:absolute;bottom:16px;right:20px;font-size:13px;color:#000;font-weight:bold;letter-spacing:1px;opacity:0.8;">小坤坤&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;版本号：1.4</div>
+</div>
+
+<div id="settings">
+    <div class="settings-title">游 戏 设 置</div>
+    <div class="setting-row">
+        <label>灵敏度 (%)</label>
+        <input type="range" id="sens" min="50" max="400" value="100">
+        <div class="value-display" id="sensVal">100%</div>
+    </div>
+    <div class="setting-row">
+        <label>伽马 / 亮度 (%)</label>
+        <input type="range" id="gamma" min="50" max="200" value="100">
+        <div class="value-display" id="gammaVal">100%</div>
+    </div>
+    <div class="setting-row">
+        <label>视场角 (FOV)</label>
+        <input type="range" id="fov" min="30" max="150" value="75">
+        <div class="value-display" id="fovVal">75°</div>
+    </div>
+    <div class="setting-row">
+        <label>打火机光照直径 (%)</label>
+        <input type="range" id="lighter" min="50" max="300" value="100">
+        <div class="value-display" id="lighterVal">100%</div>
+    </div>
+    <div class="setting-row">
+        <label>打火机燃烧时间（秒，顶端无限）</label>
+        <input type="range" id="lighterBurnTime" min="10" max="300" step="10" value="60">
+        <div class="value-display" id="lighterBurnTimeVal">60秒</div>
+    </div>
+    <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;">
+        <label style="margin:0;">打火机燃料百分比显示</label>
+        <label class="toggle-switch">
+            <input type="checkbox" id="showLighterFuel">
+            <span class="slider"></span>
+        </label>
+    </div>
+    <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;">
+        <label style="margin:0;">理智进度条显示</label>
+        <label class="toggle-switch">
+            <input type="checkbox" id="showSanity" checked>
+            <span class="slider"></span>
+        </label>
+    </div>
+    <div class="setting-row">
+        <label>理智下降速度 (%)</label>
+        <input type="range" id="sanitySpeed" min="0" max="400" value="100">
+        <div class="value-display" id="sanitySpeedVal">100%</div>
+    </div>
+    <div class="setting-row">
+        <label>渲染距离 (%)</label>
+        <input type="range" id="renderDist" min="50" max="200" value="100">
+        <div class="value-display" id="renderDistVal">100%</div>
+    </div>
+    <div class="setting-row">
+        <label>迷宫大小（宽 × 高）</label>
+        <div style="display:flex;gap:12px;align-items:center;">
+            <input type="number" id="mazeW" value="24" min="10" max="60">
+            <span style="font-size:20px;color:#e6c840;">×</span>
+            <input type="number" id="mazeH" value="24" min="10" max="60">
+        </div>
+    </div>
+    <div class="setting-row">
+        <label>实体生成概率 (%)</label>
+        <input type="range" id="entityProb" min="0" max="50" value="10">
+        <div class="value-display" id="entityProbVal">10%</div>
+    </div>
+    <div class="setting-row">
+        <label>实体速度 (%)</label>
+        <input type="range" id="entitySpeed" min="10" max="200" value="80">
+        <div class="value-display" id="entitySpeedVal">80%</div>
+    </div>
+    <div class="setting-row">
+        <label>实体检测范围 (%)</label>
+        <input type="range" id="entityDetect" min="10" max="200" value="100">
+        <div class="value-display" id="entityDetectVal">100%</div>
+    </div>
+    <div class="setting-row">
+        <label>出口生成概率 (%)</label>
+        <input type="range" id="exitProb" min="0" max="50" value="5">
+        <div class="value-display" id="exitProbVal">5%</div>
+    </div>
+    <div class="setting-row">
+        <label>铁柜子刷新概率 (%)</label>
+        <input type="range" id="lockerProb" min="0" max="50" value="10">
+        <div class="value-display" id="lockerProbVal">10%</div>
+    </div>
+    <div class="setting-row">
+        <label>杏仁水生成概率 (%)</label>
+        <input type="range" id="almondProb" min="0" max="50" value="8">
+        <div class="value-display" id="almondProbVal">8%</div>
+    </div>
+    <div class="setting-row">
+        <label>喷漆生成概率 (%)</label>
+        <input type="range" id="sprayProb" min="0" max="50" value="8">
+        <div class="value-display" id="sprayProbVal">8%</div>
+    </div>
+    <div class="setting-row">
+        <label>打火机油生成概率 (%)</label>
+        <input type="range" id="lighterFuelProb" min="0" max="50" value="8">
+        <div class="value-display" id="lighterFuelProbVal">8%</div>
+    </div>
+    <div class="setting-row">
+        <label>物品生成数量限制（每个区块每种物品，1～50个）</label>
+        <input type="range" id="itemSpawnLimit" min="1" max="50" value="5">
+        <div class="value-display" id="itemSpawnLimitVal">5</div>
+    </div>
+    <div class="setting-row">
+        <label>喷漆喷射间隔（秒）</label>
+        <input type="range" id="sprayInterval" min="0.1" max="2" step="0.1" value="0.1">
+        <div class="value-display" id="sprayIntervalVal">0.1秒</div>
+    </div>
+    <div class="setting-row">
+        <label>喷漆喷出半径（单位）</label>
+        <input type="range" id="sprayRadius" min="0.1" max="1" step="0.1" value="0.2">
+        <div class="value-display" id="sprayRadiusVal">0.2</div>
+    </div>
+    <div class="setting-row">
+        <label>灯光闪烁间隔（秒）</label>
+        <input type="number" id="lightFlickerInterval" value="10" min="0.1" step="0.1">
+    </div>
+    <div class="setting-row">
+        <label>环境音量 (%)</label>
+        <input type="range" id="ambientVolume" min="0" max="500" value="100">
+        <div class="value-display" id="ambientVolumeVal">100%</div>
+    </div>
+    <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;">
+        <label style="margin:0;">高亮信息显示</label>
+        <label class="toggle-switch">
+            <input type="checkbox" id="highlightInfo" checked>
+            <span class="slider"></span>
+        </label>
+    </div>
+    <div class="setting-row">
+        <label>画质</label>
+        <select id="quality">
+            <option value="simple">简约</option>
+            <option value="high">高品质</option>
+            <option value="extreme">极致</option>
+        </select>
+    </div>
+    <div class="setting-row">
+        <label>互动距离（单位长度）</label>
+        <input type="range" id="interactDist" min="1" max="20" value="5">
+        <div class="value-display" id="interactDistVal">5</div>
+    </div>
+    <div class="setting-row">
+        <label>区块大小（5的倍数）</label>
+        <input type="range" id="blockSize" min="5" max="100" step="5" value="20">
+        <div class="value-display" id="blockSizeVal">20</div>
+        <div style="color:#ff4444;font-size:13px;margin-top:6px;font-weight:bold;">注意：调节此选项可能会出现Bug、迷宫刷新实体概率改变和一些性能问题</div>
+    </div>
+    <div class="setting-row" style="display:flex;align-items:center;justify-content:space-between;">
+        <label style="margin:0;">显示 FPS</label>
+        <label class="toggle-switch">
+            <input type="checkbox" id="showFps">
+            <span class="slider"></span>
+        </label>
+    </div>
+    <div class="setting-row">
+        <button class="save-btn" id="btnPcControls" style="margin-top:0;margin-bottom:0;height:48px;font-size:18px;">电脑版操作方式</button>
+    </div>
+    <div class="setting-row">
+        <button class="save-btn" id="btnAdjustLayout" style="margin-top:0;margin-bottom:0;height:48px;font-size:18px;">调整按钮位置</button>
+    </div>
+    <button class="save-btn" id="btnSave">保存并关闭</button>
+</div>
+
+<div id="pcKeyEditor">
+    <div style="font-size:32px;text-align:center;margin-bottom:32px;color:#e6c840;font-weight:bold;letter-spacing:6px;">电脑版按键设置</div>
+    <div id="pcKeyList"></div>
+    <button id="btnSavePcKeys" style="width:100%;height:56px;border:3px solid #e6c840;background:transparent;color:#e6c840;font-size:22px;cursor:pointer;margin-top:20px;font-weight:bold;letter-spacing:4px;">保存并关闭</button>
+</div>
+
+<div id="buttonEditor">
+    <div style="position:absolute;top:30px;left:50%;transform:translateX(-50%);color:#00ff00;font-size:24px;font-weight:bold;text-align:center;text-shadow:0 2px 8px rgba(0,0,0,0.4);letter-spacing:2px;">短按拖动按钮，长按编辑按钮</div>
+    <div class="edit-btn" data-btn="joystick" style="border-radius:50%;">摇杆</div>
+    <div class="edit-btn" data-btn="lighter">打火机</div>
+    <div class="edit-btn" data-btn="back">返回</div>
+    <div class="edit-btn" data-btn="interact" style="border-radius:50%;">互动</div>
+    <div class="edit-btn" data-btn="pickup" style="border-radius:50%;">拾取</div>
+    <div class="edit-btn" data-btn="lighterFuelBar" style="border-radius:2px;background:rgba(0,255,0,0.45);border-color:#004400;">打火机燃料</div>
+    <div class="edit-btn" data-btn="sanityBar" style="border-radius:2px;background:rgba(255,255,0,0.45);border-color:#444400;">理智值</div>
+    <div class="edit-btn" data-btn="highlightBox" style="border-radius:4px;background:rgba(0,255,0,0.35);border-color:#004400;color:#00008B;font-size:12px;">高亮信息</div>
+    <button id="btnSaveLayout" style="position:absolute;bottom:40px;left:50%;transform:translateX(-50%);width:220px;height:56px;border:3px solid #000;background:#000;color:#e6c840;font-size:20px;font-weight:bold;cursor:pointer;letter-spacing:2px;">保存并退出</button>
+</div>
+
+<div id="btnEditMenu">
+    <h3>编辑按钮</h3>
+    <div class="setting-row" style="margin-bottom:18px;">
+        <label style="display:block;margin-bottom:6px;font-size:14px;color:#ccc;">按钮大小 (%)</label>
+        <input type="range" id="editBtnSize" min="50" max="200" style="width:100%;accent-color:#e6c840;">
+        <div class="value-display" id="editBtnSizeVal" style="text-align:right;color:#e6c840;font-size:14px;margin-top:4px;">100%</div>
+    </div>
+    <div class="setting-row" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+        <label style="margin:0;font-size:14px;color:#ccc;">隐藏按键</label>
+        <label class="toggle-switch" style="margin:0;">
+            <input type="checkbox" id="editBtnHidden">
+            <span class="slider"></span>
+        </label>
+    </div>
+    <div class="setting-row" style="margin-bottom:22px;">
+        <label style="display:block;margin-bottom:6px;font-size:14px;color:#ccc;">按钮形状</label>
+        <select id="editBtnShape" style="width:100%;padding:8px;font-size:15px;background:#1a1a1a;color:#fff;border:2px solid #e6c840;border-radius:4px;">
+            <option value="golden">黄金比例长方形</option>
+            <option value="square">正方形</option>
+            <option value="circle">圆形</option>
+        </select>
+    </div>
+    <button id="editBtnSave" style="width:100%;height:44px;border:2px solid #e6c840;background:transparent;color:#e6c840;font-size:16px;cursor:pointer;font-weight:bold;letter-spacing:2px;border-radius:4px;">保存并退出</button>
+</div>
+
+<div id="gameUI">
+    <div id="joystick"><div id="joystick-knob"></div></div>
+    <div id="lighterBtn">打火机</div>
+    <div id="backBtn">返回主菜单</div>
+    <div id="interactBtn">互动</div>
+    <div id="pickupBtn">拾取</div>
+    <div id="crosshair"><div id="crosshair-v"></div><div id="crosshair-h"></div><div id="crosshair-c"></div></div>
+    <div id="hidingUI">正在躲藏中</div>
+    <div id="fpsDisplay">0 FPS</div>
+    <div id="yellowFilter"></div>
+    <div id="redFilter"></div>
+    <div id="lighterFuelBar" class="game-bar"><div class="game-bar-fill" style="background:#00ff00;width:100%;"></div></div>
+    <div id="sanityBar" class="game-bar"><div class="game-bar-fill" style="background:#ffff00;width:100%;"></div></div>
+    <div id="highlightBox"><span id="highlightText"></span></div>
+</div>
+
+<div id="deathScreen">
+    <div class="big-text">M.E.G录像直播损坏</div>
+    <div class="countdown" id="deathTimer">3 秒后返回</div>
+</div>
+
+<div id="winScreen">
+    <div class="big-text">逃 离 成 功</div>
+    <div style="font-size:20px;color:#aaa;">你找到了出口</div>
+    <div class="countdown" id="winTimer">3 秒后返回</div>
+</div>
+
+<div id="sanityDeathScreen">
+    <div class="big-text">理智凋零而死</div>
+    <div class="countdown" id="sanityTimer">3 秒后返回</div>
+</div>
+
+<div id="easterScreen">
+    <div class="big-text">恭喜触发游戏隐藏彩蛋</div>
+    <div class="countdown" id="easterTimer">3 秒后返回</div>
+</div>
+
+<div id="canvas-container"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ==================== 默认布局 ====================
+const defaultLayouts = {
+    joystick: { x: 5, y: 82, size: 130, shape: 'circle', hidden: false },
+    lighter: { x: 85, y: 5, size: 88, shape: 'golden', hidden: false },
+    back: { x: 5, y: 5, size: 110, shape: 'golden', hidden: false },
+    interact: { x: 46, y: 82, size: 80, shape: 'circle', hidden: false },
+    pickup: { x: 70, y: 82, size: 80, shape: 'circle', hidden: false },
+    lighterFuelBar: { x: 5, y: 72, size: 160, shape: 'golden', hidden: false },
+    sanityBar: { x: 5, y: 68, size: 160, shape: 'golden', hidden: false },
+    highlightBox: { x: 50, y: 12, size: 240, shape: 'golden', hidden: false }
+};
+
+const defaultPcKeys = { lighter: 'KeyQ', interact: 'KeyE', pickup: 'KeyF', back: 'Escape' };
+
+// ==================== 统计 ====================
+let stats = { deaths: 0, escapes: 0 };
+function loadStats() {
+    try {
+        const s = localStorage.getItem('br_stats_v2');
+        if (s) stats = JSON.parse(s);
+    } catch(e) {}
+    updateStatsDisplay();
+}
+function saveStats() {
+    localStorage.setItem('br_stats_v2', JSON.stringify(stats));
+}
+function updateStatsDisplay() {
+    const el = document.getElementById('statsDisplay');
+    if (el) el.textContent = `累计死亡${stats.deaths}次，逃脱${stats.escapes}次。`;
+}
+document.getElementById('btnResetStats').addEventListener('click', () => {
+    stats = { deaths: 0, escapes: 0 };
+    saveStats();
+    updateStatsDisplay();
+});
+
+// ==================== 设置管理 ====================
+const defaultSettings = {
+    sens: 100, speed: 200, gamma: 100, fov: 75,
+    lighter: 100, renderDist: 100, mazeW: 24, mazeH: 24,
+    entityProb: 10, exitProb: 5, blockSize: 20,
+    entityDetect: 100, showFps: false, entitySpeed: 80,
+    interactDist: 5, lockerProb: 10,
+    lighterBurnTime: 60, showLighterFuel: false, showSanity: true, sanitySpeed: 100,
+    almondProb: 8, sprayProb: 8, lighterFuelProb: 8,
+    sprayInterval: 0.1, lightFlickerInterval: 10, ambientVolume: 100,
+    sprayRadius: 0.2, highlightInfo: true, lightCount: 10,
+    quality: 'simple', pcKeys: null,
+    buttonLayouts: null,
+    itemSpawnLimit: 5
+};
+let settings = {};
+const settingKeys = [
+    'sens','gamma','fov','lighter','renderDist',
+    'mazeW','mazeH','entityProb','exitProb','blockSize',
+    'entityDetect','showFps','entitySpeed','interactDist',
+    'lockerProb','lighterBurnTime','showLighterFuel','showSanity','sanitySpeed','almondProb',
+    'sprayProb','lighterFuelProb','sprayInterval','lightFlickerInterval',
+    'ambientVolume','sprayRadius','highlightInfo','quality','itemSpawnLimit'
+];
+
+function loadSettings() {
+    try {
+        const s = localStorage.getItem('br_settings_v4');
+        if (s) {
+            settings = JSON.parse(s);
+            for (let k in defaultSettings) {
+                if (settings[k] === undefined) settings[k] = defaultSettings[k];
+            }
+            if (!settings.buttonLayouts) settings.buttonLayouts = JSON.parse(JSON.stringify(defaultLayouts));
+            else {
+                for (let k in defaultLayouts) {
+                    if (!settings.buttonLayouts[k]) settings.buttonLayouts[k] = {...defaultLayouts[k]};
+                }
+            }
+            if (!settings.pcKeys) settings.pcKeys = {...defaultPcKeys};
+        } else {
+            settings = {...defaultSettings, buttonLayouts: JSON.parse(JSON.stringify(defaultLayouts)), pcKeys: {...defaultPcKeys}};
+        }
+    } catch(e) {
+        settings = {...defaultSettings, buttonLayouts: JSON.parse(JSON.stringify(defaultLayouts)), pcKeys: {...defaultPcKeys}};
+    }
+    
+    settings.speed = 200;
+    settings.dynamicEntityLimit = 0;
+    settings.chaseEntityLimit = 0;
+    settings.lightCount = 10;
+    
+    document.getElementById('sens').value = settings.sens;
+    document.getElementById('gamma').value = settings.gamma;
+    document.getElementById('fov').value = settings.fov;
+    document.getElementById('lighter').value = settings.lighter;
+    document.getElementById('renderDist').value = settings.renderDist;
+    document.getElementById('mazeW').value = settings.mazeW;
+    document.getElementById('mazeH').value = settings.mazeH;
+    document.getElementById('entityProb').value = settings.entityProb;
+    document.getElementById('exitProb').value = settings.exitProb;
+    document.getElementById('blockSize').value = settings.blockSize;
+    document.getElementById('entityDetect').value = settings.entityDetect;
+    document.getElementById('showFps').checked = settings.showFps;
+    document.getElementById('entitySpeed').value = settings.entitySpeed;
+    document.getElementById('interactDist').value = settings.interactDist;
+    document.getElementById('lockerProb').value = settings.lockerProb;
+    document.getElementById('lighterBurnTime').value = settings.lighterBurnTime;
+    document.getElementById('showLighterFuel').checked = settings.showLighterFuel;
+    document.getElementById('showSanity').checked = settings.showSanity;
+    document.getElementById('sanitySpeed').value = settings.sanitySpeed;
+    document.getElementById('almondProb').value = settings.almondProb;
+    document.getElementById('sprayProb').value = settings.sprayProb;
+    document.getElementById('lighterFuelProb').value = settings.lighterFuelProb;
+    document.getElementById('sprayInterval').value = settings.sprayInterval;
+    document.getElementById('lightFlickerInterval').value = settings.lightFlickerInterval;
+    document.getElementById('ambientVolume').value = settings.ambientVolume;
+    document.getElementById('sprayRadius').value = settings.sprayRadius;
+    document.getElementById('highlightInfo').checked = settings.highlightInfo;
+    document.getElementById('quality').value = settings.quality;
+    document.getElementById('itemSpawnLimit').value = settings.itemSpawnLimit;
+    updateDisplays();
+}
+
+function saveSettings() {
+    settingKeys.forEach(key => {
+        const el = document.getElementById(key);
+        if (!el) return;
+        if (el.type === 'checkbox') settings[key] = el.checked;
+        else if (el.tagName === 'SELECT') settings[key] = el.value;
+        else settings[key] = parseFloat(el.value);
+    });
+    localStorage.setItem('br_settings_v4', JSON.stringify(settings));
+}
+
+function updateDisplays() {
+    document.getElementById('sensVal').textContent = document.getElementById('sens').value + '%';
+    document.getElementById('gammaVal').textContent = document.getElementById('gamma').value + '%';
+    document.getElementById('fovVal').textContent = document.getElementById('fov').value + '°';
+    document.getElementById('lighterVal').textContent = document.getElementById('lighter').value + '%';
+    document.getElementById('renderDistVal').textContent = document.getElementById('renderDist').value + '%';
+    document.getElementById('entityProbVal').textContent = document.getElementById('entityProb').value + '%';
+    document.getElementById('exitProbVal').textContent = document.getElementById('exitProb').value + '%';
+    document.getElementById('blockSizeVal').textContent = document.getElementById('blockSize').value;
+    document.getElementById('entityDetectVal').textContent = document.getElementById('entityDetect').value + '%';
+    document.getElementById('entitySpeedVal').textContent = document.getElementById('entitySpeed').value + '%';
+    document.getElementById('interactDistVal').textContent = document.getElementById('interactDist').value;
+    document.getElementById('lockerProbVal').textContent = document.getElementById('lockerProb').value + '%';
+    const bt = parseInt(document.getElementById('lighterBurnTime').value);
+    document.getElementById('lighterBurnTimeVal').textContent = bt >= 300 ? '无限' : bt + '秒';
+    document.getElementById('sanitySpeedVal').textContent = document.getElementById('sanitySpeed').value + '%';
+    document.getElementById('almondProbVal').textContent = document.getElementById('almondProb').value + '%';
+    document.getElementById('sprayProbVal').textContent = document.getElementById('sprayProb').value + '%';
+    document.getElementById('lighterFuelProbVal').textContent = document.getElementById('lighterFuelProb').value + '%';
+    document.getElementById('sprayIntervalVal').textContent = document.getElementById('sprayInterval').value + '秒';
+    document.getElementById('ambientVolumeVal').textContent = document.getElementById('ambientVolume').value + '%';
+    document.getElementById('sprayRadiusVal').textContent = document.getElementById('sprayRadius').value;
+    document.getElementById('itemSpawnLimitVal').textContent = document.getElementById('itemSpawnLimit').value;
+}
+
+['sens','gamma','fov','lighter','renderDist','entityProb','exitProb','blockSize','entityDetect','entitySpeed','interactDist','lockerProb','lighterBurnTime','sanitySpeed','almondProb','sprayProb','lighterFuelProb','sprayInterval','ambientVolume','sprayRadius','itemSpawnLimit'].forEach(key => {
+    const el = document.getElementById(key);
+    if (el) el.addEventListener('input', updateDisplays);
+});
+
+// ==================== 按钮布局应用 ====================
+function applyButtonLayouts() {
+    const layouts = settings.buttonLayouts || defaultLayouts;
+    
+    const joy = document.getElementById('joystick');
+    const jl = layouts.joystick || defaultLayouts.joystick;
+    joy.style.left = jl.x + '%'; joy.style.top = jl.y + '%';
+    joy.style.width = jl.size + 'px'; joy.style.height = jl.size + 'px';
+    joy.style.bottom = 'auto'; joy.style.right = 'auto';
+    joy.style.borderRadius = jl.shape === 'circle' ? '50%' : '4px';
+    joy.style.display = (gameActive && !jl.hidden) ? 'block' : 'none';
+    
+    const lighter = document.getElementById('lighterBtn');
+    const ll = layouts.lighter || defaultLayouts.lighter;
+    lighter.style.left = ll.x + '%'; lighter.style.top = ll.y + '%';
+    lighter.style.width = ll.size + 'px';
+    lighter.style.height = (ll.shape === 'golden' ? ll.size / 1.618 : ll.size) + 'px';
+    lighter.style.right = 'auto'; lighter.style.bottom = 'auto';
+    lighter.style.borderRadius = ll.shape === 'circle' ? '50%' : '4px';
+    lighter.style.display = (gameActive && !ll.hidden) ? 'flex' : 'none';
+    
+    const back = document.getElementById('backBtn');
+    const bl = layouts.back || defaultLayouts.back;
+    back.style.left = bl.x + '%'; back.style.top = bl.y + '%';
+    back.style.width = bl.size + 'px';
+    back.style.height = (bl.shape === 'golden' ? bl.size / 1.618 : bl.size) + 'px';
+    back.style.right = 'auto'; back.style.bottom = 'auto';
+    back.style.borderRadius = bl.shape === 'circle' ? '50%' : '4px';
+    back.style.display = (gameActive && !bl.hidden) ? 'flex' : 'none';
+    
+    const interact = document.getElementById('interactBtn');
+    const il = layouts.interact || defaultLayouts.interact;
+    interact.style.left = il.x + '%'; interact.style.top = il.y + '%';
+    interact.style.width = il.size + 'px';
+    interact.style.height = (il.shape === 'golden' ? il.size / 1.618 : il.size) + 'px';
+    interact.style.right = 'auto'; interact.style.bottom = 'auto';
+    interact.style.borderRadius = il.shape === 'circle' ? '50%' : '4px';
+    interact.style.display = (gameActive && !il.hidden) ? 'flex' : 'none';
+    
+    const pickup = document.getElementById('pickupBtn');
+    const pl = layouts.pickup || defaultLayouts.pickup;
+    pickup.style.left = pl.x + '%'; pickup.style.top = pl.y + '%';
+    pickup.style.width = pl.size + 'px';
+    pickup.style.height = (pl.shape === 'golden' ? pl.size / 1.618 : pl.size) + 'px';
+    pickup.style.right = 'auto'; pickup.style.bottom = 'auto';
+    pickup.style.borderRadius = pl.shape === 'circle' ? '50%' : '4px';
+    pickup.style.display = (gameActive && !pl.hidden) ? 'flex' : 'none';
+    
+    const lfb = document.getElementById('lighterFuelBar');
+    const lfl = layouts.lighterFuelBar || defaultLayouts.lighterFuelBar;
+    lfb.style.left = lfl.x + '%'; lfb.style.top = lfl.y + '%';
+    lfb.style.width = lfl.size + 'px'; lfb.style.height = (lfl.size / 16) + 'px';
+    
+    const sb = document.getElementById('sanityBar');
+    const sl = layouts.sanityBar || defaultLayouts.sanityBar;
+    sb.style.left = sl.x + '%'; sb.style.top = sl.y + '%';
+    sb.style.width = sl.size + 'px'; sb.style.height = (sl.size / 16) + 'px';
+    
+    const hb = document.getElementById('highlightBox');
+    const hl = layouts.highlightBox || defaultLayouts.highlightBox;
+    hb.style.left = hl.x + '%'; hb.style.top = hl.y + '%';
+    hb.style.width = 'auto'; hb.style.minWidth = hl.size + 'px';
+}
+
+// ==================== 按钮编辑器 ====================
+let tempLayouts = {}, currentEditTarget = null;
+let editDragState = { key: null, dragging: false, longTriggered: false, startX: 0, startY: 0, origX: 0, origY: 0, timer: null };
+
+function updateEditBtnStyle(el, layout) {
+    el.style.left = layout.x + '%'; el.style.top = layout.y + '%'; el.style.width = layout.size + 'px';
+    const key = el.dataset.btn;
+    if (key === 'lighterFuelBar' || key === 'sanityBar') {
+        el.style.height = (layout.size / 16).toFixed(1) + 'px';
+    } else if (key === 'highlightBox') {
+        el.style.height = (layout.size / 8).toFixed(1) + 'px';
+    } else if (layout.shape === 'circle') {
+        el.style.height = layout.size + 'px'; el.style.borderRadius = '50%';
+    } else if (layout.shape === 'square') {
+        el.style.height = layout.size + 'px'; el.style.borderRadius = '4px';
+    } else {
+        el.style.height = (layout.size / 1.618).toFixed(1) + 'px'; el.style.borderRadius = '4px';
+    }
+    el.style.display = layout.hidden ? 'none' : 'flex';
+}
+
+function initButtonEditor() {
+    tempLayouts = {};
+    for (let k in defaultLayouts) {
+        tempLayouts[k] = settings.buttonLayouts && settings.buttonLayouts[k]
+            ? JSON.parse(JSON.stringify(settings.buttonLayouts[k]))
+            : {...defaultLayouts[k]};
+    }
+    document.querySelectorAll('.edit-btn').forEach(el => {
+        const key = el.dataset.btn;
+        if (tempLayouts[key]) updateEditBtnStyle(el, tempLayouts[key]);
+    });
+}
+
+function showEditMenu(key) {
+    currentEditTarget = key;
+    const layout = tempLayouts[key];
+    document.getElementById('editBtnSize').value = layout.size;
+    document.getElementById('editBtnSizeVal').textContent = layout.size + '%';
+    document.getElementById('editBtnHidden').checked = layout.hidden;
+    if (key === 'lighterFuelBar' || key === 'sanityBar' || key === 'highlightBox') {
+        document.getElementById('editBtnShape').closest('.setting-row').style.display = 'none';
+    } else {
+        document.getElementById('editBtnShape').closest('.setting-row').style.display = 'block';
+        document.getElementById('editBtnShape').value = layout.shape;
+    }
+    document.getElementById('btnEditMenu').style.display = 'block';
+}
+
+function onEditBtnPointerDown(e) {
+    e.preventDefault(); e.stopPropagation();
+    const key = e.target.dataset.btn;
+    if (!key) return;
+    editDragState.key = key; editDragState.dragging = false; editDragState.longTriggered = false;
+    editDragState.startX = e.clientX; editDragState.startY = e.clientY;
+    const rect = e.target.getBoundingClientRect();
+    editDragState.origX = rect.left; editDragState.origY = rect.top;
+    e.target.setPointerCapture(e.pointerId);
+    editDragState.timer = setTimeout(() => {
+        if (!editDragState.dragging && editDragState.key === key) {
+            editDragState.longTriggered = true;
+            showEditMenu(key);
+        }
+    }, 800);
+}
+
+function onEditBtnPointerMove(e) {
+    if (!editDragState.key) return;
+    const dx = e.clientX - editDragState.startX, dy = e.clientY - editDragState.startY;
+    if (!editDragState.dragging && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+        editDragState.dragging = true;
+        if (editDragState.timer) { clearTimeout(editDragState.timer); editDragState.timer = null; }
+    }
+    if (editDragState.dragging) {
+        const el = document.querySelector(`.edit-btn[data-btn="${editDragState.key}"]`);
+        if (el) { el.style.left = (editDragState.origX + dx) + 'px'; el.style.top = (editDragState.origY + dy) + 'px'; }
+    }
+}
+
+function onEditBtnPointerUp(e) {
+    if (!editDragState.key) return;
+    if (editDragState.timer) { clearTimeout(editDragState.timer); editDragState.timer = null; }
+    if (editDragState.dragging && !editDragState.longTriggered) {
+        const el = document.querySelector(`.edit-btn[data-btn="${editDragState.key}"]`);
+        if (el) {
+            const rect = el.getBoundingClientRect();
+            tempLayouts[editDragState.key].x = parseFloat((rect.left / window.innerWidth * 100).toFixed(1));
+            tempLayouts[editDragState.key].y = parseFloat((rect.top / window.innerHeight * 100).toFixed(1));
+        }
+    }
+    editDragState.key = null; editDragState.dragging = false; editDragState.longTriggered = false;
+}
+
+document.querySelectorAll('.edit-btn').forEach(el => {
+    el.addEventListener('pointerdown', onEditBtnPointerDown);
+});
+const buttonEditor = document.getElementById('buttonEditor');
+buttonEditor.addEventListener('pointermove', onEditBtnPointerMove);
+buttonEditor.addEventListener('pointerup', onEditBtnPointerUp);
+buttonEditor.addEventListener('pointercancel', onEditBtnPointerUp);
+
+document.getElementById('editBtnSize').addEventListener('input', (e) => {
+    document.getElementById('editBtnSizeVal').textContent = e.target.value + '%';
+});
+
+document.getElementById('editBtnSave').addEventListener('click', () => {
+    if (!currentEditTarget) return;
+    const layout = tempLayouts[currentEditTarget];
+    layout.size = parseInt(document.getElementById('editBtnSize').value);
+    layout.hidden = document.getElementById('editBtnHidden').checked;
+    if (!(currentEditTarget === 'lighterFuelBar' || currentEditTarget === 'sanityBar' || currentEditTarget === 'highlightBox')) {
+        layout.shape = document.getElementById('editBtnShape').value;
+    }
+    document.getElementById('btnEditMenu').style.display = 'none';
+    const el = document.querySelector(`.edit-btn[data-btn="${currentEditTarget}"]`);
+    if (el) updateEditBtnStyle(el, layout);
+    currentEditTarget = null;
+});
+
+document.getElementById('btnSaveLayout').addEventListener('click', () => {
+    settings.buttonLayouts = JSON.parse(JSON.stringify(tempLayouts));
+    saveSettings();
+    document.getElementById('buttonEditor').style.display = 'none';
+    document.getElementById('settings').style.display = 'block';
+    applyButtonLayouts();
+});
+
+document.getElementById('btnAdjustLayout').addEventListener('click', () => {
+    document.getElementById('settings').style.display = 'none';
+    document.getElementById('buttonEditor').style.display = 'block';
+    initButtonEditor();
+});
+
+// ==================== PC按键编辑器 ====================
+function initPcKeyEditor() {
+    const list = document.getElementById('pcKeyList');
+    list.innerHTML = '';
+    const keys = settings.pcKeys || {...defaultPcKeys};
+    const names = { lighter: '打火机', interact: '互动', pickup: '拾取/使用', back: '返回菜单' };
+    const keyOptions = ['KeyQ','KeyW','KeyE','KeyR','KeyT','KeyY','KeyU','KeyI','KeyO','KeyP','KeyA','KeyS','KeyD','KeyF','KeyG','KeyH','KeyJ','KeyK','KeyL','KeyZ','KeyX','KeyC','KeyV','KeyB','KeyN','KeyM','Digit1','Digit2','Digit3','Digit4','Digit5','Space','Enter','Escape','ShiftLeft','ControlLeft','AltLeft','Tab'];
+    
+    for (let action in names) {
+        const row = document.createElement('div');
+        row.style.cssText = 'margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;';
+        const label = document.createElement('span');
+        label.textContent = names[action];
+        label.style.fontSize = '18px';
+        const select = document.createElement('select');
+        select.dataset.action = action;
+        select.style.cssText = 'width:160px;padding:8px;font-size:16px;background:#1a1a1a;color:#fff;border:2px solid #e6c840;border-radius:4px;';
+        keyOptions.forEach(k => {
+            const opt = document.createElement('option');
+            opt.value = k; opt.textContent = k;
+            if (keys[action] === k) opt.selected = true;
+            select.appendChild(opt);
+        });
+        row.appendChild(label);
+        row.appendChild(select);
+        list.appendChild(row);
+    }
+}
+
+document.getElementById('btnPcControls').addEventListener('click', () => {
+    document.getElementById('settings').style.display = 'none';
+    document.getElementById('pcKeyEditor').style.display = 'block';
+    initPcKeyEditor();
+});
+
+document.getElementById('btnSavePcKeys').addEventListener('click', () => {
+    const keys = {};
+    document.querySelectorAll('#pcKeyList select').forEach(sel => {
+        keys[sel.dataset.action] = sel.value;
+    });
+    settings.pcKeys = keys;
+    saveSettings();
+    document.getElementById('pcKeyEditor').style.display = 'none';
+    document.getElementById('settings').style.display = 'block';
+});
+
+// ==================== 界面切换 ====================
+const menu = document.getElementById('menu');
+const settingsDiv = document.getElementById('settings');
+const gameUI = document.getElementById('gameUI');
+const canvasContainer = document.getElementById('canvas-container');
+const deathScreen = document.getElementById('deathScreen');
+const winScreen = document.getElementById('winScreen');
+const sanityDeathScreen = document.getElementById('sanityDeathScreen');
+const easterScreen = document.getElementById('easterScreen');
+const fpsDisplay = document.getElementById('fpsDisplay');
+
+document.getElementById('btnSettings').addEventListener('click', () => {
+    settingsDiv.style.display = 'block';
+});
+document.getElementById('btnSave').addEventListener('click', () => {
+    saveSettings();
+    settingsDiv.style.display = 'none';
+    if (gameActive) applySettings();
+});
+document.getElementById('btnStart').addEventListener('click', startGame);
+document.getElementById('btnStart').addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    startGame();
+}, {passive: false});
+document.getElementById('btnStart').addEventListener('mousedown', (e) => {
+    if (e.button === 0) startGame();
+});
+
+// ==================== Three.js 核心 ====================
+let scene, camera, renderer, gameActive = false, gameState = 'playing';
+let maze = [], mazeW, mazeH, cellSize = 2.2;
+let wallHeight = 2.56;
+let cameraHeight = 1.6;
+let walls = [], floor, ceiling;
+let lights = [], lighterLight = null;
+let ambientLight;
+let entities = [], exits = [], lockers = [], almondWaters = [], sprayCans = [], lighterFuels = [];
+let easterWallPositions = [];
+let joystick = { active: false, dx: 0, dy: 0, originX: 0, originY: 0, maxR: 0 };
+let lookInput = { active: false, lastX: 0, lastY: 0 };
+let clock = new THREE.Clock();
+let fpsFrameCount = 0, fpsLastTime = 0;
+let hiding = false;
+let currentInteractable = null;
+let currentPickupable = null;
+let lighterFuel = 100;
+let sanity = 100;
+let holdingAlmond = false, holdingSpray = false, holdingFuel = false;
+let handGroup = null;
+let sprayMarks = [], isSpraying = false, lastSprayTime = 0, sprayColorIndex = 0;
+const sprayColors = [0xff0000, 0xffa500, 0xffff00, 0x00ff00, 0x0000ff, 0x800080, 0xffffff];
+let audioCtx = null, ambientOsc = null, ambientGain = null;
+let nextFlickerTime = 0, flickerTarget = null, flickerEndTime = 0;
+let pressedKeys = new Set();
+let occupiedGrid = new Set();
+
+function initThree() {
+    if (renderer) return;
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f0e08);
+    const fov = settings.fov || 75;
+    camera = new THREE.PerspectiveCamera(fov, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, cameraHeight, 0);
+    camera.rotation.order = 'YXZ';
+    renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.domElement.style.display = 'block';
+    canvasContainer.appendChild(renderer.domElement);
+    scene.add(camera);
+    window.addEventListener('resize', onResize);
+}
+
+function onResize() {
+    if (!camera || !renderer) return;
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// ==================== 像素格纹理 ====================
+function createPixelTexture(baseColor, pixelSize, widthUnits, heightUnits) {
+    const w = Math.max(32, Math.floor(widthUnits / pixelSize));
+    const h = Math.max(32, Math.floor(heightUnits / pixelSize));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    const base = new THREE.Color(baseColor);
+    
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            let r, g, b;
+            if (Math.random() < 0.5) {
+                r = base.r; g = base.g; b = base.b;
+            } else {
+                const v = (Math.random() - 0.5) * 0.12;
+                r = Math.max(0, Math.min(1, base.r + v));
+                g = Math.max(0, Math.min(1, base.g + v));
+                b = Math.max(0, Math.min(1, base.b + v));
+            }
+            ctx.fillStyle = `rgb(${Math.floor(r*255)},${Math.floor(g*255)},${Math.floor(b*255)})`;
+            ctx.fillRect(x, y, 1, 1);
+        }
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearFilter;
+    return tex;
+}
+
+function getMaterial(baseColor, texture) {
+    const quality = settings.quality || 'simple';
+    if (quality === 'extreme') {
+        const mat = new THREE.MeshStandardMaterial({ color: baseColor, roughness: 0.6, metalness: 0.05 });
+        if (texture) mat.map = texture;
+        return mat;
+    } else {
+        const mat = new THREE.MeshLambertMaterial({ color: baseColor });
+        if (texture) mat.map = texture;
+        return mat;
+    }
+}
+
+// ==================== 占用网格管理 ====================
+function isOccupied(x, z, grid) {
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+            if (grid.has(`${x+dx},${z+dz}`)) return true;
+        }
+    }
+    return false;
+}
+
+function occupy(x, z, grid) {
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+            grid.add(`${x+dx},${z+dz}`);
+        }
+    }
+}
+
+function removeCellAndNeighbors(cells, cell) {
+    for (let i = cells.length - 1; i >= 0; i--) {
+        if (Math.abs(cells[i].x - cell.x) <= 1 && Math.abs(cells[i].z - cell.z) <= 1) {
+            cells.splice(i, 1);
+        }
+    }
+}
+
+// ==================== 迷宫生成 ====================
+function generateMaze() {
+    mazeW = Math.max(10, Math.min(60, settings.mazeW));
+    mazeH = Math.max(10, Math.min(60, settings.mazeH));
+    maze = [];
+    for (let y = 0; y < mazeH; y++) {
+        maze[y] = [];
+        for (let x = 0; x < mazeW; x++) {
+            if (x === 0 || x === mazeW - 1 || y === 0 || y === mazeH - 1) maze[y][x] = 1;
+            else maze[y][x] = Math.random() < 0.38 ? 1 : 0;
+        }
+    }
+    const cx = Math.floor(mazeW / 2);
+    const cy = Math.floor(mazeH / 2);
+    for (let dy = -3; dy <= 3; dy++) {
+        for (let dx = -3; dx <= 3; dx++) {
+            const ny = cy + dy, nx = cx + dx;
+            if (ny >= 0 && ny < mazeH && nx >= 0 && nx < mazeW) maze[ny][nx] = 0;
+        }
+    }
+    for (let i = 0; i < mazeW * mazeH * 0.06; i++) {
+        const rx = Math.floor(Math.random() * (mazeW - 2)) + 1;
+        const ry = Math.floor(Math.random() * (mazeH - 2)) + 1;
+        maze[ry][rx] = 0;
+    }
+}
+
+// ==================== 区块生成 ====================
+function spawnItemsInBlock(cells, probability, limit, createFn) {
+    if (Math.random() >= probability || cells.length === 0) return;
+    let available = cells.filter(c => !isOccupied(c.x, c.z, occupiedGrid));
+    if (available.length === 0) return;
+    const maxCount = Math.min(limit, available.length);
+    const count = Math.floor(Math.random() * maxCount) + 1;
+    
+    for (let i = 0; i < count; i++) {
+        available = cells.filter(c => !isOccupied(c.x, c.z, occupiedGrid));
+        if (available.length === 0) break;
+        const idx = Math.floor(Math.random() * available.length);
+        const cell = available[idx];
+        removeCellAndNeighbors(cells, cell);
+        occupy(cell.x, cell.z, occupiedGrid);
+        createFn(cell);
+    }
+}
+
+function spawnEntitiesAndExits() {
+    entities.forEach(e => scene.remove(e.mesh));
+    exits.forEach(e => scene.remove(e.mesh));
+    lockers.forEach(l => scene.remove(l.mesh));
+    almondWaters.forEach(a => scene.remove(a.group));
+    sprayCans.forEach(s => scene.remove(s.group));
+    lighterFuels.forEach(l => scene.remove(l.group));
+    entities = []; exits = []; lockers = []; almondWaters = []; sprayCans = []; lighterFuels = [];
+    
+    const blockSize = Math.max(5, settings.blockSize);
+    const blocksX = Math.ceil(mazeW / blockSize);
+    const blocksZ = Math.ceil(mazeH / blockSize);
+    const entityProb = settings.entityProb / 100;
+    const exitProb = settings.exitProb / 100;
+    const lockerProb = settings.lockerProb / 100;
+    const almondProb = settings.almondProb / 100;
+    const sprayProb = settings.sprayProb / 100;
+    const fuelProb = settings.lighterFuelProb / 100;
+    const itemLimit = Math.max(1, Math.min(50, settings.itemSpawnLimit || 5));
+    
+    for (let bz = 0; bz < blocksZ; bz++) {
+        for (let bx = 0; bx < blocksX; bx++) {
+            const startX = bx * blockSize;
+            const endX = Math.min((bx + 1) * blockSize, mazeW);
+            const startZ = bz * blockSize;
+            const endZ = Math.min((bz + 1) * blockSize, mazeH);
+            
+            let emptyCells = [];
+            for (let z = startZ; z < endZ; z++) {
+                for (let x = startX; x < endX; x++) {
+                    if (maze[z][x] === 0) emptyCells.push({x, z});
+                }
+            }
+            if (emptyCells.length === 0) continue;
+            
+            spawnItemsInBlock(emptyCells, entityProb, itemLimit, (cell) => createEntity(cell.x, cell.z));
+            spawnItemsInBlock(emptyCells, exitProb, itemLimit, (cell) => createExit(cell.x, cell.z));
+            spawnItemsInBlock(emptyCells, lockerProb, itemLimit, (cell) => createLocker(cell.x, cell.z));
+            spawnItemsInBlock(emptyCells, almondProb, itemLimit, (cell) => createAlmondWater(cell.x, cell.z));
+            spawnItemsInBlock(emptyCells, sprayProb, itemLimit, (cell) => createSprayCan(cell.x, cell.z));
+            spawnItemsInBlock(emptyCells, fuelProb, itemLimit, (cell) => createLighterFuel(cell.x, cell.z));
+        }
+    }
+}
+
+function createEntity(gx, gz) {
+    const group = new THREE.Group();
+    const bodyGeo = new THREE.BoxGeometry(0.42, 1.05, 0.26);
+    const blackRedMat = new THREE.MeshLambertMaterial({ color: 0x330000 });
+    const body = new THREE.Mesh(bodyGeo, blackRedMat);
+    body.position.y = 0.525;
+    group.add(body);
+    const headGeo = new THREE.SphereGeometry(0.17, 8, 8);
+    const head = new THREE.Mesh(headGeo, blackRedMat);
+    head.position.y = 1.12;
+    group.add(head);
+    group.position.set(gx * cellSize, 0, gz * cellSize);
+    scene.add(group);
+    entities.push({ mesh: group, x: gx * cellSize, z: gz * cellSize, state: 'wander', wanderDir: { x: Math.random() - 0.5, z: Math.random() - 0.5 }, wanderTimer: 2 + Math.random() * 3, speed: 0 });
+}
+
+function createExit(gx, gz) {
+    const geo = new THREE.BoxGeometry(0.6, 0.06, 0.6);
+    const mat = new THREE.MeshLambertMaterial({ color: 0x777777 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(gx * cellSize, 0.03, gz * cellSize);
+    scene.add(mesh);
+    exits.push({ mesh, x: gx * cellSize, z: gz * cellSize });
+}
+
+function createLocker(gx, gz) {
+    const w = 1.0, h = 2.0, d = 0.6;
+    const geo = new THREE.BoxGeometry(w, h, d);
+    const mat = new THREE.MeshLambertMaterial({ color: 0x777777, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(gx * cellSize, h / 2, gz * cellSize);
+    scene.add(mesh);
+    lockers.push({ mesh, x: gx * cellSize, z: gz * cellSize, w, h, d });
+}
+
+function createAlmondWater(gx, gz) {
+    const group = new THREE.Group();
+    const tableGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+    const tableMat = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+    const table = new THREE.Mesh(tableGeo, tableMat);
+    table.position.y = 0.2;
+    group.add(table);
+    
+    const bottleGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.25, 12);
+    const bottleMat = new THREE.MeshLambertMaterial({ color: 0xD2B48C });
+    const bottle = new THREE.Mesh(bottleGeo, bottleMat);
+    bottle.position.y = 0.525;
+    group.add(bottle);
+    
+    group.position.set(gx * cellSize, 0, gz * cellSize);
+    scene.add(group);
+    
+    almondWaters.push({
+        hasTable: true,
+        tableMesh: table,
+        bottleMesh: bottle,
+        group: group,
+        x: gx * cellSize,
+        z: gz * cellSize,
+        picked: false
+    });
+}
+
+function createSprayCan(gx, gz) {
+    const group = new THREE.Group();
+    const tableGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+    const tableMat = new THREE.MeshLambertMaterial({ color: 0xAAAAAA });
+    const table = new THREE.Mesh(tableGeo, tableMat);
+    table.position.y = 0.2;
+    group.add(table);
+    
+    const canGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.25, 12);
+    const canMat = new THREE.MeshLambertMaterial({ color: 0xff8c00 });
+    const can = new THREE.Mesh(canGeo, canMat);
+    can.position.y = 0.525;
+    group.add(can);
+    
+    const capGeo = new THREE.BoxGeometry(0.04, 0.04, 0.04);
+    const capMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const cap = new THREE.Mesh(capGeo, capMat);
+    cap.position.y = 0.525 + 0.125 + 0.02;
+    group.add(cap);
+    
+    group.position.set(gx * cellSize, 0, gz * cellSize);
+    scene.add(group);
+    
+    sprayCans.push({
+        hasTable: true,
+        tableMesh: table,
+        canMesh: can,
+        capMesh: cap,
+        group: group,
+        x: gx * cellSize,
+        z: gz * cellSize,
+        picked: false
+    });
+}
+
+function createLighterFuel(gx, gz) {
+    const group = new THREE.Group();
+    const tableGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+    const tableMat = new THREE.MeshLambertMaterial({ color: 0xFFFFFF });
+    const table = new THREE.Mesh(tableGeo, tableMat);
+    table.position.y = 0.2;
+    group.add(table);
+    
+    const bottleGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.25, 12);
+    const bottleMat = new THREE.MeshLambertMaterial({ color: 0x006400 });
+    const bottle = new THREE.Mesh(bottleGeo, bottleMat);
+    bottle.position.y = 0.525;
+    group.add(bottle);
+    
+    group.position.set(gx * cellSize, 0, gz * cellSize);
+    scene.add(group);
+    
+    lighterFuels.push({
+        hasTable: true,
+        tableMesh: table,
+        bottleMesh: bottle,
+        group: group,
+        x: gx * cellSize,
+        z: gz * cellSize,
+        picked: false
+    });
+}
+
+// ==================== 场景构建 ====================
+function clearSceneObjects() {
+    walls.forEach(obj => { scene.remove(obj); if(obj.geometry) obj.geometry.dispose(); });
+    walls = [];
+    lights.forEach(l => scene.remove(l));
+    lights = [];
+    if (lighterLight) { scene.remove(lighterLight); lighterLight = null; }
+    if (floor) { scene.remove(floor); floor = null; }
+    if (ceiling) { scene.remove(ceiling); ceiling = null; }
+    if (ambientLight) { scene.remove(ambientLight); ambientLight = null; }
+    entities.forEach(e => scene.remove(e.mesh));
+    entities = [];
+    exits.forEach(e => scene.remove(e.mesh));
+    exits = [];
+    lockers.forEach(l => scene.remove(l.mesh));
+    lockers = [];
+    almondWaters.forEach(a => scene.remove(a.group));
+    almondWaters = [];
+    sprayCans.forEach(s => scene.remove(s.group));
+    sprayCans = [];
+    lighterFuels.forEach(l => scene.remove(l.group));
+    lighterFuels = [];
+    easterWallPositions = [];
+    if (handGroup) { camera.remove(handGroup); handGroup = null; }
+    sprayMarks.forEach(m => scene.remove(m));
+    sprayMarks = [];
+    occupiedGrid = new Set();
+}
+
+function buildScene() {
+    clearSceneObjects();
+    
+    const wallColor = 0x9e8b4c;
+    const floorColor = 0xC4A484;
+    const ceilColor = 0x9e8b4c;
+    
+    const pixelSize = (settings.quality === 'high' || settings.quality === 'extreme') ? 0.5 : 1.0;
+    const wallTex = createPixelTexture(wallColor, 0.03, cellSize, wallHeight);
+    const floorTex = createPixelTexture(floorColor, pixelSize, mazeW * cellSize, mazeH * cellSize);
+    const ceilTex = createPixelTexture(ceilColor, pixelSize, mazeW * cellSize, mazeH * cellSize);
+    const lampTex = createPixelTexture(0xfff8e1, 0.03, 0.5, 0.8);
+    
+    const wallMat = getMaterial(wallColor, wallTex);
+    const easterMat = getMaterial(0xFF69B4, null);
+    const floorMat = getMaterial(floorColor, floorTex);
+    const ceilMat = getMaterial(ceilColor, ceilTex);
+    
+    const floorGeo = new THREE.PlaneGeometry(mazeW * cellSize, mazeH * cellSize);
+    floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.set((mazeW - 1) * cellSize / 2, 0, (mazeH - 1) * cellSize / 2);
+    scene.add(floor);
+    
+    const ceilGeo = new THREE.PlaneGeometry(mazeW * cellSize, mazeH * cellSize);
+    ceiling = new THREE.Mesh(ceilGeo, ceilMat);
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.set((mazeW - 1) * cellSize / 2, wallHeight - 0.02, (mazeH - 1) * cellSize / 2);
+    scene.add(ceiling);
+    
+    const blockSize = Math.max(5, settings.blockSize);
+    const blockWalls = {};
+    for (let y = 0; y < mazeH; y++) {
+        for (let x = 0; x < mazeW; x++) {
+            if (maze[y][x] === 1) {
+                const bx = Math.floor(x / blockSize);
+                const bz = Math.floor(y / blockSize);
+                const key = `${bx},${bz}`;
+                if (!blockWalls[key]) blockWalls[key] = [];
+                blockWalls[key].push({x, y});
+            }
+        }
+    }
+    for (let key in blockWalls) {
+        if (Math.random() < 0.01 && blockWalls[key].length > 0) {
+            const w = blockWalls[key][Math.floor(Math.random() * blockWalls[key].length)];
+            easterWallPositions.push(w);
+        }
+    }
+    
+    const boxGeo = new THREE.BoxGeometry(cellSize, wallHeight, cellSize);
+    for (let y = 0; y < mazeH; y++) {
+        for (let x = 0; x < mazeW; x++) {
+            if (maze[y][x] === 1) {
+                const isEaster = easterWallPositions.some(ew => ew.x === x && ew.y === y);
+                const wall = new THREE.Mesh(boxGeo, isEaster ? easterMat : wallMat);
+                wall.position.set(x * cellSize, wallHeight / 2, y * cellSize);
+                scene.add(wall);
+                walls.push(wall);
+            }
+        }
+    }
+    
+    const gammaMult = settings.gamma / 100;
+    const ambientIntensity = (settings.quality === 'extreme') ? 1.2 : 0.6;
+    ambientLight = new THREE.AmbientLight(0x443322, ambientIntensity * gammaMult);
+    scene.add(ambientLight);
+    
+    // 每个区块内至少1盏灯，最多5盏灯
+    const blocksX = Math.ceil(mazeW / blockSize);
+    const blocksZ = Math.ceil(mazeH / blockSize);
+    const lampW = 0.5;
+    const lampD = lampW * 1.618;
+    const lampGeo = new THREE.BoxGeometry(lampW, 0.02, lampD);
+    const lampMatBase = new THREE.MeshBasicMaterial({ map: lampTex });
+    
+    for (let bz = 0; bz < blocksZ; bz++) {
+        for (let bx = 0; bx < blocksX; bx++) {
+            const startX = bx * blockSize;
+            const endX = Math.min((bx + 1) * blockSize, mazeW);
+            const startZ = bz * blockSize;
+            const endZ = Math.min((bz + 1) * blockSize, mazeH);
+            
+            let emptyCells = [];
+            for (let z = startZ; z < endZ; z++) {
+                for (let x = startX; x < endX; x++) {
+                    if (maze[z][x] === 0) emptyCells.push({x, z});
+                }
+            }
+            
+            if (emptyCells.length === 0) continue;
+            
+            const lightCount = Math.min(5, Math.max(1, Math.floor(Math.random() * 5) + 1));
+            const actualCount = Math.min(lightCount, emptyCells.length);
+            
+            for (let i = 0; i < actualCount; i++) {
+                const available = emptyCells.filter(c => !isOccupied(c.x, c.z, occupiedGrid));
+                if (available.length === 0) break;
+                const idx = Math.floor(Math.random() * available.length);
+                const cell = available[idx];
+                removeCellAndNeighbors(emptyCells, cell);
+                occupy(cell.x, cell.z, occupiedGrid);
+                
+                const intensity = (0.6 + Math.random() * 0.6) * 2;
+                const dist = 7 + Math.random() * 5;
+                const light = new THREE.PointLight(0xfff8e1, intensity, dist);
+                light.position.set(cell.x * cellSize, cameraHeight, cell.z * cellSize);
+                scene.add(light);
+                lights.push(light);
+                
+                const lamp = new THREE.Mesh(lampGeo, lampMatBase);
+                lamp.position.set(cell.x * cellSize, wallHeight - 0.04, cell.z * cellSize);
+                scene.add(lamp);
+                walls.push(lamp);
+            }
+        }
+    }
+    
+    // 修复墙消失：确保渲染距离覆盖整个迷宫
+    const maxDim = Math.max(mazeW, mazeH) * cellSize;
+    const renderDist = Math.max(22 * (settings.renderDist / 100), maxDim * 0.6);
+    camera.far = Math.max(30, renderDist * 2.5);
+    camera.updateProjectionMatrix();
+    scene.fog = new THREE.Fog(wallColor, renderDist * 0.25, renderDist);
+    
+    camera.position.set(Math.floor(mazeW / 2) * cellSize, cameraHeight, Math.floor(mazeH / 2) * cellSize);
+    camera.rotation.set(0, Math.random() * Math.PI * 2, 0);
+    
+    spawnEntitiesAndExits();
+    clearNearbyItems();
+}
+
+function clearNearbyItems() {
+    const range = 5 * cellSize;
+    const px = camera.position.x, pz = camera.position.z;
+    
+    almondWaters = almondWaters.filter(aw => {
+        const d = Math.sqrt((aw.x-px)**2 + (aw.z-pz)**2);
+        if (d < range) { scene.remove(aw.group); return false; }
+        return true;
+    });
+    sprayCans = sprayCans.filter(sc => {
+        const d = Math.sqrt((sc.x-px)**2 + (sc.z-pz)**2);
+        if (d < range) { scene.remove(sc.group); return false; }
+        return true;
+    });
+    lighterFuels = lighterFuels.filter(lf => {
+        const d = Math.sqrt((lf.x-px)**2 + (lf.z-pz)**2);
+        if (d < range) { scene.remove(lf.group); return false; }
+        return true;
+    });
+}
+
+function initAudio() {
+    if (!audioCtx) {
+        try {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            ambientOsc = audioCtx.createOscillator();
+            ambientOsc.type = 'sawtooth';
+            ambientOsc.frequency.value = 50;
+            ambientGain = audioCtx.createGain();
+            ambientGain.gain.value = 0;
+            ambientOsc.connect(ambientGain);
+            ambientGain.connect(audioCtx.destination);
+            ambientOsc.start();
+        } catch(e) {}
+    }
+}
+
+function toggleLighter() {
+    const btn = document.getElementById('lighterBtn');
+    if (lighterLight) {
+        scene.remove(lighterLight);
+        lighterLight = null;
+        btn.classList.remove('active');
+    } else {
+        const dist = 9 * (settings.lighter / 100);
+        lighterLight = new THREE.PointLight(0xffaa00, 1.5, dist);
+        lighterLight.position.copy(camera.position);
+        scene.add(lighterLight);
+        btn.classList.add('active');
+    }
+}
+
+function applySettings() {
+    camera.fov = settings.fov || 75;
+    camera.updateProjectionMatrix();
+    buildScene();
+    applyButtonLayouts();
+}
+
+// ==================== 碰撞检测 ====================
+function canMoveTo(newX, newZ, radius) {
+    const r = radius || 0.35;
+    const minGridX = Math.floor((newX - r) / cellSize + 0.5);
+    const maxGridX = Math.floor((newX + r) / cellSize + 0.5);
+    const minGridZ = Math.floor((newZ - r) / cellSize + 0.5);
+    const maxGridZ = Math.floor((newZ + r) / cellSize + 0.5);
+    for (let gz = minGridZ; gz <= maxGridZ; gz++) {
+        for (let gx = minGridX; gx <= maxGridX; gx++) {
+            if (gz < 0 || gz >= mazeH || gx < 0 || gx >= mazeW) return false;
+            if (maze[gz][gx] === 1) {
+                const wallMinX = gx * cellSize - cellSize / 2;
+                const wallMaxX = gx * cellSize + cellSize / 2;
+                const wallMinZ = gz * cellSize - cellSize / 2;
+                const wallMaxZ = gz * cellSize + cellSize / 2;
+                const closestX = Math.max(wallMinX, Math.min(newX, wallMaxX));
+                const closestZ = Math.max(wallMinZ, Math.min(newZ, wallMaxZ));
+                const distX = newX - closestX;
+                const distZ = newZ - closestZ;
+                if (distX * distX + distZ * distZ < r * r) return false;
+            }
+        }
+    }
+    for (let aw of almondWaters) {
+        if (!aw.hasTable || !aw.tableMesh) continue;
+        const tx = aw.x, tz = aw.z;
+        const half = 0.25;
+        const closestX = Math.max(tx - half, Math.min(newX, tx + half));
+        const closestZ = Math.max(tz - half, Math.min(newZ, tz + half));
+        const dx = newX - closestX, dz = newZ - closestZ;
+        if (dx * dx + dz * dz < r * r) return false;
+    }
+    for (let sc of sprayCans) {
+        if (!sc.hasTable || !sc.tableMesh) continue;
+        const tx = sc.x, tz = sc.z;
+        const half = 0.25;
+        const closestX = Math.max(tx - half, Math.min(newX, tx + half));
+        const closestZ = Math.max(tz - half, Math.min(newZ, tz + half));
+        const dx = newX - closestX, dz = newZ - closestZ;
+        if (dx * dx + dz * dz < r * r) return false;
+    }
+    for (let lf of lighterFuels) {
+        if (!lf.hasTable || !lf.tableMesh) continue;
+        const tx = lf.x, tz = lf.z;
+        const half = 0.25;
+        const closestX = Math.max(tx - half, Math.min(newX, tx + half));
+        const closestZ = Math.max(tz - half, Math.min(newZ, tz + half));
+        const dx = newX - closestX, dz = newZ - closestZ;
+        if (dx * dx + dz * dz < r * r) return false;
+    }
+    return true;
+}
+
+// ==================== 互动与拾取 ====================
+function getInteractable() {
+    if (hiding) return null;
+    const px = camera.position.x;
+    const pz = camera.position.z;
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    forward.y = 0; forward.normalize();
+    const maxDist = settings.interactDist;
+    let best = null;
+    let bestScore = Infinity;
+    
+    for (let locker of lockers) {
+        const dx = locker.x - px;
+        const dz = locker.z - pz;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > 3) continue;
+        const objDir = new THREE.Vector3(dx, 0, dz).normalize();
+        const dot = forward.dot(objDir);
+        if (dot < 0.5) continue;
+        const score = dist / (dot + 0.1);
+        if (score < bestScore) { best = { type: 'locker', obj: locker, dist }; bestScore = score; }
+    }
+    
+    for (let exit of exits) {
+        const dx = exit.x - px;
+        const dz = exit.z - pz;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > maxDist) continue;
+        const objDir = new THREE.Vector3(dx, 0, dz).normalize();
+        const dot = forward.dot(objDir);
+        if (dot < 0.5) continue;
+        const score = dist / (dot + 0.1);
+        if (score < bestScore) { best = { type: 'exit', obj: exit, dist }; bestScore = score; }
+    }
+    
+    for (let ew of easterWallPositions) {
+        const wx = ew.x * cellSize, wz = ew.y * cellSize;
+        const dx = wx - px, dz = wz - pz;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > maxDist) continue;
+        const objDir = new THREE.Vector3(dx, 0, dz).normalize();
+        const dot = forward.dot(objDir);
+        if (dot < 0.5) continue;
+        const score = dist / (dot + 0.1);
+        if (score < bestScore) { best = { type: 'easter', obj: ew, dist }; bestScore = score; }
+    }
+    
+    return best;
+}
+
+function getPickupable() {
+    if (hiding) return null;
+    const px = camera.position.x;
+    const pz = camera.position.z;
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    forward.y = 0; forward.normalize();
+    const maxDist = settings.interactDist;
+    let best = null;
+    let bestScore = Infinity;
+    
+    for (let aw of almondWaters) {
+        if (aw.picked) continue;
+        const dx = aw.x - px;
+        const dz = aw.z - pz;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > maxDist) continue;
+        const objDir = new THREE.Vector3(dx, 0, dz).normalize();
+        const dot = forward.dot(objDir);
+        if (dot < 0.5) continue;
+        const score = dist / (dot + 0.1);
+        if (score < bestScore) { best = { type: 'almond', obj: aw, dist }; bestScore = score; }
+    }
+    
+    for (let sc of sprayCans) {
+        if (sc.picked) continue;
+        const dx = sc.x - px;
+        const dz = sc.z - pz;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > maxDist) continue;
+        const objDir = new THREE.Vector3(dx, 0, dz).normalize();
+        const dot = forward.dot(objDir);
+        if (dot < 0.5) continue;
+        const score = dist / (dot + 0.1);
+        if (score < bestScore) { best = { type: 'spray', obj: sc, dist }; bestScore = score; }
+    }
+    
+    for (let lf of lighterFuels) {
+        if (lf.picked) continue;
+        const dx = lf.x - px;
+        const dz = lf.z - pz;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > maxDist) continue;
+        const objDir = new THREE.Vector3(dx, 0, dz).normalize();
+        const dot = forward.dot(objDir);
+        if (dot < 0.5) continue;
+        const score = dist / (dot + 0.1);
+        if (score < bestScore) { best = { type: 'lighterFuel', obj: lf, dist }; bestScore = score; }
+    }
+    
+    return best;
+}
+
+function createHandModel(type) {
+    if (handGroup) { camera.remove(handGroup); handGroup = null; }
+    handGroup = new THREE.Group();
+    if (type === 'almond') {
+        const geo = new THREE.CylinderGeometry(0.08, 0.08, 0.2, 12);
+        const mat = new THREE.MeshLambertMaterial({ color: 0xD2B48C });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.rotation.x = 0.3; mesh.rotation.z = -0.4;
+        mesh.position.set(0.25, -0.15, -0.35);
+        handGroup.add(mesh);
+    } else if (type === 'spray') {
+        const geo = new THREE.CylinderGeometry(0.08, 0.08, 0.2, 12);
+        const mat = new THREE.MeshLambertMaterial({ color: 0xff8c00 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.rotation.x = 0.3; mesh.rotation.z = -0.4;
+        mesh.position.set(0.25, -0.15, -0.35);
+        handGroup.add(mesh);
+        const capGeo = new THREE.BoxGeometry(0.03, 0.03, 0.03);
+        const capMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const cap = new THREE.Mesh(capGeo, capMat);
+        cap.position.set(0.25, -0.04, -0.35);
+        handGroup.add(cap);
+    } else if (type === 'fuel') {
+        const geo = new THREE.CylinderGeometry(0.08, 0.08, 0.2, 12);
+        const mat = new THREE.MeshLambertMaterial({ color: 0x006400 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.rotation.x = 0.3; mesh.rotation.z = -0.4;
+        mesh.position.set(0.25, -0.15, -0.35);
+        handGroup.add(mesh);
+    }
+    camera.add(handGroup);
+}
+
+function dropHandItem() {
+    const px = camera.position.x, pz = camera.position.z;
+    if (holdingAlmond) {
+        const bottleGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.25, 12);
+        const bottleMat = new THREE.MeshLambertMaterial({ color: 0xD2B48C });
+        const bottle = new THREE.Mesh(bottleGeo, bottleMat);
+        bottle.position.set(px, 0.525, pz);
+        scene.add(bottle);
+        almondWaters.push({ hasTable: false, tableMesh: null, bottleMesh: bottle, group: new THREE.Group(), x: px, z: pz, picked: false });
+    } else if (holdingSpray) {
+        const canGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.25, 12);
+        const canMat = new THREE.MeshLambertMaterial({ color: 0xff8c00 });
+        const can = new THREE.Mesh(canGeo, canMat);
+        can.position.set(px, 0.525, pz);
+        scene.add(can);
+        const capGeo = new THREE.BoxGeometry(0.04, 0.04, 0.04);
+        const capMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const cap = new THREE.Mesh(capGeo, capMat);
+        cap.position.set(px, 0.525 + 0.125 + 0.02, pz);
+        scene.add(cap);
+        sprayCans.push({ hasTable: false, tableMesh: null, canMesh: can, capMesh: cap, group: new THREE.Group(), x: px, z: pz, picked: false });
+    } else if (holdingFuel) {
+        const bottleGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.25, 12);
+        const bottleMat = new THREE.MeshLambertMaterial({ color: 0x006400 });
+        const bottle = new THREE.Mesh(bottleGeo, bottleMat);
+        bottle.position.set(px, 0.525, pz);
+        scene.add(bottle);
+        lighterFuels.push({ hasTable: false, tableMesh: null, bottleMesh: bottle, group: new THREE.Group(), x: px, z: pz, picked: false });
+    }
+    holdingAlmond = false; holdingSpray = false; holdingFuel = false; isSpraying = false;
+    if (handGroup) { camera.remove(handGroup); handGroup = null; }
+}
+
+function handleInteract() {
+    if (hiding) {
+        hiding = false;
+        document.getElementById('hidingUI').style.display = 'none';
+        return;
+    }
+    if (holdingAlmond || holdingSpray || holdingFuel) {
+        dropHandItem();
+        updateInteractBtn();
+        updatePickupBtn();
+        return;
+    }
+    const target = getInteractable();
+    if (!target) return;
+    if (target.type === 'locker') {
+        if (target.dist > 3) return;
+        hiding = true;
+        camera.position.x = target.obj.x;
+        camera.position.z = target.obj.z;
+        document.getElementById('hidingUI').style.display = 'block';
+    } else if (target.type === 'exit') {
+        playerWin();
+    } else if (target.type === 'easter') {
+        playerEaster();
+    }
+}
+
+function handlePickup() {
+    if (holdingAlmond) {
+        const restore = sanity * (Math.random() * 2.9 + 0.1);
+        sanity = Math.min(100, sanity + restore);
+        holdingAlmond = false;
+        if (handGroup) { camera.remove(handGroup); handGroup = null; }
+        updateInteractBtn(); updatePickupBtn();
+        return;
+    }
+    if (holdingSpray) {
+        isSpraying = !isSpraying;
+        updatePickupBtn();
+        return;
+    }
+    if (holdingFuel) {
+        lighterFuel = Math.min(100, lighterFuel + 20 + Math.random() * 20);
+        holdingFuel = false;
+        if (handGroup) { camera.remove(handGroup); handGroup = null; }
+        updateInteractBtn(); updatePickupBtn();
+        return;
+    }
+    const target = getPickupable();
+    if (!target) return;
+    if (target.type === 'almond') {
+        const aw = target.obj;
+        aw.picked = true;
+        aw.bottleMesh.visible = false;
+        holdingAlmond = true;
+        createHandModel('almond');
+    } else if (target.type === 'spray') {
+        const sc = target.obj;
+        sc.picked = true;
+        sc.canMesh.visible = false;
+        sc.capMesh.visible = false;
+        holdingSpray = true;
+        createHandModel('spray');
+    } else if (target.type === 'lighterFuel') {
+        const lf = target.obj;
+        lf.picked = true;
+        lf.bottleMesh.visible = false;
+        holdingFuel = true;
+        createHandModel('fuel');
+    }
+    updateInteractBtn();
+    updatePickupBtn();
+}
+
+function updateSpray(dt) {
+    if (!isSpraying || !holdingSpray) return;
+    const now = clock.getElapsedTime();
+    const interval = settings.sprayInterval || 0.1;
+    if (now - lastSprayTime < interval) return;
+    lastSprayTime = now;
+    
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+    const intersects = raycaster.intersectObjects([...walls, floor, ceiling]);
+    if (intersects.length === 0) return;
+    
+    const hit = intersects[0];
+    const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
+    
+    const radius = settings.sprayRadius || 0.2;
+    const geometry = new THREE.CircleGeometry(radius, 32);
+    const material = new THREE.MeshBasicMaterial({ 
+        color: sprayColors[sprayColorIndex], 
+        side: THREE.DoubleSide, 
+        depthWrite: false, 
+        transparent: true, 
+        opacity: 0.9 
+    });
+    const mark = new THREE.Mesh(geometry, material);
+    mark.position.copy(hit.point).add(normal.clone().multiplyScalar(0.015));
+    
+    if (Math.abs(normal.y) > 0.9) {
+        mark.rotation.x = normal.y > 0 ? -Math.PI/2 : Math.PI/2;
+        mark.rotation.z = 0;
+        mark.rotation.y = 0;
+    } else {
+        mark.lookAt(hit.point.clone().add(normal));
+    }
+    
+    scene.add(mark);
+    sprayMarks.push(mark);
+    sprayColorIndex = (sprayColorIndex + 1) % sprayColors.length;
+}
+
+function updateCrosshair() {
+    const chv = document.getElementById('crosshair-v');
+    const chh = document.getElementById('crosshair-h');
+    const chc = document.getElementById('crosshair-c');
+    let color = '#ffffff';
+    if (currentInteractable && !hiding) color = '#00ff00';
+    else if (currentPickupable) color = '#ffff00';
+    chv.style.backgroundColor = color;
+    chh.style.backgroundColor = color;
+    chc.style.backgroundColor = color;
+}
+
+function updateInteractBtn() {
+    const btn = document.getElementById('interactBtn');
+    if (!btn) return;
+    if (hiding) {
+        btn.textContent = '离开';
+        btn.style.borderColor = '#ff0'; btn.style.color = '#ff0';
+        btn.style.boxShadow = '0 0 10px rgba(255,255,0,0.3)';
+    } else if (holdingAlmond || holdingSpray || holdingFuel) {
+        btn.textContent = '丢弃';
+        btn.style.borderColor = '#aaa'; btn.style.color = '#aaa';
+        btn.style.boxShadow = '0 0 10px rgba(255,255,255,0.2)';
+    } else if (currentInteractable) {
+        btn.textContent = '互动';
+        btn.style.borderColor = '#0f0'; btn.style.color = '#0f0';
+        btn.style.boxShadow = '0 0 10px rgba(0,255,0,0.3)';
+    } else {
+        btn.textContent = '互动';
+        btn.style.borderColor = 'rgba(255,255,255,0.8)';
+        btn.style.color = '#fff';
+        btn.style.boxShadow = 'none';
+    }
+}
+
+function updatePickupBtn() {
+    const btn = document.getElementById('pickupBtn');
+    if (!btn) return;
+    if (holdingAlmond) {
+        btn.textContent = '使用';
+        btn.style.borderColor = '#D2B48C'; btn.style.color = '#D2B48C';
+        btn.style.boxShadow = '0 0 10px rgba(210,180,140,0.3)';
+    } else if (holdingSpray) {
+        btn.textContent = isSpraying ? '停止' : '使用';
+        btn.style.borderColor = '#ff8c00'; btn.style.color = '#ff8c00';
+        btn.style.boxShadow = '0 0 10px rgba(255,140,0,0.3)';
+    } else if (holdingFuel) {
+        btn.textContent = '补充';
+        btn.style.borderColor = '#006400'; btn.style.color = '#006400';
+        btn.style.boxShadow = '0 0 10px rgba(0,100,0,0.3)';
+    } else if (currentPickupable) {
+        btn.textContent = '拾取';
+        btn.style.borderColor = '#ff0'; btn.style.color = '#ff0';
+        btn.style.boxShadow = '0 0 10px rgba(255,255,0,0.3)';
+    } else {
+        btn.textContent = '拾取';
+        btn.style.borderColor = 'rgba(255,255,255,0.8)';
+        btn.style.color = '#fff';
+        btn.style.boxShadow = 'none';
+    }
+}
+
+function updateFilters() {
+    const px = camera.position.x, pz = camera.position.z;
+    const renderDist = 22 * (settings.renderDist / 100);
+    const detectRange = renderDist * 0.5 * (settings.entityDetect / 100);
+    let nearestDist = Infinity;
+    let hasChaser = false;
+    
+    for (let e of entities) {
+        const dist = Math.sqrt((px - e.mesh.position.x)**2 + (pz - e.mesh.position.z)**2);
+        if (dist < nearestDist) nearestDist = dist;
+        if (e.state === 'chase' && dist < detectRange) hasChaser = true;
+    }
+    
+    const yf = document.getElementById('yellowFilter');
+    const rf = document.getElementById('redFilter');
+    if (hasChaser) {
+        rf.style.opacity = '1';
+        yf.style.opacity = '0';
+    } else if (nearestDist < renderDist) {
+        const intensity = Math.max(0, 1 - (nearestDist / renderDist)) * 0.7;
+        yf.style.opacity = intensity.toString();
+        rf.style.opacity = '0';
+    } else {
+        yf.style.opacity = '0';
+        rf.style.opacity = '0';
+    }
+}
+
+function updateBars() {
+    const lfb = document.getElementById('lighterFuelBar');
+    const sb = document.getElementById('sanityBar');
+    if (settings.showLighterFuel && gameActive) {
+        lfb.style.display = 'block';
+        lfb.querySelector('.game-bar-fill').style.width = Math.max(0, lighterFuel) + '%';
+    } else {
+        lfb.style.display = 'none';
+    }
+    if (settings.showSanity && gameActive) {
+        sb.style.display = 'block';
+        sb.querySelector('.game-bar-fill').style.width = Math.max(0, sanity) + '%';
+    } else {
+        sb.style.display = 'none';
+    }
+}
+
+function updateHighlight() {
+    const box = document.getElementById('highlightBox');
+    if (!settings.highlightInfo || !gameActive) {
+        box.style.display = 'none';
+        return;
+    }
+    let info = null;
+    if (currentInteractable && !hiding) {
+        if (currentInteractable.type === 'locker') info = '铁柜子 - 可以躲藏';
+        else if (currentInteractable.type === 'exit') info = '出口 - 逃离后室';
+        else if (currentInteractable.type === 'easter') info = '??? - 隐藏彩蛋';
+    } else if (currentPickupable) {
+        if (currentPickupable.type === 'almond') info = '杏仁水 - 恢复理智';
+        else if (currentPickupable.type === 'spray') info = '喷漆 - 可以喷涂标记';
+        else if (currentPickupable.type === 'lighterFuel') info = '打火机油 - 补充打火机燃料';
+    }
+    if (info) {
+        document.getElementById('highlightText').textContent = info;
+        box.style.display = 'block';
+    } else {
+        box.style.display = 'none';
+    }
+}
+
+function updateAudio() {
+    if (!audioCtx || !ambientGain || !camera) return;
+    const px = camera.position.x, pz = camera.position.z;
+    let maxVol = 0;
+    for (let light of lights) {
+        if (!light.isPointLight) continue;
+        const dx = px - light.position.x;
+        const dz = pz - light.position.z;
+        const dist = Math.sqrt(dx*dx + dz*dz);
+        if (dist < 2) {
+            const vol = (1 - dist / 2) * (settings.ambientVolume / 100);
+            if (vol > maxVol) maxVol = vol;
+        }
+    }
+    ambientGain.gain.value = maxVol * 0.3;
+}
+
+function updateLightFlicker() {
+    const interval = settings.lightFlickerInterval || 10;
+    const now = clock.getElapsedTime();
+    
+    if (flickerTarget && now < flickerEndTime) {
+        if (flickerTarget.userData.originalColor !== undefined) {
+            flickerTarget.color.setHex(0x000000);
+            flickerTarget.intensity = 0;
+        }
+    } else {
+        if (flickerTarget && flickerTarget.userData.originalColor !== undefined) {
+            flickerTarget.color.setHex(flickerTarget.userData.originalColor);
+            flickerTarget.intensity = flickerTarget.userData.originalIntensity;
+            flickerTarget = null;
+        }
+        
+        if (now >= nextFlickerTime) {
+            const renderDist = 22 * (settings.renderDist / 100);
+            const px = camera.position.x, pz = camera.position.z;
+            const candidates = lights.filter(l => {
+                if (!l.isPointLight) return false;
+                const d = Math.sqrt((px-l.position.x)**2 + (pz-l.position.z)**2);
+                return d < renderDist;
+            });
+            if (candidates.length > 0) {
+                flickerTarget = candidates[Math.floor(Math.random() * candidates.length)];
+                if (flickerTarget.userData.originalColor === undefined) {
+                    flickerTarget.userData.originalColor = flickerTarget.color.getHex();
+                    flickerTarget.userData.originalIntensity = flickerTarget.intensity;
+                }
+                flickerEndTime = now + 0.2;
+            }
+            nextFlickerTime = now + interval + Math.random() * 2;
+        }
+    }
+}
+
+// ==================== 输入控制 ====================
+const joystickEl = document.getElementById('joystick');
+const knobEl = document.getElementById('joystick-knob');
+let joystickTouchId = null;
+
+function setupJoystick() {
+    const layouts = settings.buttonLayouts || defaultLayouts;
+    const jl = layouts.joystick || defaultLayouts.joystick;
+    joystick.maxR = jl.size * 0.33;
+}
+
+joystickEl.addEventListener('touchstart', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const touch = e.changedTouches[0];
+    joystickTouchId = touch.identifier;
+    const rect = joystickEl.getBoundingClientRect();
+    joystick.active = true;
+    joystick.originX = rect.left + rect.width / 2;
+    joystick.originY = rect.top + rect.height / 2;
+    updateJoystick(touch.clientX, touch.clientY);
+}, {passive: false});
+
+joystickEl.addEventListener('touchmove', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === joystickTouchId) {
+            updateJoystick(t.clientX, t.clientY);
+            break;
+        }
+    }
+}, {passive: false});
+
+joystickEl.addEventListener('touchend', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === joystickTouchId) {
+            joystick.active = false; joystickTouchId = null;
+            joystick.dx = 0; joystick.dy = 0;
+            knobEl.style.transform = 'translate(0px, 0px)';
+            break;
+        }
+    }
+}, {passive: false});
+
+function updateJoystick(x, y) {
+    let dx = x - joystick.originX;
+    let dy = y - joystick.originY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > joystick.maxR) { const scale = joystick.maxR / dist; dx *= scale; dy *= scale; }
+    joystick.dx = dx / joystick.maxR;
+    joystick.dy = dy / joystick.maxR;
+    knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+}
+
+// 按钮触摸处理
+function setupButtonTouch(btnEl, callback) {
+    let touchId = null;
+    btnEl.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const touch = e.changedTouches[0];
+        touchId = touch.identifier;
+        callback();
+    }, {passive: false});
+    btnEl.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === touchId) {
+                touchId = null;
+                break;
+            }
+        }
+    }, {passive: false});
+    btnEl.addEventListener('mousedown', (e) => {
+        if (e.button === 0) callback();
+    });
+}
+
+setupButtonTouch(document.getElementById('lighterBtn'), toggleLighter);
+setupButtonTouch(document.getElementById('backBtn'), stopGame);
+setupButtonTouch(document.getElementById('interactBtn'), handleInteract);
+setupButtonTouch(document.getElementById('pickupBtn'), handlePickup);
+
+let lookTouchId = null;
+document.addEventListener('touchstart', (e) => {
+    if (!gameActive || gameState !== 'playing') return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.clientX > window.innerWidth * 0.5 && lookTouchId === null) {
+            lookTouchId = t.identifier;
+            lookInput.active = true;
+            lookInput.lastX = t.clientX;
+            lookInput.lastY = t.clientY;
+        }
+    }
+}, {passive: false});
+
+document.addEventListener('touchmove', (e) => {
+    if (!gameActive || gameState !== 'playing' || !lookInput.active) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        if (t.identifier === lookTouchId) {
+            e.preventDefault();
+            const dx = t.clientX - lookInput.lastX;
+            const dy = t.clientY - lookInput.lastY;
+            const sens = (settings.sens / 100) * 0.0025;
+            camera.rotation.y -= dx * sens;
+            camera.rotation.x -= dy * sens;
+            camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+            lookInput.lastX = t.clientX;
+            lookInput.lastY = t.clientY;
+            break;
+        }
+    }
+}, {passive: false});
+
+document.addEventListener('touchend', (e) => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === lookTouchId) {
+            lookInput.active = false; lookTouchId = null; break;
+        }
+    }
+});
+
+let mouseLook = false;
+document.addEventListener('mousedown', (e) => {
+    if (!gameActive || gameState !== 'playing') return;
+    if (e.clientX > window.innerWidth * 0.5 && e.button === 0) {
+        mouseLook = true; lookInput.lastX = e.clientX; lookInput.lastY = e.clientY;
+    }
+});
+document.addEventListener('mousemove', (e) => {
+    if (!gameActive || gameState !== 'playing' || !mouseLook) return;
+    const dx = e.clientX - lookInput.lastX;
+    const dy = e.clientY - lookInput.lastY;
+    const sens = (settings.sens / 100) * 0.0025;
+    camera.rotation.y -= dx * sens;
+    camera.rotation.x -= dy * sens;
+    camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+    lookInput.lastX = e.clientX; lookInput.lastY = e.clientY;
+});
+document.addEventListener('mouseup', () => { mouseLook = false; });
+
+// PC键盘
+document.addEventListener('keydown', (e) => {
+    if (!gameActive || gameState !== 'playing') return;
+    if (pressedKeys.has(e.code)) return;
+    pressedKeys.add(e.code);
+    
+    const keys = settings.pcKeys || defaultPcKeys;
+    if (e.code === keys.lighter) toggleLighter();
+    if (e.code === keys.interact) handleInteract();
+    if (e.code === keys.pickup) handlePickup();
+    if (e.code === keys.back) stopGame();
+});
+
+document.addEventListener('keyup', (e) => {
+    pressedKeys.delete(e.code);
+});
+
+function updateKeyboardMovement(dt) {
+    if (!gameActive || gameState !== 'playing') return;
+    const speed = 3.2 * (settings.speed / 100);
+    const forward = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+    forward.y = 0; forward.normalize();
+    const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+    right.y = 0; right.normalize();
+    
+    let mx = 0, mz = 0;
+    if (pressedKeys.has('KeyW')) { mx += forward.x; mz += forward.z; }
+    if (pressedKeys.has('KeyS')) { mx -= forward.x; mz -= forward.z; }
+    if (pressedKeys.has('KeyD')) { mx += right.x; mz += right.z; }
+    if (pressedKeys.has('KeyA')) { mx -= right.x; mz -= right.z; }
+    
+    if (mx !== 0 || mz !== 0) {
+        const len = Math.sqrt(mx*mx + mz*mz);
+        mx /= len; mz /= len;
+        const newX = camera.position.x + mx * speed * dt;
+        const newZ = camera.position.z + mz * speed * dt;
+        if (canMoveTo(newX, camera.position.z)) camera.position.x = newX;
+        if (canMoveTo(camera.position.x, newZ)) camera.position.z = newZ;
+    }
+}
+
+// ==================== 实体 AI ====================
+function updateEntities(dt) {
+    const playerSpeed = 3.2 * (settings.speed / 100);
+    const entitySpeedBase = playerSpeed * (settings.entitySpeed / 100);
+    const renderDist = 22 * (settings.renderDist / 100);
+    const detectRange = renderDist * 0.5 * (settings.entityDetect / 100);
+    const px = camera.position.x;
+    const pz = camera.position.z;
+    
+    if (hiding) {
+        for (let e of entities) {
+            e.wanderTimer -= dt;
+            if (e.wanderTimer <= 0) {
+                const angle = Math.random() * Math.PI * 2;
+                e.wanderDir = { x: Math.cos(angle), z: Math.sin(angle) };
+                e.wanderTimer = 2 + Math.random() * 3;
+            }
+            const speed = entitySpeedBase * 0.35;
+            const newX = e.mesh.position.x + e.wanderDir.x * speed * dt;
+            const newZ = e.mesh.position.z + e.wanderDir.z * speed * dt;
+            if (canMoveTo(newX, newZ, 0.3)) { e.mesh.position.x = newX; e.mesh.position.z = newZ; }
+            else { e.wanderDir.x *= -1; e.wanderDir.z *= -1; }
+        }
+        return;
+    }
+    
+    for (let e of entities) {
+        const ex = e.mesh.position.x;
+        const ez = e.mesh.position.z;
+        const distToPlayer = Math.sqrt((px - ex) ** 2 + (pz - ez) ** 2);
+        
+        if (e.state === 'wander') {
+            e.wanderTimer -= dt;
+            if (e.wanderTimer <= 0) {
+                const angle = Math.random() * Math.PI * 2;
+                e.wanderDir = { x: Math.cos(angle), z: Math.sin(angle) };
+                e.wanderTimer = 2 + Math.random() * 3;
+            }
+            const speed = entitySpeedBase * 0.35;
+            const newX = ex + e.wanderDir.x * speed * dt;
+            const newZ = ez + e.wanderDir.z * speed * dt;
+            if (canMoveTo(newX, newZ, 0.3)) { e.mesh.position.x = newX; e.mesh.position.z = newZ; }
+            else { e.wanderDir.x *= -1; e.wanderDir.z *= -1; }
+            if (distToPlayer < detectRange) e.state = 'chase';
+        } else if (e.state === 'chase') {
+            const speed = entitySpeedBase * 0.85;
+            const dx = px - ex;
+            const dz = pz - ez;
+            const len = Math.sqrt(dx * dx + dz * dz) || 1;
+            const newX = ex + (dx / len) * speed * dt;
+            const newZ = ez + (dz / len) * speed * dt;
+            if (canMoveTo(newX, newZ, 0.3)) { e.mesh.position.x = newX; e.mesh.position.z = newZ; }
+            if (distToPlayer > detectRange * 1.5) { e.state = 'wander'; e.wanderTimer = 1; }
+        }
+        e.mesh.lookAt(px, e.mesh.position.y, pz);
+        if (distToPlayer < 0.55 && !hiding) { playerDie(); return; }
+    }
+}
+
+// ==================== 游戏状态 ====================
+function playerDie() {
+    if (gameState !== 'playing') return;
+    gameState = 'dead';
+    stats.deaths++;
+    saveStats();
+    updateStatsDisplay();
+    let sec = 3;
+    deathScreen.style.display = 'flex';
+    document.getElementById('deathTimer').textContent = sec + ' 秒后返回';
+    const timer = setInterval(() => {
+        sec--;
+        document.getElementById('deathTimer').textContent = sec + ' 秒后返回';
+        if (sec <= 0) { clearInterval(timer); deathScreen.style.display = 'none'; stopGame(); }
+    }, 1000);
+}
+
+function playerWin() {
+    if (gameState !== 'playing') return;
+    gameState = 'won';
+    stats.escapes++;
+    saveStats();
+    updateStatsDisplay();
+    let sec = 3;
+    winScreen.style.display = 'flex';
+    document.getElementById('winTimer').textContent = sec + ' 秒后返回';
+    const timer = setInterval(() => {
+        sec--;
+        document.getElementById('winTimer').textContent = sec + ' 秒后返回';
+        if (sec <= 0) { clearInterval(timer); winScreen.style.display = 'none'; stopGame(); }
+    }, 1000);
+}
+
+function playerSanityDie() {
+    if (gameState !== 'playing') return;
+    gameState = 'dead';
+    stats.deaths++;
+    saveStats();
+    updateStatsDisplay();
+    let sec = 3;
+    sanityDeathScreen.style.display = 'flex';
+    document.getElementById('sanityTimer').textContent = sec + ' 秒后返回';
+    const timer = setInterval(() => {
+        sec--;
+        document.getElementById('sanityTimer').textContent = sec + ' 秒后返回';
+        if (sec <= 0) { clearInterval(timer); sanityDeathScreen.style.display = 'none'; stopGame(); }
+    }, 1000);
+}
+
+function playerEaster() {
+    if (gameState !== 'playing') return;
+    gameState = 'easter';
+    let sec = 3;
+    easterScreen.style.display = 'flex';
+    document.getElementById('easterTimer').textContent = sec + ' 秒后返回';
+    const timer = setInterval(() => {
+        sec--;
+        document.getElementById('easterTimer').textContent = sec + ' 秒后返回';
+        if (sec <= 0) { clearInterval(timer); easterScreen.style.display = 'none'; stopGame(); }
+    }, 1000);
+}
+
+// ==================== 游戏循环 ====================
+function updateFPS() {
+    if (!settings.showFps) { fpsDisplay.style.display = 'none'; return; }
+    fpsDisplay.style.display = 'block';
+    fpsFrameCount++;
+    const now = performance.now();
+    if (now - fpsLastTime >= 1000) {
+        fpsDisplay.textContent = Math.round(fpsFrameCount * 1000 / (now - fpsLastTime)) + ' FPS';
+        fpsFrameCount = 0; fpsLastTime = now;
+    }
+}
+
+function update(dt) {
+    if (gameState !== 'playing') return;
+    currentInteractable = getInteractable();
+    currentPickupable = getPickupable();
+    updateCrosshair();
+    updateInteractBtn();
+    updatePickupBtn();
+    updateFilters();
+    updateBars();
+    updateHighlight();
+    updateAudio();
+    updateLightFlicker();
+    updateSpray(dt);
+    updateKeyboardMovement(dt);
+    
+    if (!hiding && settings.sanitySpeed > 0) {
+        const baseDrain = 100 / 180;
+        sanity -= baseDrain * (settings.sanitySpeed / 100) * dt;
+        if (sanity <= 0) { sanity = 0; playerSanityDie(); return; }
+    }
+    
+    if (lighterLight && settings.lighterBurnTime < 300) {
+        lighterFuel -= (100 / settings.lighterBurnTime) * dt;
+        if (lighterFuel <= 0) {
+            lighterFuel = 0;
+            toggleLighter();
+        }
+    }
+    
+    if (hiding) {
+        if (lighterLight) lighterLight.position.copy(camera.position);
+        updateEntities(dt);
+        return;
+    }
+    
+    const speed = 3.2 * (settings.speed / 100) * dt;
+    if (joystick.active && (joystick.dx !== 0 || joystick.dy !== 0)) {
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        forward.y = 0; forward.normalize();
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        right.y = 0; right.normalize();
+        const moveX = (forward.x * -joystick.dy + right.x * joystick.dx) * speed;
+        const moveZ = (forward.z * -joystick.dy + right.z * joystick.dx) * speed;
+        const newX = camera.position.x + moveX;
+        const newZ = camera.position.z + moveZ;
+        if (canMoveTo(newX, camera.position.z)) camera.position.x = newX;
+        if (canMoveTo(camera.position.x, newZ)) camera.position.z = newZ;
+    }
+    if (lighterLight) lighterLight.position.copy(camera.position);
+    updateEntities(dt);
+}
+
+function animate() {
+    if (!gameActive) return;
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.15);
+    update(dt);
+    updateFPS();
+    renderer.render(scene, camera);
+}
+
+// ==================== 游戏状态管理 ====================
+function startGame() {
+    loadSettings();
+    loadStats();
+    initThree();
+    initAudio();
+    generateMaze();
+    buildScene();
+    applyButtonLayouts();
+    setupJoystick();
+    menu.style.display = 'none';
+    gameUI.style.display = 'block';
+    document.getElementById('joystick').style.display = 'block';
+    document.getElementById('lighterBtn').style.display = 'flex';
+    document.getElementById('backBtn').style.display = 'flex';
+    document.getElementById('interactBtn').style.display = 'flex';
+    document.getElementById('pickupBtn').style.display = 'flex';
+    document.getElementById('lighterBtn').classList.remove('active');
+    document.getElementById('hidingUI').style.display = 'none';
+    hiding = false;
+    lighterFuel = 100;
+    sanity = 100;
+    holdingAlmond = false; holdingSpray = false; holdingFuel = false; isSpraying = false;
+    if (handGroup) { camera.remove(handGroup); handGroup = null; }
+    gameActive = true;
+    gameState = 'playing';
+    fpsFrameCount = 0;
+    fpsLastTime = performance.now();
+    clock.start();
+    animate();
+}
+
+function stopGame() {
+    gameActive = false;
+    gameState = 'playing';
+    hiding = false;
+    menu.style.display = 'flex';
+    gameUI.style.display = 'none';
+    document.getElementById('joystick').style.display = 'none';
+    document.getElementById('lighterBtn').style.display = 'none';
+    document.getElementById('backBtn').style.display = 'none';
+    document.getElementById('interactBtn').style.display = 'none';
+    document.getElementById('pickupBtn').style.display = 'none';
+    document.getElementById('hidingUI').style.display = 'none';
+    document.getElementById('yellowFilter').style.opacity = '0';
+    document.getElementById('redFilter').style.opacity = '0';
+    document.getElementById('highlightBox').style.display = 'none';
+    deathScreen.style.display = 'none';
+    winScreen.style.display = 'none';
+    sanityDeathScreen.style.display = 'none';
+    easterScreen.style.display = 'none';
+    fpsDisplay.style.display = 'none';
+    if (lighterLight) { scene.remove(lighterLight); lighterLight = null; }
+}
+
+loadSettings();
+loadStats();
+</script>
+</body>
+</html>
