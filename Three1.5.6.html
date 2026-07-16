@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网页更新中</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            background-color: #0a0a0a;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        .main-text {
+            font-size: 48px;
+            font-weight: bold;
+            color: #00ff41;
+            text-shadow: 
+                0 0 10px #00ff41,
+                0 0 20px #00ff41,
+                0 0 40px #00ff41,
+                0 0 80px #00ff41,
+                0 0 120px #00ff41;
+            letter-spacing: 4px;
+            animation: pulse 2s ease-in-out infinite;
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        .sub-text {
+            margin-top: 30px;
+            font-size: 20px;
+            color: #00ff41;
+            text-shadow: 
+                0 0 5px #00ff41,
+                0 0 10px #00ff41,
+                0 0 20px #00ff41;
+            letter-spacing: 2px;
+            opacity: 0.85;
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        .back-btn {
+            margin-top: 50px;
+            font-size: 18px;
+            color: #00ff41;
+            text-shadow: 
+                0 0 5px #00ff41,
+                0 0 10px #00ff41,
+                0 0 20px #00ff41;
+            letter-spacing: 2px;
+            cursor: pointer;
+            background: transparent;
+            border: 1px solid #00ff41;
+            padding: 12px 40px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .back-btn:hover {
+            background: rgba(0, 255, 65, 0.15);
+            box-shadow: 
+                0 0 10px #00ff41,
+                0 0 20px #00ff41,
+                0 0 40px #00ff41;
+            transform: scale(1.05);
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                text-shadow: 
+                    0 0 10px #00ff41,
+                    0 0 20px #00ff41,
+                    0 0 40px #00ff41,
+                    0 0 80px #00ff41;
+                opacity: 1;
+            }
+            50% {
+                text-shadow: 
+                    0 0 20px #00ff41,
+                    0 0 40px #00ff41,
+                    0 0 80px #00ff41,
+                    0 0 120px #00ff41,
+                    0 0 160px #00ff41;
+                opacity: 0.9;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-text {
+                font-size: 28px;
+                letter-spacing: 2px;
+            }
+            .sub-text {
+                font-size: 14px;
+                letter-spacing: 1px;
+            }
+            .back-btn {
+                font-size: 14px;
+                padding: 10px 30px;
+                margin-top: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-text">你访问的网页正在更新……</div>
+    <div class="sub-text">请等一会再来吧，网站会更好的</div>
+    <a class="back-btn" href="javascript:history.back()">返回</a>
+</body>
+</html>
