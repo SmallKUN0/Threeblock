@@ -1,0 +1,2282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D verity 模型测试</title>
+    <script src="https://cdn.tailwindcss.com">
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
+    </script>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #8B4513;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+        }
+
+        #main-menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #8B4513;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 0.5s;
+        }
+        .menu-title {
+            font-size: 4rem;
+            font-weight: bold;
+            color: black;
+            margin-bottom: 50px;
+            text-shadow: 2px 2px 0px rgba(255, 255, 255, 0.2);
+            text-align: center;
+        }
+        .menu-btn {
+            background: transparent;
+            border: 4px solid black;
+            color: black;
+            padding: 15px 40px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin: 10px;
+            cursor: pointer;
+            transition: transform 0.1s, background 0.2s;
+            width: 300px;
+            text-align: center;
+        }
+        .menu-btn:active {
+            transform: scale(0.95);
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #333;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 99;
+            color: white;
+        }
+        .progress-container {
+            width: 300px;
+            height: 30px;
+            border: 2px solid white;
+            margin-top: 20px;
+        }
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.2s;
+        }
+
+        #game-ui {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        #crosshair::before,
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 2px black;
+        }
+        #crosshair::before {
+            top: 9px;
+            left: 0;
+            width: 20px;
+            height: 2px;
+        }
+        #crosshair::after {
+            top: 0;
+            left: 9px;
+            width: 2px;
+            height: 20px;
+        }
+
+        .game-btn {
+            position: absolute;
+            right: 40px;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 2px solid white;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9rem;
+            z-index: 20;
+            touch-action: none;
+        }
+        .game-btn:active {
+            transform: scale(0.92);
+        }
+
+        #break-btn {
+            bottom: 190px;
+            background: rgba(255, 0, 0, 0.3);
+        }
+        #break-btn:active {
+            background: rgba(255, 0, 0, 0.6);
+        }
+
+        #place-btn {
+            bottom: 280px;
+            background: rgba(0, 100, 255, 0.3);
+        }
+        #place-btn:active {
+            background: rgba(0, 100, 255, 0.6);
+        }
+
+        #select-btn {
+            bottom: 370px;
+            background: rgba(0, 200, 100, 0.3);
+            font-size: 0.75rem;
+        }
+        #select-btn:active {
+            background: rgba(0, 200, 100, 0.6);
+        }
+
+        #jump-btn {
+            bottom: 100px;
+            background: rgba(255, 165, 0, 0.3);
+        }
+        #jump-btn:active {
+            background: rgba(255, 165, 0, 0.6);
+        }
+
+        #coords {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px;
+            font-size: 14px;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        #btn-return-main {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: 1px solid white;
+            padding: 5px 10px;
+            pointer-events: auto;
+            z-index: 20;
+            cursor: pointer;
+        }
+        #btn-return-main:active {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        #joystick-zone {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            width: 150px;
+            height: 150px;
+            pointer-events: auto;
+            touch-action: none;
+            z-index: 20;
+            border-radius: 50%;
+            border: 4px solid rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        #joystick-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.2);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        .version-info {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.8rem;
+            text-align: right;
+            pointer-events: none;
+        }
+        #menu-version {
+            bottom: 20px;
+            right: 20px;
+            color: rgba(0, 0, 0, 0.5);
+        }
+
+        .entity-hp-bar {
+            position: absolute;
+            width: 40px;
+            height: 6px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid white;
+            z-index: 15;
+            pointer-events: none;
+        }
+        .entity-hp-fill {
+            width: 100%;
+            height: 100%;
+            background: #ff4444;
+            transition: width 0.2s;
+        }
+
+        /* ===== verity 聊天框 ===== */
+        #verity-chat {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 340px;
+            max-height: 420px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid rgba(255, 215, 0, 0.7);
+            border-radius: 16px;
+            pointer-events: auto;
+            z-index: 30;
+            display: none;
+            flex-direction: column;
+            backdrop-filter: blur(6px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            overflow: hidden;
+        }
+        #verity-chat.visible {
+            display: flex;
+        }
+        #verity-chat.hidden {
+            display: none;
+        }
+
+        #verity-chat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: rgba(255, 215, 0, 0.15);
+            border-bottom: 1px solid rgba(255, 215, 0, 0.25);
+            flex-shrink: 0;
+        }
+        #verity-chat-header .title {
+            color: #ffd700;
+            font-weight: bold;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #verity-chat-header .title span {
+            font-size: 1.2rem;
+        }
+        #verity-chat-header .actions {
+            display: flex;
+            gap: 10px;
+        }
+        #verity-chat-header .actions button {
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1.1rem;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: background 0.2s;
+            pointer-events: auto;
+        }
+        #verity-chat-header .actions button:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        #verity-chat-header .actions button:active {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #verity-chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 14px;
+            max-height: 280px;
+            min-height: 120px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            scroll-behavior: smooth;
+        }
+        #verity-chat-messages::-webkit-scrollbar {
+            width: 4px;
+        }
+        #verity-chat-messages::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        #verity-chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(255, 215, 0, 0.4);
+            border-radius: 4px;
+        }
+
+        .chat-msg {
+            padding: 6px 12px;
+            border-radius: 12px;
+            max-width: 90%;
+            word-wrap: break-word;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            animation: msgIn 0.2s ease;
+        }
+        .chat-msg.bot {
+            background: rgba(255, 215, 0, 0.18);
+            color: #f0f0f0;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .chat-msg.user {
+            background: rgba(70, 130, 255, 0.25);
+            color: #f0f0f0;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .chat-msg.system {
+            background: rgba(255, 255, 255, 0.06);
+            color: #aaa;
+            align-self: center;
+            font-style: italic;
+            font-size: 0.8rem;
+        }
+        .chat-msg.typing {
+            background: rgba(255, 215, 0, 0.08);
+            color: #aaa;
+            align-self: flex-start;
+            font-style: italic;
+        }
+        .chat-msg.warning {
+            background: rgba(255, 0, 0, 0.3);
+            color: #ff6666;
+            align-self: center;
+            font-weight: bold;
+            border: 1px solid #ff0000;
+            text-shadow: 0 0 8px rgba(255,0,0,0.5);
+        }
+
+        @keyframes msgIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #verity-chat-footer {
+            display: flex;
+            padding: 8px 12px 12px 12px;
+            gap: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            flex-shrink: 0;
+        }
+        #verity-chat-footer input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 8px 14px;
+            color: #fff;
+            font-size: 0.85rem;
+            outline: none;
+            transition: border 0.2s;
+            pointer-events: auto;
+        }
+        #verity-chat-footer input::placeholder {
+            color: rgba(255, 255, 255, 0.35);
+        }
+        #verity-chat-footer input:focus {
+            border-color: rgba(255, 215, 0, 0.5);
+        }
+        #verity-chat-footer button {
+            background: rgba(255, 215, 0, 0.2);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            border-radius: 20px;
+            padding: 8px 16px;
+            color: #ffd700;
+            font-weight: bold;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            pointer-events: auto;
+            white-space: nowrap;
+        }
+        #verity-chat-footer button:active {
+            background: rgba(255, 215, 0, 0.35);
+        }
+        #verity-chat-footer button:disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        /* ===== 悬浮球 ===== */
+        #verity-float-ball {
+            position: absolute;
+            right: 24px;
+            bottom: 160px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #ffd700, #d4a800);
+            border: 3px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 4px 20px rgba(255, 215, 0, 0.4);
+            pointer-events: auto;
+            z-index: 35;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            touch-action: none;
+        }
+        #verity-float-ball:active {
+            transform: scale(0.88);
+            box-shadow: 0 2px 12px rgba(255, 215, 0, 0.6);
+        }
+        #verity-float-ball .badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            width: 20px;
+            height: 20px;
+            background: #ff4444;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            font-size: 0.6rem;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        /* 隐藏聊天框时的淡出 */
+        #verity-chat.fade-out {
+            opacity: 0;
+            transform: scale(0.96);
+            pointer-events: none;
+        }
+
+        /* 小屏适配 */
+        @media (max-width: 480px) {
+            #verity-chat {
+                width: 280px;
+                max-height: 340px;
+                top: 12px;
+                left: 12px;
+            }
+            #verity-chat-messages {
+                max-height: 200px;
+                min-height: 80px;
+            }
+            .menu-title {
+                font-size: 2.2rem;
+            }
+            .menu-btn {
+                width: 220px;
+                font-size: 1.1rem;
+                padding: 12px 20px;
+            }
+            .game-btn {
+                width: 60px;
+                height: 60px;
+                right: 16px;
+                font-size: 0.7rem;
+            }
+            #break-btn {
+                bottom: 150px;
+            }
+            #place-btn {
+                bottom: 220px;
+            }
+            #select-btn {
+                bottom: 290px;
+            }
+            #jump-btn {
+                bottom: 80px;
+            }
+            #joystick-zone {
+                width: 110px;
+                height: 110px;
+                bottom: 20px;
+                left: 20px;
+            }
+            #joystick-knob {
+                width: 40px;
+                height: 40px;
+            }
+            #verity-float-ball {
+                width: 48px;
+                height: 48px;
+                right: 16px;
+                bottom: 120px;
+                font-size: 1.4rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== 主菜单 ===== -->
+    <div id="main-menu">
+        <div class="menu-title">3D verity 模型测试</div>
+        <button class="menu-btn" id="btn-start-random">进入随机世界</button>
+        <button class="menu-btn" id="btn-start-flat">进入超平坦世界</button>
+        <div class="version-info" id="menu-version">生物寻路测试<br>版本号：1.0 + verity</div>
+    </div>
+
+    <!-- ===== 加载 ===== -->
+    <div id="loading-screen">
+        <div style="font-size:1.5rem;">正在生成生物世界……</div>
+        <div class="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+    </div>
+
+    <!-- ===== 游戏UI ===== -->
+    <div id="game-ui">
+        <div id="crosshair"></div>
+        <div id="coords">X: 0 Y: 0 Z: 0</div>
+        <button id="btn-return-main">返回主菜单</button>
+
+        <div id="player-hp-box" style="position:absolute;top:10px;left:50%;transform:translateX(-50%);width:200px;z-index:20;display:none;">
+            <div style="color:white;text-align:center;font-size:12px;margin-bottom:2px;text-shadow:1px 1px 2px black;">玩家生命值</div>
+            <div style="width:100%;height:16px;background:rgba(0,0,0,0.6);border:2px solid white;border-radius:4px;overflow:hidden;">
+                <div id="player-hp-fill" style="width:100%;height:100%;background:linear-gradient(90deg,#ff4444,#ff8844);transition:width 0.2s;"></div>
+            </div>
+        </div>
+
+        <div class="game-btn" id="select-btn">草块</div>
+        <div class="game-btn" id="place-btn">放置</div>
+        <div class="game-btn" id="break-btn">破坏</div>
+        <div class="game-btn" id="jump-btn">跳跃</div>
+
+        <div id="joystick-zone">
+            <div id="joystick-knob"></div>
+        </div>
+        <div class="version-info">生物寻路测试<br>版本号：1.0 + verity</div>
+
+        <!-- ===== verity 聊天框 ===== -->
+        <div id="verity-chat">
+            <div id="verity-chat-header">
+                <div class="title"><span>🤖</span> verity 助手</div>
+                <div class="actions">
+                    <button id="chat-clear-btn" title="清空对话">🗑</button>
+                    <button id="chat-hide-btn" title="隐藏">✕</button>
+                </div>
+            </div>
+            <div id="verity-chat-messages"></div>
+            <div id="verity-chat-footer">
+                <input id="chat-input" placeholder="问一个我的世界问题…" />
+                <button id="chat-send-btn">发送</button>
+            </div>
+        </div>
+
+        <!-- ===== 悬浮球 ===== -->
+        <div id="verity-float-ball">
+            🤖
+            <div class="badge" id="float-badge">1</div>
+        </div>
+    </div>
+
+    <script>
+        // ======================================================================
+        //  CONFIG
+        // ======================================================================
+        const CONFIG = {
+            chunkSize: 10,
+            cameraHeight: 1.6,
+            moveSpeed: 5,
+            gravity: 25,
+            blockSize: 1,
+            reach: 5,
+            worldBottom: -100,
+            sensitivity: 1.3
+        };
+
+        // ======================================================================
+        //  全局状态
+        // ======================================================================
+        let scene, camera, renderer;
+        let worldBlocks = {};
+        let blockMeshes = {};
+        let blockMeshesArray = [];
+        let activeBlocks = new Set();
+        let chunkBlocks = {};
+        let generatedChunks = new Set();
+        let renderedChunks = new Set();
+        let destroyedBlocks = new Set();
+        let placedBlocks = {};
+        let entities = [];
+
+        let player = { x: 0, y: 1.6, z: 0, vx: 0, vy: 0, vz: 0, onGround: false };
+        let playerHp = 100,
+            playerMaxHp = 100;
+        let input = { w: false, a: false, s: false, d: false };
+        let joystick = { active: false, dx: 0, dy: 0 };
+        let lookInput = { active: false, lastX: 0, lastY: 0 };
+        let yaw = 0,
+            pitch = 0;
+        let lastTime = 0;
+        let isGameRunning = false;
+        let gravityEnabled = false;
+        let currentWorldType = 'random';
+
+        const blockTypes = ['grass', 'dirt', 'stone', 'bedrock', 'wood', 'leaves', 'chicken', 'basketball', 'verity'];
+        const blockNames = {
+            grass: '草块',
+            dirt: '土块',
+            stone: '石块',
+            bedrock: '基岩',
+            wood: '木块',
+            leaves: '树叶',
+            chicken: '鸡',
+            basketball: '篮球',
+            verity: '🤖 verity'
+        };
+        let selectedType = 'grass';
+
+        const touchRoles = {};
+
+        // ======================================================================
+        //  AI 配置
+        // ======================================================================
+        const AI_KEY = '20252a487bf4433dae034e4607626ff6.IZtAmpkRKydep2YR';
+        const AI_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+        const AI_MODEL = 'glm-4-flash';
+        let isAiBusy = false;
+
+        // ======================================================================
+        //  聊天框状态
+        // ======================================================================
+        let chatVisible = false;
+        let chatHidden = false;
+        let verityCount = 0;
+        let chatMessages = [];
+
+        // ======================================================================
+        //  Three.js 初始化
+        // ======================================================================
+        function initThree() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+            scene.fog = new THREE.Fog(0x87CEEB, 5, 20);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, CONFIG.cameraHeight, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.body.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(50, 100, 50);
+            scene.add(dirLight);
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        // ======================================================================
+        //  纹理工具
+        // ======================================================================
+        function createTexture(baseColor, noiseAmount = 10) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 16;
+            canvas.height = 16;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = baseColor;
+            ctx.fillRect(0, 0, 16, 16);
+            for (let i = 0; i < 16 * 16; i++) {
+                const x = i % 16;
+                const y = Math.floor(i / 16);
+                const variation = (Math.random() - 0.5) * noiseAmount;
+                const r = parseInt(baseColor.slice(1, 3), 16);
+                const g = parseInt(baseColor.slice(3, 5), 16);
+                const b = parseInt(baseColor.slice(5, 7), 16);
+                const newR = Math.max(0, Math.min(255, r + variation));
+                const newG = Math.max(0, Math.min(255, g + variation));
+                const newB = Math.max(0, Math.min(255, b + variation));
+                ctx.fillStyle = `rgb(${Math.floor(newR)},${Math.floor(newG)},${Math.floor(newB)})`;
+                ctx.fillRect(x, y, 1, 1);
+            }
+            ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+            ctx.strokeRect(0, 0, 16, 16);
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.magFilter = THREE.NearestFilter;
+            texture.minFilter = THREE.NearestFilter;
+            return texture;
+        }
+
+        // ======================================================================
+        //  verity 笑脸纹理 (Canvas绘制，备用)
+        // ======================================================================
+        function createVerityCanvasTexture() {
+            const size = 128;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            const grad = ctx.createRadialGradient(size * 0.35, size * 0.3, size * 0.05, size * 0.5, size * 0.5, size * 0.7);
+            grad.addColorStop(0, '#fff7b0');
+            grad.addColorStop(0.5, '#ffd740');
+            grad.addColorStop(1, '#e6a800');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, size, size);
+
+            ctx.beginPath();
+            ctx.ellipse(size * 0.3, size * 0.25, size * 0.18, size * 0.12, -0.4, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.35)';
+            ctx.fill();
+
+            const cx = size * 0.5,
+                cy = size * 0.52,
+                r = size * 0.28;
+            const eyeR = size * 0.055,
+                eyeY = cy - r * 0.25,
+                eyeDist = r * 0.4;
+            ctx.shadowColor = 'rgba(0,0,0,0.15)';
+            ctx.shadowBlur = 4;
+            ctx.beginPath();
+            ctx.arc(cx - eyeDist, eyeY, eyeR, 0, Math.PI * 2);
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(cx - eyeDist - eyeR * 0.3, eyeY - eyeR * 0.3, eyeR * 0.35, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.fill();
+            ctx.shadowBlur = 4;
+            ctx.beginPath();
+            ctx.arc(cx + eyeDist, eyeY, eyeR, 0, Math.PI * 2);
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(cx + eyeDist - eyeR * 0.3, eyeY - eyeR * 0.3, eyeR * 0.35, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.fill();
+            ctx.shadowBlur = 3;
+            const mouthY = cy + r * 0.15,
+                mouthW = r * 0.45,
+                mouthH = r * 0.2;
+            ctx.beginPath();
+            ctx.ellipse(cx, mouthY + mouthH * 0.1, mouthW, mouthH, 0, 0, Math.PI);
+            ctx.strokeStyle = '#1a1a2e';
+            ctx.lineWidth = size * 0.025;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.beginPath();
+            ctx.arc(cx - mouthW * 0.85, mouthY + mouthH * 0.55, size * 0.025, 0, Math.PI * 2);
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(cx + mouthW * 0.85, mouthY + mouthH * 0.55, size * 0.025, 0, Math.PI * 2);
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fill();
+            ctx.shadowBlur = 8;
+            ctx.globalAlpha = 0.2;
+            ctx.beginPath();
+            ctx.arc(cx - r * 0.7, cy + r * 0.1, r * 0.12, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff6b6b';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(cx + r * 0.7, cy + r * 0.1, r * 0.12, 0, Math.PI * 2);
+            ctx.fillStyle = '#ff6b6b';
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+            return texture;
+        }
+
+        // ======================================================================
+        //  方块材质
+        // ======================================================================
+        const materials = {
+            grass: new THREE.MeshLambertMaterial({ map: createTexture('#4CAF50', 20) }),
+            dirt: new THREE.MeshLambertMaterial({ map: createTexture('#8B4513', 15) }),
+            stone: new THREE.MeshLambertMaterial({ map: createTexture('#A9A9A9', 10) }),
+            bedrock: new THREE.MeshLambertMaterial({ map: createTexture('#404040', 5) }),
+            wood: new THREE.MeshLambertMaterial({ map: createTexture('#8B5A2B', 15) }),
+            leaves: new THREE.MeshLambertMaterial({ map: createTexture('#228B22', 20) })
+        };
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+
+        // verity 材质（球体）
+        let verityTexture = null; // 存储最终纹理
+        let verityMaterial = null;
+
+        function getVerityMaterial() {
+            if (!verityMaterial) {
+                // 使用Canvas纹理作为默认
+                const defaultTex = createVerityCanvasTexture();
+                verityMaterial = new THREE.MeshStandardMaterial({
+                    map: defaultTex,
+                    roughness: 0.3,
+                    metalness: 0.05,
+                    emissive: new THREE.Color(0x332200),
+                    emissiveIntensity: 0.05,
+                });
+                // 尝试加载外部图片（参考"智能助手模型.html"的方式）
+                const imgUrl =
+                    'https://p11-sign.douyinpic.com/tos-cn-i-0813c000-ce/oYPABIM4bIBooArp7AA7AEaoKKKEoxliG7ikv~tplv-dy-aweme-images:q75.webp?lk3s=138a59ce&x-expires=1786593600&x-signature=%2BaTDo1DM9Jjc3bxZS34VvS3cbow%3D&from=327834062&s=PackSourceEnum_SEARCH&se=false&sc=image&biz_tag=aweme_images&l=2026071412283854E76354F550AB51B96C';
+                const loader = new THREE.TextureLoader();
+                loader.crossOrigin = 'anonymous';
+                loader.load(imgUrl,
+                    (tex) => {
+                        tex.needsUpdate = true;
+                        verityMaterial.map = tex;
+                        verityMaterial.needsUpdate = true;
+                        console.log('verity 外部纹理加载成功');
+                    },
+                    undefined,
+                    () => {
+                        console.log('verity 外部纹理加载失败，使用Canvas备用');
+                    }
+                );
+            }
+            return verityMaterial;
+        }
+
+        // ======================================================================
+        //  世界生成 (保持原有逻辑)
+        // ======================================================================
+        function getSurfaceHeight(x, z) {
+            if (currentWorldType === 'superflat') return 0;
+            if (x === 0 && z === 0) return 0;
+            let h = 2 * Math.sin(x / 5) * Math.cos(z / 5);
+            h = Math.max(-2, Math.min(2, h));
+            return Math.round(h);
+        }
+
+        function getRawBlockType(x, y, z) {
+            if (y === CONFIG.worldBottom) return 'bedrock';
+            const surfaceY = getSurfaceHeight(x, z);
+            if (y > surfaceY) return null;
+            if (y === surfaceY) return 'grass';
+            if (y >= surfaceY - 6) return 'dirt';
+            return 'stone';
+        }
+
+        function getBlockType(x, y, z) {
+            const key = `${x},${y},${z}`;
+            if (destroyedBlocks.has(key)) return null;
+            if (placedBlocks[key]) return placedBlocks[key];
+            return worldBlocks[key] || null;
+        }
+
+        function isExposed(x, y, z) {
+            const dirs = [
+                [1, 0, 0],
+                [-1, 0, 0],
+                [0, 1, 0],
+                [0, -1, 0],
+                [0, 0, 1],
+                [0, 0, -1]
+            ];
+            for (const [dx, dy, dz] of dirs) {
+                const key = `${x+dx},${y+dy},${z+dz}`;
+                if (destroyedBlocks.has(key)) return true;
+                if (!worldBlocks[key]) {
+                    const raw = getRawBlockType(x + dx, y + dy, z + dz);
+                    if (raw === null) return true;
+                }
+            }
+            return false;
+        }
+
+        function getChunkKey(x, z) {
+            return `${Math.floor(x / CONFIG.chunkSize)},${Math.floor(z / CONFIG.chunkSize)}`;
+        }
+
+        function createBlockMesh(x, y, z, type) {
+            const key = `${x},${y},${z}`;
+            if (blockMeshes[key]) return blockMeshes[key];
+            const mesh = new THREE.Mesh(geometry, materials[type]);
+            mesh.position.set(x + 0.5, y + 0.5, z + 0.5);
+            mesh.userData = { x, y, z, type, key };
+            scene.add(mesh);
+            blockMeshes[key] = mesh;
+            blockMeshesArray.push(mesh);
+            return mesh;
+        }
+
+        function generateTree(x, y, z, ck) {
+            const height = 5 + Math.floor(Math.random() * 3);
+            for (let i = 1; i <= height; i++) {
+                const key = `${x},${y+i},${z}`;
+                worldBlocks[key] = 'wood';
+                chunkBlocks[ck].add(key);
+            }
+            const queue = [
+                [x, y + height, z, 0]
+            ];
+            const visited = new Set([`${x},${y+height},${z}`]);
+            while (queue.length > 0) {
+                const [cx, cy, cz, depth] = queue.shift();
+                if (depth >= 4) continue;
+                const dirs = [
+                    [1, 0, 0],
+                    [-1, 0, 0],
+                    [0, 1, 0],
+                    [0, -1, 0],
+                    [0, 0, 1],
+                    [0, 0, -1]
+                ];
+                for (const [dx, dy, dz] of dirs) {
+                    const nx = cx + dx,
+                        ny = cy + dy,
+                        nz = cz + dz;
+                    const key = `${nx},${ny},${nz}`;
+                    if (visited.has(key)) continue;
+                    if (worldBlocks[key] === 'wood') continue;
+                    if (!worldBlocks[key]) {
+                        worldBlocks[key] = 'leaves';
+                        const leafCk = getChunkKey(nx, nz);
+                        if (!chunkBlocks[leafCk]) chunkBlocks[leafCk] = new Set();
+                        chunkBlocks[leafCk].add(key);
+                        visited.add(key);
+                        queue.push([nx, ny, nz, depth + 1]);
+                    }
+                }
+            }
+        }
+
+        function generateChunkData(cx, cz) {
+            const startX = cx * CONFIG.chunkSize;
+            const startZ = cz * CONFIG.chunkSize;
+            const ck = `${cx},${cz}`;
+            chunkBlocks[ck] = new Set();
+            for (let x = startX; x < startX + CONFIG.chunkSize; x++) {
+                for (let z = startZ; z < startZ + CONFIG.chunkSize; z++) {
+                    const h = getSurfaceHeight(x, z);
+                    for (let y = h; y >= CONFIG.worldBottom; y--) {
+                        const key = `${x},${y},${z}`;
+                        const type = getRawBlockType(x, y, z);
+                        if (type) {
+                            worldBlocks[key] = type;
+                            chunkBlocks[ck].add(key);
+                        }
+                    }
+                }
+            }
+            if (Math.random() < 0.2) {
+                const tx = startX + Math.floor(CONFIG.chunkSize / 2);
+                const tz = startZ + Math.floor(CONFIG.chunkSize / 2);
+                const ty = getSurfaceHeight(tx, tz);
+                if (worldBlocks[`${tx},${ty},${tz}`] === 'grass') {
+                    generateTree(tx, ty, tz, ck);
+                }
+            }
+        }
+
+        function activateChunk(cx, cz) {
+            const ck = `${cx},${cz}`;
+            if (!chunkBlocks[ck]) return;
+            chunkBlocks[ck].forEach(key => {
+                if (destroyedBlocks.has(key)) return;
+                activeBlocks.add(key);
+                if (!blockMeshes[key]) {
+                    const [x, y, z] = key.split(',').map(Number);
+                    if (isExposed(x, y, z)) {
+                        const type = getBlockType(x, y, z);
+                        if (type) createBlockMesh(x, y, z, type);
+                    }
+                }
+            });
+        }
+
+        function deactivateChunk(ck) {
+            if (!chunkBlocks[ck]) return;
+            chunkBlocks[ck].forEach(key => {
+                if (placedBlocks[key]) return;
+                activeBlocks.delete(key);
+                if (blockMeshes[key]) {
+                    const mesh = blockMeshes[key];
+                    scene.remove(mesh);
+                    delete blockMeshes[key];
+                    const idx = blockMeshesArray.indexOf(mesh);
+                    if (idx > -1) blockMeshesArray.splice(idx, 1);
+                }
+            });
+        }
+
+        function updateChunks() {
+            const pcx = Math.floor(player.x / CONFIG.chunkSize);
+            const pcz = Math.floor(player.z / CONFIG.chunkSize);
+            const newActive = new Set();
+            const range = 2;
+            for (let dx = -range; dx <= range; dx++) {
+                for (let dz = -range; dz <= range; dz++) {
+                    const cx = pcx + dx;
+                    const cz = pcz + dz;
+                    const ck = `${cx},${cz}`;
+                    const dist = Math.sqrt((cx * CONFIG.chunkSize - player.x) ** 2 + (cz * CONFIG.chunkSize - player.z) ** 2);
+                    if (dist > 8 + CONFIG.chunkSize) continue;
+                    newActive.add(ck);
+                    if (!generatedChunks.has(ck)) {
+                        generateChunkData(cx, cz);
+                        generatedChunks.add(ck);
+                    }
+                    if (!renderedChunks.has(ck)) activateChunk(cx, cz);
+                }
+            }
+            renderedChunks.forEach(ck => {
+                if (!newActive.has(ck)) deactivateChunk(ck);
+            });
+            renderedChunks = newActive;
+        }
+
+        // ======================================================================
+        //  碰撞 & 物理
+        // ======================================================================
+        function checkCollision(x, y, z) {
+            const minX = Math.floor(x - 0.3);
+            const maxX = Math.floor(x + 0.3);
+            const minY = Math.floor(y - 1.6 + 0.001);
+            const maxY = Math.floor(y + 0.3 - 0.001);
+            const minZ = Math.floor(z - 0.3);
+            const maxZ = Math.floor(z + 0.3);
+            for (let bx = minX; bx <= maxX; bx++) {
+                for (let by = minY; by <= maxY; by++) {
+                    for (let bz = minZ; bz <= maxZ; bz++) {
+                        const key = `${bx},${by},${bz}`;
+                        if (activeBlocks.has(key) && worldBlocks[key]) return true;
+                        if (placedBlocks[key]) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function updatePhysics(dt) {
+            if (!gravityEnabled) {
+                player.vy = 0;
+            } else {
+                player.vy -= CONFIG.gravity * dt;
+            }
+            const forwardX = -Math.sin(yaw);
+            const forwardZ = -Math.cos(yaw);
+            const rightX = Math.cos(yaw);
+            const rightZ = -Math.sin(yaw);
+            let moveX = 0;
+            let moveZ = 0;
+            const speed = CONFIG.moveSpeed;
+            if (input.w) { moveX += forwardX;
+                moveZ += forwardZ; }
+            if (input.s) { moveX -= forwardX;
+                moveZ -= forwardZ; }
+            if (input.a) { moveX -= rightX;
+                moveZ -= rightZ; }
+            if (input.d) { moveX += rightX;
+                moveZ += rightZ; }
+            if (joystick.active) {
+                const jX = joystick.dx;
+                const jY = -joystick.dy;
+                moveX += forwardX * jY + rightX * jX;
+                moveZ += forwardZ * jY + rightZ * jX;
+            }
+            const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
+            if (len > 0) {
+                moveX = (moveX / len) * speed;
+                moveZ = (moveZ / len) * speed;
+            }
+            player.vx = moveX;
+            player.vz = moveZ;
+            if (!gravityEnabled && (Math.abs(moveX) > 0.01 || Math.abs(moveZ) > 0.01)) {
+                gravityEnabled = true;
+            }
+            let nextX = player.x + player.vx * dt;
+            if (!checkCollision(nextX, player.y, player.z)) {
+                player.x = nextX;
+            } else {
+                if (player.onGround && !checkCollision(nextX, player.y + 1, player.z)) {
+                    player.y += 1.05;
+                    player.x = nextX;
+                    player.vy = 0;
+                }
+                player.vx = 0;
+            }
+            let nextZ = player.z + player.vz * dt;
+            if (!checkCollision(player.x, player.y, nextZ)) {
+                player.z = nextZ;
+            } else {
+                if (player.onGround && !checkCollision(player.x, player.y + 1, nextZ)) {
+                    player.y += 1.05;
+                    player.z = nextZ;
+                    player.vy = 0;
+                }
+                player.vz = 0;
+            }
+            let nextY = player.y + player.vy * dt;
+            if (!checkCollision(player.x, nextY, player.z)) {
+                player.y = nextY;
+                player.onGround = false;
+            } else {
+                if (player.vy < 0) player.onGround = true;
+                player.vy = 0;
+            }
+            if (player.y < CONFIG.worldBottom + 2) {
+                player.y = CONFIG.worldBottom + 2;
+                player.vy = 0;
+            }
+            camera.position.set(player.x, player.y, player.z);
+            camera.rotation.order = 'YXZ';
+            camera.rotation.y = yaw;
+            camera.rotation.x = pitch;
+        }
+
+        // ======================================================================
+        //  Entity 系统 (verity 使用球体 + 寻路)
+        // ======================================================================
+        class Entity {
+            constructor(type, x, y, z) {
+                this.type = type;
+                this.x = x;
+                this.y = y;
+                this.z = z;
+                this.vx = 0;
+                this.vy = 0;
+                this.vz = 0;
+                this.hp = type === 'chicken' ? 100 : (type === 'basketball' ? 150 : 200);
+                this.maxHp = this.hp;
+                this.state = 'wander';
+                this.wanderTarget = null;
+                this.wanderWaitTimer = 0;
+                this.attackCooldown = 0;
+                this.knockbackTimer = 0;
+                this.isVerity = (type === 'verity');
+                this.floatPhase = Math.random() * Math.PI * 2;
+                this.baseY = y;
+                this.mesh = this.createMesh();
+                this.hpBar = this.createHpBar();
+                this.hasGreeted = false;
+                // verity 被攻击标记
+                this.attacked = false;
+            }
+
+            createMesh() {
+                if (this.isVerity) {
+                    // 球体
+                    const geo = new THREE.SphereGeometry(0.6, 32, 32);
+                    const mat = getVerityMaterial();
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.set(this.x, this.y + 0.6, this.z);
+                    mesh.userData.isVerity = true;
+                    scene.add(mesh);
+                    return mesh;
+                } else {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 64;
+                    canvas.height = 64;
+                    const ctx = canvas.getContext('2d');
+                    ctx.font = '48px serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(this.type === 'chicken' ? '🐔' : '🏀', 32, 36);
+                    const texture = new THREE.CanvasTexture(canvas);
+                    const material = new THREE.MeshBasicMaterial({
+                        map: texture,
+                        transparent: true,
+                        side: THREE.DoubleSide,
+                        alphaTest: 0.5
+                    });
+                    const geometry = new THREE.PlaneGeometry(1.2, 1.2);
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.set(this.x, this.y + 1.2, this.z);
+                    scene.add(mesh);
+                    return mesh;
+                }
+            }
+
+            createHpBar() {
+                const div = document.createElement('div');
+                div.className = 'entity-hp-bar';
+                const fill = document.createElement('div');
+                fill.className = 'entity-hp-fill';
+                div.appendChild(fill);
+                document.getElementById('game-ui').appendChild(div);
+                return { element: div, fill: fill };
+            }
+
+            isBlocked(x, y, z) {
+                const minX = Math.floor(x - 0.3);
+                const maxX = Math.floor(x + 0.3);
+                const minY = Math.floor(y);
+                const maxY = Math.floor(y + 1.8);
+                const minZ = Math.floor(z - 0.3);
+                const maxZ = Math.floor(z + 0.3);
+                for (let bx = minX; bx <= maxX; bx++) {
+                    for (let by = minY; by <= maxY; by++) {
+                        for (let bz = minZ; bz <= maxZ; bz++) {
+                            if (getBlockType(bx, by, bz) !== null) return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            applyPhysics(dt) {
+                this.vy -= CONFIG.gravity * dt;
+                let nextX = this.x + this.vx * dt;
+                if (!this.isBlocked(nextX, this.y, this.z)) {
+                    this.x = nextX;
+                } else if (!this.isBlocked(nextX, this.y + 1, this.z)) {
+                    this.y += 1.05;
+                    this.x = nextX;
+                    this.vy = 0;
+                } else {
+                    this.vx = 0;
+                }
+                let nextZ = this.z + this.vz * dt;
+                if (!this.isBlocked(this.x, this.y, nextZ)) {
+                    this.z = nextZ;
+                } else if (!this.isBlocked(this.x, this.y + 1, nextZ)) {
+                    this.y += 1.05;
+                    this.z = nextZ;
+                    this.vy = 0;
+                } else {
+                    this.vz = 0;
+                }
+                let nextY = this.y + this.vy * dt;
+                if (!this.isBlocked(this.x, nextY, this.z)) {
+                    this.y = nextY;
+                } else {
+                    if (this.vy < 0) this.vy = 0;
+                    else this.vy = 0;
+                }
+                if (this.y < CONFIG.worldBottom + 1) {
+                    this.y = CONFIG.worldBottom + 1;
+                    this.vy = 0;
+                }
+                this.vx *= 0.9;
+                this.vz *= 0.9;
+            }
+
+            moveTowards(tx, tz, speed) {
+                const dx = tx - this.x;
+                const dz = tz - this.z;
+                const len = Math.hypot(dx, dz);
+                if (len > 0) {
+                    this.vx = (dx / len) * speed;
+                    this.vz = (dz / len) * speed;
+                }
+                if (this.type === 'basketball' && speed > 2) {
+                    const fx = this.vx / speed;
+                    const fz = this.vz / speed;
+                    const checkX = this.x + fx * 0.6;
+                    const checkZ = this.z + fz * 0.6;
+                    if (this.isBlocked(checkX, this.y, checkZ) || this.isBlocked(checkX, this.y + 1, checkZ)) {
+                        const leftX = -fz,
+                            leftZ = fx;
+                        if (!this.isBlocked(this.x + leftX * 0.6, this.y, this.z + leftZ * 0.6)) {
+                            this.vx = leftX * speed;
+                            this.vz = leftZ * speed;
+                        } else {
+                            const rightX = fz,
+                                rightZ = -fx;
+                            if (!this.isBlocked(this.x + rightX * 0.6, this.y, this.z + rightZ * 0.6)) {
+                                this.vx = rightX * speed;
+                                this.vz = rightZ * speed;
+                            } else {
+                                this.vx = 0;
+                                this.vz = 0;
+                            }
+                        }
+                    }
+                }
+            }
+
+            doWander(dt) {
+                if (this.wanderWaitTimer > 0) {
+                    this.wanderWaitTimer -= dt;
+                    return;
+                }
+                if (!this.wanderTarget) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = Math.random() * 6;
+                    let tx = Math.round(this.x + Math.cos(angle) * dist);
+                    let tz = Math.round(this.z + Math.sin(angle) * dist);
+                    let ty = getSurfaceHeight(tx, tz);
+                    while (getBlockType(tx, ty, tz) !== null) ty++;
+                    this.wanderTarget = { x: tx, y: ty, z: tz };
+                }
+                const dist = Math.hypot(this.x - this.wanderTarget.x, this.z - this.wanderTarget.z);
+                if (dist <= 1.5) {
+                    this.wanderTarget = null;
+                    this.wanderWaitTimer = 0.5;
+                    return;
+                }
+                this.moveTowards(this.wanderTarget.x, this.wanderTarget.z, 2);
+            }
+
+            update(dt) {
+                if (this.isVerity) {
+                    // verity 寻路：像其他生物一样游走，但不会主动攻击
+                    if (this.knockbackTimer > 0) {
+                        this.knockbackTimer -= dt;
+                        this.applyPhysics(dt);
+                        this.updateVerityMesh();
+                        this.updateHpBar();
+                        return;
+                    }
+                    // 游走
+                    this.doWander(dt);
+                    this.applyPhysics(dt);
+                    this.updateVerityMesh();
+                    this.updateHpBar();
+                    // 浮动动画
+                    this.floatPhase += dt * 1.2;
+                    const floatOffset = Math.sin(this.floatPhase) * 0.08;
+                    this.mesh.position.y = this.baseY + 0.6 + floatOffset;
+                    // 朝向玩家（让笑脸正面始终朝向玩家）
+                    const dx = player.x - this.x;
+                    const dz = player.z - this.z;
+                    const targetAngle = Math.atan2(dx, dz);
+                    let diff = targetAngle - this.mesh.rotation.y;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+                    this.mesh.rotation.y += diff * dt * 3;
+                    return;
+                }
+
+                // 其他生物逻辑（不变）
+                if (this.knockbackTimer > 0) {
+                    this.knockbackTimer -= dt;
+                    this.applyPhysics(dt);
+                    this.updateMesh();
+                    this.updateHpBar();
+                    return;
+                }
+                this.attackCooldown -= dt;
+                let target = null;
+                let fleeTarget = null;
+                if (this.type === 'chicken') {
+                    const basketball = entities.find(e => e.type === 'basketball');
+                    if (basketball) {
+                        const dist = Math.hypot(this.x - basketball.x, this.z - basketball.z);
+                        if (dist <= 5) {
+                            target = basketball;
+                            this.state = 'chase';
+                        }
+                    }
+                    if (!target) this.state = 'wander';
+                } else if (this.type === 'basketball') {
+                    const chicken = entities.find(e => e.type === 'chicken');
+                    const distToChicken = chicken ? Math.hypot(this.x - chicken.x, this.z - chicken.z) : 999;
+                    if (chicken && distToChicken <= 4) {
+                        fleeTarget = chicken;
+                        this.state = 'flee';
+                    } else {
+                        const distToPlayer = Math.hypot(this.x - player.x, this.z - player.z);
+                        if (distToPlayer <= 15) {
+                            this.state = 'chase_player';
+                        } else {
+                            this.state = 'wander';
+                        }
+                    }
+                }
+                if (this.state === 'wander') this.doWander(dt);
+                else if (this.state === 'chase' && target) {
+                    const dist = Math.hypot(this.x - target.x, this.z - target.z);
+                    if (dist <= 1.2) {
+                        if (this.attackCooldown <= 0) {
+                            const dmg = target.maxHp * (Math.random() * 0.1);
+                            target.takeDamage(dmg, this);
+                            this.attackCooldown = 1;
+                        }
+                    } else this.moveTowards(target.x, target.z, 3.5);
+                } else if (this.state === 'flee' && fleeTarget) {
+                    const dx = this.x - fleeTarget.x;
+                    const dz = this.z - fleeTarget.z;
+                    const len = Math.hypot(dx, dz);
+                    if (len > 0) this.moveTowards(this.x + (dx / len) * 3, this.z + (dz / len) * 3, 4);
+                } else if (this.state === 'chase_player') {
+                    const dist = Math.hypot(this.x - player.x, this.z - player.z);
+                    if (dist <= 1.5) {
+                        if (this.attackCooldown <= 0) {
+                            playerTakeDamage(8 + Math.random() * 7);
+                            this.attackCooldown = 1.5;
+                        }
+                    } else this.moveTowards(player.x, player.z, 3.5);
+                }
+                this.applyPhysics(dt);
+                this.updateMesh();
+                this.updateHpBar();
+            }
+
+            updateVerityMesh() {
+                // verity 的位置已在别处更新，这里只更新朝向（在update里已做）
+            }
+
+            updateMesh() {
+                if (this.isVerity) return;
+                this.mesh.position.set(this.x, this.y + 1.2, this.z);
+                this.mesh.lookAt(camera.position.x, this.mesh.position.y, camera.position.z);
+            }
+
+            updateHpBar() {
+                const vector = new THREE.Vector3(this.x, this.y + 2.2, this.z);
+                vector.project(camera);
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (-(vector.y * 0.5) + 0.5) * window.innerHeight;
+                if (vector.z < 1 && Math.hypot(this.x - player.x, this.z - player.z) < 40) {
+                    this.hpBar.element.style.display = 'block';
+                    this.hpBar.element.style.left = (x - 20) + 'px';
+                    this.hpBar.element.style.top = (y - 5) + 'px';
+                    this.hpBar.fill.style.width = (this.hp / this.maxHp * 100) + '%';
+                } else {
+                    this.hpBar.element.style.display = 'none';
+                }
+            }
+
+            takeDamage(amount, attacker) {
+                // verity 被攻击特殊处理
+                if (this.isVerity) {
+                    // 触发对话警告
+                    this.attacked = true;
+                    triggerVerityWarning(this);
+                    // 不掉血，但击退效果
+                    let ax = attacker.x || player.x;
+                    let az = attacker.z || player.z;
+                    const dx = this.x - ax;
+                    const dz = this.z - az;
+                    const len = Math.hypot(dx, dz) || 1;
+                    this.vx = (dx / len) * 5;
+                    this.vz = (dz / len) * 5;
+                    this.vy = 4;
+                    this.knockbackTimer = 0.3;
+                    return;
+                }
+
+                this.hp -= amount;
+                if (this.hp <= 0) {
+                    this.hp = 0;
+                    this.die();
+                    return;
+                }
+                let ax = attacker.x || player.x;
+                let az = attacker.z || player.z;
+                const dx = this.x - ax;
+                const dz = this.z - az;
+                const len = Math.hypot(dx, dz) || 1;
+                this.vx = (dx / len) * 5;
+                this.vz = (dz / len) * 5;
+                this.vy = 4;
+                this.knockbackTimer = 0.3;
+            }
+
+            die() {
+                scene.remove(this.mesh);
+                this.hpBar.element.remove();
+                const idx = entities.indexOf(this);
+                if (idx > -1) entities.splice(idx, 1);
+                if (this.isVerity) {
+                    updateVerityCount();
+                }
+            }
+        }
+
+        // ======================================================================
+        //  玩家伤害
+        // ======================================================================
+        function playerTakeDamage(amount) {
+            playerHp -= amount;
+            if (playerHp <= 0) {
+                playerHp = playerMaxHp;
+                player.x = 0;
+                player.y = 1.6;
+                player.z = 0;
+                yaw = 0;
+                pitch = 0;
+            }
+            updatePlayerHpBar();
+        }
+
+        function updatePlayerHpBar() {
+            const fill = document.getElementById('player-hp-fill');
+            if (fill) fill.style.width = (playerHp / playerMaxHp * 100) + '%';
+        }
+
+        // ======================================================================
+        //  破坏 / 放置
+        // ======================================================================
+        function breakBlock() {
+            gravityEnabled = true;
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+            const entityMeshes = entities.map(e => e.mesh);
+            const entityHits = raycaster.intersectObjects(entityMeshes);
+            if (entityHits.length > 0 && entityHits[0].distance <= CONFIG.reach) {
+                const hitEntity = entities.find(e => e.mesh === entityHits[0].object);
+                if (hitEntity) {
+                    if (hitEntity.isVerity) {
+                        // 攻击 verity，触发警告
+                        hitEntity.takeDamage(0, { x: player.x, y: player.y, z: player.z });
+                        return;
+                    }
+                    hitEntity.takeDamage(hitEntity.maxHp * 0.2, { x: player.x, y: player.y, z: player.z });
+                    return;
+                }
+            }
+
+            const intersects = raycaster.intersectObjects(blockMeshesArray);
+            if (intersects.length > 0 && intersects[0].distance <= CONFIG.reach) {
+                const mesh = intersects[0].object;
+                const { x, y, z, type, key } = mesh.userData;
+                if (type === 'bedrock') return;
+                scene.remove(mesh);
+                delete blockMeshes[key];
+                const idx = blockMeshesArray.indexOf(mesh);
+                if (idx > -1) blockMeshesArray.splice(idx, 1);
+                destroyedBlocks.add(key);
+                delete worldBlocks[key];
+                delete placedBlocks[key];
+                activeBlocks.delete(key);
+                const dirs = [
+                    [1, 0, 0],
+                    [-1, 0, 0],
+                    [0, 1, 0],
+                    [0, -1, 0],
+                    [0, 0, 1],
+                    [0, 0, -1]
+                ];
+                for (const [dx, dy, dz] of dirs) {
+                    const nx = x + dx,
+                        ny = y + dy,
+                        nz = z + dz;
+                    const nKey = `${nx},${ny},${nz}`;
+                    if (worldBlocks[nKey] && !blockMeshes[nKey] && isExposed(nx, ny, nz)) {
+                        createBlockMesh(nx, ny, nz, worldBlocks[nKey]);
+                    }
+                }
+            }
+        }
+
+        function placeBlock() {
+            gravityEnabled = true;
+            if (selectedType === 'chicken' || selectedType === 'basketball' || selectedType === 'verity') {
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+                const intersects = raycaster.intersectObjects(blockMeshesArray);
+                if (intersects.length > 0 && intersects[0].distance <= CONFIG.reach) {
+                    const hit = intersects[0];
+                    const { x, y, z } = hit.object.userData;
+                    const nx = x + Math.round(hit.face.normal.x);
+                    const ny = y + Math.round(hit.face.normal.y);
+                    const nz = z + Math.round(hit.face.normal.z);
+                    if (getBlockType(nx, ny, nz) === null && getBlockType(nx, ny + 1, nz) === null) {
+                        const occupied = entities.some(e => Math.abs(e.x - (nx + 0.5)) < 0.5 && Math.abs(e.z - (nz + 0.5)) <
+                            0.5 && Math.abs(e.y - ny) < 1.5);
+                        if (!occupied) {
+                            const entity = new Entity(selectedType, nx + 0.5, ny, nz + 0.5);
+                            entities.push(entity);
+                            if (selectedType === 'verity') {
+                                updateVerityCount();
+                                setTimeout(() => {
+                                    triggerVerityDialog(entity, true);
+                                }, 300);
+                            }
+                        }
+                    }
+                }
+                return;
+            }
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const intersects = raycaster.intersectObjects(blockMeshesArray);
+            if (intersects.length > 0 && intersects[0].distance <= CONFIG.reach) {
+                const hit = intersects[0];
+                const { x, y, z } = hit.object.userData;
+                const nx = x + Math.round(hit.face.normal.x);
+                const ny = y + Math.round(hit.face.normal.y);
+                const nz = z + Math.round(hit.face.normal.z);
+                const pKey = `${nx},${ny},${nz}`;
+                if (getBlockType(nx, ny, nz) !== null || blockMeshes[pKey]) return;
+                placedBlocks[pKey] = selectedType;
+                worldBlocks[pKey] = selectedType;
+                const ck = getChunkKey(nx, nz);
+                if (!chunkBlocks[ck]) chunkBlocks[ck] = new Set();
+                chunkBlocks[ck].add(pKey);
+                activeBlocks.add(pKey);
+                createBlockMesh(nx, ny, nz, selectedType);
+                const playerMinX = Math.floor(player.x - 0.3);
+                const playerMaxX = Math.floor(player.x + 0.3);
+                const playerMinZ = Math.floor(player.z - 0.3);
+                const playerMaxZ = Math.floor(player.z + 0.3);
+                if (nx >= playerMinX && nx <= playerMaxX && nz >= playerMinZ && nz <= playerMaxZ) {
+                    if (ny === Math.floor(player.y - 1.6) || ny === Math.floor(player.y - 1.6 + 1)) {
+                        player.y += 1.0;
+                    }
+                }
+            }
+        }
+
+        function jump() {
+            gravityEnabled = true;
+            player.vy = 10;
+            player.onGround = false;
+        }
+
+        // ======================================================================
+        //  verity 对话系统
+        // ======================================================================
+        function updateVerityCount() {
+            const count = entities.filter(e => e.isVerity).length;
+            verityCount = count;
+            const badge = document.getElementById('float-badge');
+            if (badge) badge.textContent = count;
+            if (count > 0) {
+                if (!chatHidden) {
+                    showChat(true);
+                }
+                document.getElementById('verity-float-ball').style.display = 'flex';
+            } else {
+                hideChat();
+                document.getElementById('verity-float-ball').style.display = 'none';
+                chatHidden = false;
+            }
+        }
+
+        function showChat(animate = true) {
+            const el = document.getElementById('verity-chat');
+            el.classList.remove('hidden', 'fade-out');
+            el.style.display = 'flex';
+            chatVisible = true;
+            document.getElementById('chat-input').focus();
+        }
+
+        function hideChat() {
+            const el = document.getElementById('verity-chat');
+            el.classList.add('fade-out');
+            chatVisible = false;
+            setTimeout(() => {
+                if (!chatVisible) {
+                    el.style.display = 'none';
+                }
+            }, 250);
+        }
+
+        function addChatMessage(text, sender = 'bot') {
+            const container = document.getElementById('verity-chat-messages');
+            const div = document.createElement('div');
+            div.className = `chat-msg ${sender}`;
+            div.textContent = text;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            chatMessages.push({ text, sender });
+        }
+
+        function clearChat() {
+            const container = document.getElementById('verity-chat-messages');
+            container.innerHTML = '';
+            chatMessages = [];
+        }
+
+        function setTyping(typing) {
+            const container = document.getElementById('verity-chat-messages');
+            const old = container.querySelector('.chat-msg.typing');
+            if (old) old.remove();
+            if (typing) {
+                const div = document.createElement('div');
+                div.className = 'chat-msg typing';
+                div.textContent = 'verity 正在思考…';
+                container.appendChild(div);
+                container.scrollTop = container.scrollHeight;
+            }
+        }
+
+        // ======================================================================
+        //  verity 被攻击警告
+        // ======================================================================
+        let warningShown = false; // 确保只触发一次
+
+        function triggerVerityWarning(verityEntity) {
+            if (!verityEntity || !verityEntity.isVerity) return;
+            if (warningShown) return; // 仅触发一次
+            warningShown = true;
+
+            // 显示聊天框并清空之前的消息（可选），添加警告信息
+            chatHidden = false;
+            showChat(true);
+            document.getElementById('verity-float-ball').style.display = 'flex';
+
+            // 清空对话并显示黑底红字警告
+            clearChat();
+            addChatMessage('你敢打我你就废了，三天后就是你的死期。以后这个版本一旦有昼夜循环，你就玩完了', 'warning');
+
+            // 可选：震动或闪烁效果
+            const el = document.getElementById('verity-chat');
+            el.style.borderColor = '#ff0000';
+            el.style.boxShadow = '0 0 30px rgba(255,0,0,0.5)';
+            setTimeout(() => {
+                el.style.borderColor = 'rgba(255,215,0,0.7)';
+                el.style.boxShadow = '0 8px 32px rgba(0,0,0,0.6)';
+            }, 2000);
+        }
+
+        // ======================================================================
+        //  AI 对话核心 (保持不变)
+        // ======================================================================
+        async function callAI(userMessage) {
+            if (isAiBusy) return;
+            isAiBusy = true;
+            document.getElementById('chat-send-btn').disabled = true;
+            setTyping(true);
+
+            try {
+                const systemPrompt =
+                    '你是一个我的世界(Minecraft)小助手，名字叫"verity"。你非常了解我的世界的各种知识，包括合成、红石、建筑、生物、模组等。请用中文回答，语气友好、热情、专业。如果用户问的问题与我的世界无关，请礼貌地引导回我的世界话题。';
+
+                const response = await fetch(AI_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${AI_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: AI_MODEL,
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: userMessage }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 1024,
+                        stream: false
+                    })
+                });
+
+                setTyping(false);
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    console.error('AI API error:', response.status, errText);
+                    addChatMessage('😅 哎呀，我暂时连不上大脑，稍后再试试吧！', 'system');
+                    return;
+                }
+
+                const data = await response.json();
+                const reply = data.choices?.[0]?.message?.content || '嗯…我没太听清楚，能再说一遍吗？';
+                addChatMessage(reply, 'bot');
+
+            } catch (err) {
+                console.error('AI call error:', err);
+                setTyping(false);
+                addChatMessage('⚠️ 网络出了点小问题，请稍后再问吧。', 'system');
+            } finally {
+                isAiBusy = false;
+                document.getElementById('chat-send-btn').disabled = false;
+                document.getElementById('chat-input').focus();
+            }
+        }
+
+        // ======================================================================
+        //  触发 verity 对话 (欢迎)
+        // ======================================================================
+        let lastDialogTime = 0;
+        const DIALOG_COOLDOWN = 2000;
+
+        function triggerVerityDialog(verityEntity, isWelcome = false) {
+            if (!verityEntity || !verityEntity.isVerity) return;
+
+            const now = Date.now();
+            if (now - lastDialogTime < DIALOG_COOLDOWN && !isWelcome) return;
+            lastDialogTime = now;
+
+            chatHidden = false;
+            showChat(true);
+            document.getElementById('verity-float-ball').style.display = 'flex';
+
+            if (isWelcome && !verityEntity.hasGreeted) {
+                verityEntity.hasGreeted = true;
+                addChatMessage('🤖 你好，我是你的Minecraft小助手，不懂的都可以问我！', 'bot');
+                return;
+            }
+
+            document.getElementById('chat-input').focus();
+        }
+
+        // ======================================================================
+        //  发送用户消息
+        // ======================================================================
+        function sendUserMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text) return;
+            if (isAiBusy) return;
+
+            const verities = entities.filter(e => e.isVerity);
+            if (verities.length === 0) {
+                addChatMessage('⚠️ 场上没有 verity 助手，请先放置一个吧！', 'system');
+                return;
+            }
+
+            input.value = '';
+            addChatMessage(text, 'user');
+            callAI(text);
+        }
+
+        // ======================================================================
+        //  动画循环
+        // ======================================================================
+        function animate(time) {
+            if (!isGameRunning) return;
+            requestAnimationFrame(animate);
+            const dt = Math.min((time - lastTime) / 1000, 0.1);
+            lastTime = time;
+
+            updatePhysics(dt);
+            entities.forEach(e => e.update(dt));
+            updateChunks();
+
+            document.getElementById('coords').innerText =
+                `X: ${Math.floor(player.x)} Y: ${Math.floor(player.y)} Z: ${Math.floor(player.z)}`;
+            renderer.render(scene, camera);
+        }
+
+        // ======================================================================
+        //  触摸 / 鼠标 系统 (保持原有)
+        // ======================================================================
+        window.addEventListener('touchstart', (e) => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                const el = document.elementFromPoint(t.clientX, t.clientY);
+                if (el && (el.closest('.game-btn') || el.id === 'btn-return-main' || el.closest('#verity-chat') || el
+                        .closest('#verity-float-ball'))) {
+                    touchRoles[t.identifier] = 'button';
+                } else if (el && el.closest('#joystick-zone')) {
+                    touchRoles[t.identifier] = 'joystick';
+                } else if (t.clientX > window.innerWidth / 2) {
+                    touchRoles[t.identifier] = 'look';
+                    lookInput.active = true;
+                    lookInput.lastX = t.clientX;
+                    lookInput.lastY = t.clientY;
+                }
+            }
+        }, { passive: false, capture: true });
+
+        window.addEventListener('touchmove', (e) => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                if (touchRoles[t.identifier] === 'look') {
+                    const dx = t.clientX - lookInput.lastX;
+                    const dy = t.clientY - lookInput.lastY;
+                    yaw -= dx * 0.005 * CONFIG.sensitivity;
+                    pitch -= dy * 0.005 * CONFIG.sensitivity;
+                    pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch));
+                    lookInput.lastX = t.clientX;
+                    lookInput.lastY = t.clientY;
+                    e.preventDefault();
+                }
+            }
+        }, { passive: false, capture: true });
+
+        window.addEventListener('touchend', (e) => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                if (touchRoles[t.identifier] === 'look') {
+                    let hasLook = false;
+                    for (let j = 0; j < e.touches.length; j++) {
+                        if (touchRoles[e.touches[j].identifier] === 'look') hasLook = true;
+                    }
+                    if (!hasLook) lookInput.active = false;
+                }
+                delete touchRoles[t.identifier];
+            }
+        }, { capture: true });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'w' || e.key === 'W') input.w = true;
+            if (e.key === 'a' || e.key === 'A') input.a = true;
+            if (e.key === 's' || e.key === 'S') input.s = true;
+            if (e.key === 'd' || e.key === 'D') input.d = true;
+            if (e.key === ' ') { e.preventDefault();
+                jump(); }
+            if (e.key === 'Enter' && chatVisible) {
+                const input = document.getElementById('chat-input');
+                if (document.activeElement === input) {
+                    e.preventDefault();
+                    sendUserMessage();
+                }
+            }
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'w' || e.key === 'W') input.w = false;
+            if (e.key === 'a' || e.key === 'A') input.a = false;
+            if (e.key === 's' || e.key === 'S') input.s = false;
+            if (e.key === 'd' || e.key === 'D') input.d = false;
+        });
+
+        document.addEventListener('mousedown', (e) => {
+            if (document.getElementById('game-ui').style.display !== 'block') return;
+            if (e.target.closest('.game-btn') || e.target.closest('#joystick-zone') || e.target.id === 'btn-return-main' ||
+                e.target.closest('#verity-chat') || e.target.closest('#verity-float-ball')) return;
+            if (e.button === 0) breakBlock();
+            else if (e.button === 2) placeBlock();
+        });
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        let isMouseDown = false;
+        window.addEventListener('mousedown', (e) => {
+            if (e.clientX > window.innerWidth / 2 && e.button === 0) {
+                isMouseDown = true;
+                lookInput.lastX = e.clientX;
+                lookInput.lastY = e.clientY;
+            }
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (isMouseDown) {
+                const dx = e.clientX - lookInput.lastX;
+                const dy = e.clientY - lookInput.lastY;
+                yaw -= dx * 0.002 * CONFIG.sensitivity;
+                pitch -= dy * 0.002 * CONFIG.sensitivity;
+                pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch));
+                lookInput.lastX = e.clientX;
+                lookInput.lastY = e.clientY;
+            }
+        });
+        window.addEventListener('mouseup', () => isMouseDown = false);
+
+        // ======================================================================
+        //  摇杆
+        // ======================================================================
+        const joystickZone = document.getElementById('joystick-zone');
+        const joystickKnob = document.getElementById('joystick-knob');
+        let joystickTouchId = null;
+        const maxDist = 45;
+
+        joystickZone.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            gravityEnabled = true;
+            const touch = e.changedTouches[0];
+            joystickTouchId = touch.identifier;
+            joystick.active = true;
+            updateJoystick(touch);
+        }, { passive: false });
+
+        joystickZone.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === joystickTouchId) {
+                    updateJoystick(e.changedTouches[i]);
+                }
+            }
+        }, { passive: false });
+
+        const endJoystick = (e) => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === joystickTouchId) {
+                    joystick.active = false;
+                    joystick.dx = 0;
+                    joystick.dy = 0;
+                    joystickKnob.style.transform = `translate(-50%, -50%)`;
+                    joystickTouchId = null;
+                }
+            }
+        };
+        joystickZone.addEventListener('touchend', endJoystick);
+        joystickZone.addEventListener('touchcancel', endJoystick);
+
+        function updateJoystick(touch) {
+            const rect = joystickZone.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            let dx = touch.clientX - centerX;
+            let dy = touch.clientY - centerY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance > maxDist) {
+                dx = (dx / distance) * maxDist;
+                dy = (dy / distance) * maxDist;
+            }
+            joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+            joystick.dx = dx / maxDist;
+            joystick.dy = dy / maxDist;
+        }
+
+        // ======================================================================
+        //  UI 绑定
+        // ======================================================================
+        function bindGameBtn(el, action) {
+            el.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                el.style.transform = 'scale(0.92)';
+                action();
+            }, { passive: false });
+            el.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                el.style.transform = '';
+            });
+        }
+
+        bindGameBtn(document.getElementById('break-btn'), breakBlock);
+        bindGameBtn(document.getElementById('place-btn'), placeBlock);
+        bindGameBtn(document.getElementById('jump-btn'), jump);
+
+        const selectBtn = document.getElementById('select-btn');
+        selectBtn.addEventListener('touchstart', (e) => { e.preventDefault();
+            cycleBlockType(); }, { passive: false });
+        selectBtn.addEventListener('click', (e) => { e.stopPropagation();
+            cycleBlockType(); });
+
+        function cycleBlockType() {
+            const idx = blockTypes.indexOf(selectedType);
+            selectedType = blockTypes[(idx + 1) % blockTypes.length];
+            selectBtn.innerText = blockNames[selectedType];
+        }
+
+        // ======================================================================
+        //  聊天框事件绑定
+        // ======================================================================
+        document.getElementById('chat-send-btn').addEventListener('click', sendUserMessage);
+        document.getElementById('chat-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendUserMessage();
+            }
+        });
+
+        document.getElementById('chat-hide-btn').addEventListener('click', () => {
+            chatHidden = true;
+            hideChat();
+            if (verityCount > 0) {
+                document.getElementById('verity-float-ball').style.display = 'flex';
+            }
+        });
+
+        document.getElementById('chat-clear-btn').addEventListener('click', clearChat);
+
+        document.getElementById('verity-float-ball').addEventListener('click', () => {
+            chatHidden = false;
+            showChat(true);
+            document.getElementById('verity-float-ball').style.display = verityCount > 0 ? 'flex' : 'none';
+            if (verityCount > 0) {
+                document.getElementById('chat-input').focus();
+            }
+        });
+
+        // ======================================================================
+        //  返回主菜单
+        // ======================================================================
+        function returnToMainMenu() {
+            isGameRunning = false;
+            document.getElementById('game-ui').style.display = 'none';
+            document.getElementById('player-hp-box').style.display = 'none';
+            document.getElementById('main-menu').style.display = 'flex';
+            document.getElementById('main-menu').style.opacity = 1;
+            document.getElementById('verity-chat').style.display = 'none';
+            document.getElementById('verity-float-ball').style.display = 'none';
+            chatVisible = false;
+            chatHidden = false;
+            verityCount = 0;
+            warningShown = false;
+
+            entities.forEach(e => { scene.remove(e.mesh);
+                e.hpBar.element.remove(); });
+            entities = [];
+            blockMeshesArray.forEach(m => scene.remove(m));
+            blockMeshes = {};
+            blockMeshesArray = [];
+            worldBlocks = {};
+            activeBlocks = new Set();
+            chunkBlocks = {};
+            generatedChunks = new Set();
+            renderedChunks = new Set();
+            destroyedBlocks = new Set();
+            placedBlocks = {};
+            playerHp = playerMaxHp;
+            verityMaterial = null;
+            clearChat();
+        }
+
+        // ======================================================================
+        //  进入游戏
+        // ======================================================================
+        function enterGame() {
+            document.getElementById('main-menu').style.display = 'none';
+            document.getElementById('loading-screen').style.display = 'flex';
+
+            if (!scene) initThree();
+
+            player.x = 0;
+            player.y = 1.6;
+            player.z = 0;
+            player.vx = 0;
+            player.vy = 0;
+            player.vz = 0;
+            player.onGround = false;
+            playerHp = playerMaxHp;
+            gravityEnabled = false;
+            yaw = 0;
+            pitch = 0;
+            chatHidden = false;
+            chatVisible = false;
+            verityCount = 0;
+            warningShown = false;
+            clearChat();
+
+            let progress = 0;
+            const bar = document.getElementById('progress-bar');
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        document.getElementById('loading-screen').style.display = 'none';
+                        document.getElementById('game-ui').style.display = 'block';
+                        document.getElementById('player-hp-box').style.display = 'block';
+                        updatePlayerHpBar();
+
+                        const preloadRange = 2;
+                        for (let cx = -preloadRange; cx <= preloadRange; cx++) {
+                            for (let cz = -preloadRange; cz <= preloadRange; cz++) {
+                                generateChunkData(cx, cz);
+                                generatedChunks.add(`${cx},${cz}`);
+                            }
+                        }
+                        for (let x = -2; x <= 2; x++) {
+                            for (let z = -2; z <= 2; z++) {
+                                const h = getSurfaceHeight(x, z);
+                                for (let y = h; y >= CONFIG.worldBottom; y--) {
+                                    if (isExposed(x, y, z)) {
+                                        createBlockMesh(x, y, z, getBlockType(x, y, z));
+                                    }
+                                }
+                            }
+                        }
+                        for (let cx = -1; cx <= 1; cx++) {
+                            for (let cz = -1; cz <= 1; cz++) {
+                                activateChunk(cx, cz);
+                                renderedChunks.add(`${cx},${cz}`);
+                            }
+                        }
+
+                        // 生成初始生物
+                        for (let i = 0; i < 3; i++) {
+                            let x, z, y;
+                            do {
+                                x = (Math.random() - 0.5) * 30;
+                                z = (Math.random() - 0.5) * 30;
+                                y = getSurfaceHeight(Math.round(x), Math.round(z)) + 1;
+                            } while (getBlockType(Math.round(x), Math.round(y), Math.round(z)) !== null);
+                            entities.push(new Entity('chicken', x, y, z));
+
+                            do {
+                                x = (Math.random() - 0.5) * 30;
+                                z = (Math.random() - 0.5) * 30;
+                                y = getSurfaceHeight(Math.round(x), Math.round(z)) + 1;
+                            } while (getBlockType(Math.round(x), Math.round(y), Math.round(z)) !== null);
+                            entities.push(new Entity('basketball', x, y, z));
+                        }
+
+                        // 放置一个初始verity
+                        let vx, vz, vy;
+                        do {
+                            vx = (Math.random() - 0.5) * 20;
+                            vz = (Math.random() - 0.5) * 20;
+                            vy = getSurfaceHeight(Math.round(vx), Math.round(vz)) + 1;
+                        } while (getBlockType(Math.round(vx), Math.round(vy), Math.round(vz)) !== null);
+                        const verityEntity = new Entity('verity', vx + 0.5, vy, vz + 0.5);
+                        entities.push(verityEntity);
+                        updateVerityCount();
+
+                        setTimeout(() => {
+                            if (verityEntity && verityEntity.isVerity) {
+                                triggerVerityDialog(verityEntity, true);
+                            }
+                        }, 600);
+
+                        isGameRunning = true;
+                        lastTime = performance.now();
+                        requestAnimationFrame(animate);
+                    }, 500);
+                }
+                bar.style.width = progress + '%';
+            }, 80);
+        }
+
+        // ======================================================================
+        //  菜单事件
+        // ======================================================================
+        document.getElementById('btn-start-random').addEventListener('click', () => {
+            currentWorldType = 'random';
+            enterGame();
+        });
+        document.getElementById('btn-start-flat').addEventListener('click', () => {
+            currentWorldType = 'superflat';
+            enterGame();
+        });
+        document.getElementById('btn-return-main').addEventListener('click', returnToMainMenu);
+
+        // 预初始化 Three
+        initThree();
+
+        console.log('✅ 3D verity 模型测试已启动 | 版本: 1.0 + 寻路 + 攻击反馈');
+        console.log('💡 选择 "verity" 放置，攻击它会触发警告！');
+    </script>
+</body>
+</html>
