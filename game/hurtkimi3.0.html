@@ -1,0 +1,3319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Kimi 3D 武器实验室</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { height:100%; overflow:hidden; background:#000; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; touch-action:none; user-select:none; -webkit-user-select:none; }
+  #canvas-container { width:100vw; height:100vh; position:fixed; top:0; left:0; z-index:1; }
+
+  #splash-screen {
+    position:fixed; inset:0; z-index:200; background:#000;
+    display:none; align-items:center; justify-content:center; flex-direction:column;
+  }
+  #splash-text {
+    font-size:clamp(28px, 8vw, 56px); font-weight:900; letter-spacing:4px;
+    background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000);
+    background-size: 200% auto;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: rainbow 2s linear infinite;
+  }
+  @keyframes rainbow { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
+  .basketball { font-size:clamp(28px, 8vw, 56px); display:inline-block; animation:none !important; color:unset; filter:none; }
+
+  #death-screen {
+    position:fixed; inset:0; z-index:300; background:#000;
+    display:none; align-items:center; justify-content:center; flex-direction:column;
+  }
+  #death-text { color:#fff; font-size:28px; text-align:center; line-height:1.6; font-weight:700; }
+
+  .ui-layer { position:fixed; inset:0; pointer-events:none; z-index:10; }
+  .ui-btn { pointer-events:auto; border:none; outline:none; user-select:none; -webkit-user-select:none; cursor:pointer; }
+
+  #btn-reload {
+    position:fixed; top:max(12px, env(safe-area-inset-top)); left:max(12px, env(safe-area-inset-left));
+    background:rgba(0,0,0,0.55); color:#fff; padding:8px 16px; border-radius:12px;
+    font-size:14px; font-weight:600; backdrop-filter:blur(8px); pointer-events:auto;
+  }
+  #btn-settings {
+    position:fixed; top:max(12px, env(safe-area-inset-top)); left:calc(max(12px, env(safe-area-inset-left)) + 70px);
+    background:rgba(0,0,0,0.55); color:#fff; padding:8px 16px; border-radius:12px;
+    font-size:14px; font-weight:600; backdrop-filter:blur(8px); pointer-events:auto;
+  }
+
+  #player-hp-bar {
+    position:fixed; top:max(12px, env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    width:200px; height:12px; background:rgba(0,0,0,0.5); border-radius:6px; overflow:hidden; z-index:20;
+  }
+  #player-hp-fill { width:100%; height:100%; background:linear-gradient(90deg,#ff4444,#ffaa00); }
+
+  #btn-heal {
+    position:fixed; top:max(12px, env(safe-area-inset-top)); left:calc(50% + 110px);
+    background:rgba(0,200,0,0.7); color:#fff; padding:8px 14px; border-radius:12px;
+    font-size:13px; font-weight:600; pointer-events:auto; z-index:20; border:none;
+  }
+
+  #joystick-zone {
+    position:fixed; bottom:max(24px, env(safe-area-inset-bottom)); left:max(24px, env(safe-area-inset-left));
+    width:140px; height:140px; pointer-events:auto;
+  }
+  #joystick-base {
+    position:absolute; width:140px; height:140px; border-radius:50%;
+    background:rgba(0,0,0,0.12); border:2px solid rgba(0,0,0,0.25);
+  }
+  #joystick-knob {
+    position:absolute; width:56px; height:56px; border-radius:50%;
+    background:rgba(255,255,255,0.95); box-shadow:0 4px 14px rgba(0,0,0,0.2);
+    left:42px; top:42px; transition:transform 0.05s linear;
+  }
+
+  .right-controls {
+    position:fixed; bottom:max(24px, env(safe-area-inset-bottom)); right:max(24px, env(safe-area-inset-right));
+    display:flex; flex-direction:column; align-items:flex-end; gap:12px; pointer-events:none;
+  }
+  .ctrl-btn {
+    pointer-events:auto; border-radius:18px; font-weight:700; color:#fff;
+    box-shadow:0 6px 18px rgba(0,0,0,0.25); display:flex; align-items:center; justify-content:center;
+    text-align:center; line-height:1.2;
+  }
+  #btn-attack { width:88px; height:88px; background:#ff4444; font-size:17px; }
+  #btn-weapon { width:64px; height:64px; background:#1E82FB; font-size:13px; }
+  #btn-summon { width:64px; height:64px; background:#44aa44; font-size:13px; }
+
+  #crosshair {
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    width:32px; height:32px; display:none; pointer-events:none;
+  }
+  #crosshair::before, #crosshair::after {
+    content:''; position:absolute; background:rgba(255,255,255,0.95);
+  }
+  #crosshair::before { width:2px; height:32px; left:15px; top:0; }
+  #crosshair::after { width:32px; height:2px; top:15px; left:0; }
+  .ch-dot { position:absolute; width:4px; height:4px; background:#ff4444; border-radius:50%; top:14px; left:14px; }
+
+  #weapon-label {
+    position:fixed; top:max(16px, env(safe-area-inset-top)); right:max(16px, env(safe-area-inset-right));
+    background:rgba(0,0,0,0.55); color:#fff; padding:8px 16px; border-radius:12px;
+    font-size:14px; font-weight:600; pointer-events:none; backdrop-filter:blur(8px);
+  }
+
+  #hint {
+    position:fixed; top:max(50px, env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    background:rgba(255,255,255,0.82); padding:6px 14px; border-radius:20px;
+    font-size:13px; color:#333; pointer-events:none; white-space:nowrap;
+  }
+
+  #summon-menu {
+    position:fixed; inset:0; z-index:150; display:none;
+    align-items:center; justify-content:center; background:rgba(0,0,0,0.4);
+  }
+  #summon-panel {
+    background:#fff; border:3px solid #1E82FB; border-radius:16px;
+    padding:24px; min-width:280px; max-width:90vw;
+  }
+  .summon-title {
+    text-align:center; font-size:20px; font-weight:700; color:#1E82FB; margin-bottom:16px;
+  }
+  .summon-option {
+    display:block; width:100%; padding:12px; margin:8px 0;
+    border:2px solid #e0e0e0; border-radius:10px; background:#fff;
+    font-size:16px; font-weight:600; color:#333; cursor:pointer; text-align:center;
+  }
+  .summon-option:active { background:#f0f0f0; }
+  .summon-toggle {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px; margin:8px 0; border:2px solid #e0e0e0; border-radius:10px; background:#fff;
+    font-size:16px; font-weight:600; color:#333;
+  }
+  .toggle-switch {
+    width:44px; height:24px; background:#ccc; border-radius:12px;
+    position:relative; transition:background 0.2s; cursor:pointer;
+  }
+  .toggle-switch.on { background:#1E82FB; }
+  .toggle-knob {
+    width:20px; height:20px; background:#fff; border-radius:50%;
+    position:absolute; top:2px; left:2px; transition:left 0.2s;
+    box-shadow:0 1px 3px rgba(0,0,0,0.2);
+  }
+  .toggle-switch.on .toggle-knob { left:22px; }
+
+  /* Settings Panel */
+  #settings-panel {
+    display:none; position:fixed; inset:0; z-index:400; background:#ffffff;
+    flex-direction:column; padding:20px; overflow-y:auto;
+  }
+  #settings-header {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:30px; padding-bottom:15px; border-bottom:1px solid #eee;
+  }
+  #settings-header h2 { font-size:24px; color:#333; }
+  #btn-close-settings {
+    background:none; border:none; font-size:24px; cursor:pointer; color:#666;
+    width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+  }
+  .setting-item {
+    display:flex; align-items:flex-start; margin-bottom:25px; padding:18px;
+    background:#f9f9f9; border-radius:12px; border:1px solid #f0f0f0;
+  }
+  .setting-item-clickable { cursor:pointer; }
+  .setting-text { flex:1; }
+  .setting-name { color:#2196F3; font-size:18px; font-weight:bold; margin-bottom:8px; }
+  .setting-desc { color:#888; font-size:14px; line-height:1.5; margin-bottom:10px; }
+  .setting-slider { width:100%; height:8px; border-radius:4px; outline:none; }
+  .setting-val { text-align:center; color:#666; font-size:14px; margin-top:4px; }
+  #btn-save-settings {
+    width:100%; padding:15px; background:#4CAF50; color:white; border:none;
+    border-radius:12px; font-size:18px; cursor:pointer; margin-top:auto;
+  }
+  #btn-save-settings:active { background:#45a049; }
+
+  /* UI Edit Overlay */
+  #ui-edit-overlay {
+    display:none; position:fixed; inset:0; z-index:450; pointer-events:none;
+  }
+  #ui-edit-hint {
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    color:#ffffff; font-size:22px; font-weight:bold; pointer-events:none;
+    text-shadow:0 0 10px rgba(0,0,0,0.8); z-index:451;
+  }
+  #ui-btn-save-layout {
+    position:fixed; bottom:40px; left:50%; transform:translateX(-50%);
+    padding:15px 50px; background:#4CAF50; color:white; border:none;
+    border-radius:12px; font-size:18px; cursor:pointer; pointer-events:auto;
+    z-index:460; box-shadow:0 4px 12px rgba(0,0,0,0.3);
+  }
+  #ui-btn-save-layout:active { background:#45a049; }
+
+  /* UI Button Edit Menu */
+  #ui-button-edit-menu {
+    display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    background:rgba(0,0,0,0.95); padding:30px; border-radius:20px; z-index:470;
+    color:white; min-width:320px; border:2px solid rgba(255,255,255,0.2);
+  }
+  #ui-button-edit-menu h3 { margin-bottom:25px; text-align:center; font-size:22px; }
+  .ui-edit-menu-section { margin-bottom:25px; }
+  .ui-edit-menu-label { color:#2196F3; font-weight:bold; margin-bottom:12px; font-size:16px; }
+  #ui-btn-size-slider { width:100%; height:8px; border-radius:4px; outline:none; }
+  #ui-btn-size-display { text-align:center; margin-top:8px; color:#ccc; font-size:15px; }
+  #ui-btn-key-detect {
+    width:100%; padding:14px; background:#333; color:white; border:1px solid #555;
+    border-radius:8px; cursor:pointer; font-size:15px;
+  }
+  #ui-btn-key-detect:active { background:#444; }
+  #ui-btn-key-display { text-align:center; margin-top:12px; color:#aaa; font-size:14px; min-height:20px; }
+  .ui-joy-key-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .ui-joy-key-item div { color:#aaa; font-size:13px; margin-bottom:4px; }
+  .ui-joy-key-btn {
+    width:100%; padding:10px; background:#333; color:white; border:1px solid #555;
+    border-radius:6px; cursor:pointer; font-size:14px;
+  }
+  .ui-joy-key-btn:active { background:#444; }
+  #ui-btn-close-edit-menu {
+    width:100%; padding:14px; background:#555; color:white; border:none;
+    border-radius:8px; cursor:pointer; font-size:16px; margin-top:10px;
+  }
+  #ui-btn-close-edit-menu:active { background:#666; }
+
+  /* Creator Overlay */
+  #creator-overlay { display:none; position:fixed; inset:0; z-index:500; background:#000; }
+  #cr-canvas-container { width:100%; height:100%; position:absolute; top:0; left:0; }
+  #cr-crosshair {
+    position:fixed; top:50%; left:50%; width:20px; height:20px;
+    transform:translate(-50%,-50%); pointer-events:none; z-index:100;
+  }
+  #cr-crosshair::before, #cr-crosshair::after {
+    content:''; position:absolute; background:rgba(255,255,255,0.9); box-shadow:0 0 2px rgba(0,0,0,0.5);
+  }
+  #cr-crosshair::before { top:9px; left:0; width:20px; height:2px; }
+  #cr-crosshair::after { top:0; left:9px; width:2px; height:20px; }
+
+  #cr-joystick-zone {
+    position:fixed; bottom:30px; left:30px; width:150px; height:150px; z-index:100;
+  }
+  #cr-joystick-base {
+    position:absolute; width:150px; height:150px; border-radius:50%;
+    background:rgba(255,255,255,0.15); border:2px solid rgba(255,255,255,0.4);
+  }
+  #cr-joystick-knob {
+    position:absolute; width:60px; height:60px; border-radius:50%;
+    background:rgba(255,255,255,0.5); top:45px; left:45px; pointer-events:none;
+    border:2px solid rgba(255,255,255,0.7);
+  }
+
+  #cr-touch-zone {
+    position:fixed; top:0; right:0; width:50%; height:100%; z-index:50;
+  }
+
+  #cr-right-controls {
+    position:fixed; right:20px; bottom:100px; z-index:100;
+    display:flex; flex-direction:column; gap:15px; align-items:center;
+  }
+  .creator-control-btn {
+    width:60px; height:60px; background:rgba(0,0,0,0.6); color:white;
+    border:2px solid rgba(255,255,255,0.5); border-radius:12px; font-size:28px;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    user-select:none; -webkit-user-select:none; touch-action:none;
+  }
+  .creator-control-btn:active { background:rgba(255,255,255,0.3); }
+
+  #cr-action-buttons {
+    position:fixed; right:20px; top:50%; transform:translateY(-50%);
+    z-index:100; display:flex; flex-direction:column; gap:12px;
+  }
+  .creator-action-btn {
+    padding:12px 18px; background:rgba(0,0,0,0.7); color:white;
+    border:2px solid rgba(255,255,255,0.5); border-radius:10px; font-size:15px;
+    cursor:pointer; user-select:none; -webkit-user-select:none;
+    text-align:center; min-width:120px;
+  }
+  .creator-action-btn:active { background:rgba(255,255,255,0.3); }
+
+  #cr-shape-menu {
+    display:none; position:fixed; top:50%; left:50%;
+    transform:translate(-50%,-50%); background:rgba(0,0,0,0.92);
+    padding:30px; border-radius:20px; z-index:200; color:white;
+    text-align:center; border:2px solid rgba(255,255,255,0.3);
+  }
+  #cr-shape-menu h2 { margin-bottom:20px; font-size:24px; }
+  .cr-shape-option {
+    padding:18px 35px; margin:12px; background:rgba(255,255,255,0.15);
+    border-radius:12px; cursor:pointer; display:inline-block; font-size:18px;
+    border:1px solid rgba(255,255,255,0.2);
+  }
+  .cr-shape-option:active { background:rgba(255,255,255,0.35); }
+
+  #cr-preview-panel {
+    display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+    background:#ffffff; z-index:300; flex-direction:row;
+  }
+  #cr-preview-left, #cr-preview-right {
+    width:25%; height:100%; padding:25px; overflow-y:auto; background:#f5f5f5;
+    display:flex; flex-direction:column;
+  }
+  #cr-preview-center {
+    width:50%; height:100%; position:relative; background:#ffffff;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  #cr-preview-canvas { width:100%; height:70%; position:relative; }
+  #cr-preview-canvas canvas { width:100%; height:100%; display:block; }
+  #cr-preview-confirm {
+    margin-top:15px; padding:15px 50px; background:#4CAF50; color:white;
+    border:none; border-radius:12px; font-size:20px; cursor:pointer;
+  }
+  #cr-preview-confirm:active { background:#45a049; }
+  .cr-preview-input { width:100%; margin:8px 0; padding:12px; font-size:16px; border:1px solid #ccc; border-radius:8px; }
+  .cr-preview-label { font-size:15px; color:#333; margin-top:15px; font-weight:bold; }
+
+  #cr-settings-panel {
+    display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+    background:#ffffff; z-index:500; flex-direction:column; padding:20px; overflow-y:auto;
+  }
+  #cr-settings-header {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:30px; padding-bottom:15px; border-bottom:1px solid #eee;
+  }
+  #cr-settings-header h2 { font-size:24px; color:#333; }
+  #cr-btn-close-settings {
+    background:none; border:none; font-size:24px; cursor:pointer; color:#666;
+    width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+  }
+  .cr-settings-item {
+    display:flex; align-items:flex-start; margin-bottom:25px; padding:18px;
+    background:#f9f9f9; border-radius:12px; border:1px solid #f0f0f0;
+  }
+  .cr-settings-item-clickable { cursor:pointer; }
+  .cr-toggle-switch-wrapper {
+    position:relative; display:inline-block; width:52px; height:30px;
+    flex-shrink:0; margin-right:18px; margin-top:3px;
+  }
+  .cr-toggle-switch-wrapper input { opacity:0; width:0; height:0; }
+  .cr-toggle-switch {
+    position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0;
+    background-color:#ccc; transition:.4s; border-radius:30px;
+  }
+  .cr-toggle-switch:before {
+    position:absolute; content:""; height:22px; width:22px; left:4px; bottom:4px;
+    background-color:white; transition:.4s; border-radius:50%;
+    box-shadow:0 2px 4px rgba(0,0,0,0.2);
+  }
+  .cr-toggle-switch-wrapper input:checked + .cr-toggle-switch { background-color:#2196F3; }
+  .cr-toggle-switch-wrapper input:checked + .cr-toggle-switch:before { transform:translateX(22px); }
+  .cr-settings-text { flex:1; }
+  .cr-settings-name { color:#2196F3; font-size:18px; font-weight:bold; margin-bottom:8px; }
+  .cr-settings-desc { color:#888; font-size:14px; line-height:1.5; }
+
+  #cr-control-edit-overlay {
+    display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+    z-index:450; pointer-events:none;
+  }
+  #cr-control-edit-hint {
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    color:#00aa00; font-size:22px; font-weight:bold; pointer-events:none;
+    text-shadow:0 0 10px rgba(255,255,255,0.8); z-index:451;
+  }
+  #cr-btn-save-layout {
+    position:fixed; bottom:40px; left:50%; transform:translateX(-50%);
+    padding:15px 50px; background:#4CAF50; color:white; border:none;
+    border-radius:12px; font-size:18px; cursor:pointer; pointer-events:auto;
+    z-index:460; box-shadow:0 4px 12px rgba(0,0,0,0.3);
+  }
+  #cr-btn-save-layout:active { background:#45a049; }
+
+  #cr-button-edit-menu {
+    display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    background:rgba(0,0,0,0.95); padding:30px; border-radius:20px; z-index:470;
+    color:white; min-width:320px; border:2px solid rgba(255,255,255,0.2);
+  }
+  #cr-button-edit-menu h3 { margin-bottom:25px; text-align:center; font-size:22px; }
+  .cr-edit-menu-section { margin-bottom:25px; }
+  .cr-edit-menu-label { color:#2196F3; font-weight:bold; margin-bottom:12px; font-size:16px; }
+  #cr-btn-size-slider { width:100%; height:8px; border-radius:4px; outline:none; }
+  #cr-btn-size-display { text-align:center; margin-top:8px; color:#ccc; font-size:15px; }
+  #cr-btn-key-detect {
+    width:100%; padding:14px; background:#333; color:white; border:1px solid #555;
+    border-radius:8px; cursor:pointer; font-size:15px;
+  }
+  #cr-btn-key-detect:active { background:#444; }
+  #cr-btn-key-display { text-align:center; margin-top:12px; color:#aaa; font-size:14px; min-height:20px; }
+  .cr-joy-key-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .cr-joy-key-item div { color:#aaa; font-size:13px; margin-bottom:4px; }
+  .cr-joy-key-btn {
+    width:100%; padding:10px; background:#333; color:white; border:1px solid #555;
+    border-radius:6px; cursor:pointer; font-size:14px;
+  }
+  .cr-joy-key-btn:active { background:#444; }
+  #cr-btn-close-edit-menu {
+    width:100%; padding:14px; background:#555; color:white; border:none;
+    border-radius:8px; cursor:pointer; font-size:16px; margin-top:10px;
+  }
+  #cr-btn-close-edit-menu:active { background:#666; }
+
+  #cr-coord-display {
+    position:fixed; top:15px; left:50%; transform:translateX(-50%); z-index:1000;
+    background:rgba(0,0,0,0.6); color:white; padding:8px 18px; border-radius:20px;
+    font-family:'Courier New', monospace; font-size:14px; display:none;
+    pointer-events:none; user-select:none;
+  }
+
+  /* Edit Params Panel */
+  #cr-edit-params-panel {
+    display:none; position:fixed; inset:0; z-index:600; background:#ffffff;
+    flex-direction:column; padding:20px; overflow-y:auto;
+  }
+  #cr-edit-params-header {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:10px;
+  }
+  #cr-edit-params-header h2 { font-size:24px; color:#333; }
+  #cr-btn-close-edit-params {
+    background:none; border:none; font-size:24px; cursor:pointer; color:#666;
+    width:40px; height:40px; display:flex; align-items:center; justify-content:center;
+  }
+  .cr-param-row { margin-bottom:20px; }
+  .cr-param-row label { display:block; font-weight:bold; margin-bottom:8px; color:#333; }
+  .cr-param-row input, .cr-param-row select {
+    width:100%; padding:10px; font-size:16px; border:1px solid #ccc; border-radius:8px;
+  }
+  .cr-param-row input[type="range"] { padding:0; }
+  .cr-param-val { text-align:center; color:#666; font-size:14px; margin-top:4px; }
+  #cr-btn-save-params {
+    width:100%; padding:14px; background:#4CAF50; color:white; border:none;
+    border-radius:10px; font-size:18px; cursor:pointer; margin-top:10px;
+  }
+  #cr-btn-save-params:active { background:#45a049; }
+
+  @media (max-width: 768px) {
+    .creator-control-btn { width:55px; height:55px; font-size:24px; }
+    .creator-action-btn { font-size:13px; padding:10px 14px; min-width:90px; }
+    #cr-preview-left, #cr-preview-right { width:30%; padding:15px; }
+    #cr-preview-center { width:40%; }
+  }
+</style>
+</head>
+<body>
+
+<div id="splash-screen">
+  <div id="splash-text"><span class="basketball">🏀</span>坤坤工作室</div>
+</div>
+
+<div id="death-screen">
+  <div id="death-text">你被kimi反杀了<br>三秒后重置文件</div>
+</div>
+
+<div id="canvas-container"></div>
+
+<div class="ui-layer">
+  <button class="ui-btn" id="btn-reload">刷新</button>
+  <button class="ui-btn" id="btn-settings">设置(k)</button>
+  <div id="player-hp-bar"><div id="player-hp-fill"></div></div>
+  <button class="ui-btn" id="btn-heal">生命恢复</button>
+  <div id="hint">拖动空白处旋转视角 | 左摇杆/WASD移动 | 右按钮攻击 | F换武器 | Tab召唤</div>
+  <div id="weapon-label">当前武器：鞭子</div>
+
+  <div id="joystick-zone">
+    <div id="joystick-base"></div>
+    <div id="joystick-knob"></div>
+  </div>
+
+  <div class="right-controls">
+    <button class="ui-btn ctrl-btn" id="btn-weapon">切换<br>武器</button>
+    <button class="ui-btn ctrl-btn" id="btn-summon">召唤</button>
+    <button class="ui-btn ctrl-btn" id="btn-attack">攻击</button>
+  </div>
+
+  <div id="crosshair"><div class="ch-dot"></div></div>
+</div>
+
+<div id="summon-menu">
+  <div id="summon-panel">
+    <div class="summon-title">召唤菜单</div>
+    <button class="summon-option" data-type="kimi">kimi</button>
+    <button class="summon-option" data-type="jokimi">jokimi</button>
+    <button class="summon-option" data-type="redkimi">REDkimi</button>
+    <button class="summon-option" data-type="kunkunegg">KUNKUNegg</button>
+    <button class="summon-option" data-type="custom">自定义</button>
+    <div class="summon-toggle" id="stack-toggle">
+      <span>叠加召唤</span>
+      <div class="toggle-switch" id="toggle-switch"><div class="toggle-knob"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Panel -->
+<div id="settings-panel">
+  <div id="settings-header">
+    <h2>设置</h2>
+    <button id="btn-close-settings">X</button>
+  </div>
+  <div class="setting-item setting-item-clickable" id="setting-room-color">
+    <div class="setting-text">
+      <div class="setting-name">房间颜色</div>
+      <div class="setting-desc">点击切换房间6个面的颜色，网格为反色</div>
+    </div>
+  </div>
+  <div class="setting-item">
+    <div class="setting-text">
+      <div class="setting-name">视场角(FOV)度数</div>
+      <div class="setting-desc">调节相机视场角</div>
+      <input type="range" id="setting-fov" class="setting-slider" min="50" max="140" value="75">
+      <div class="setting-val" id="setting-fov-val">75°</div>
+    </div>
+  </div>
+  <div class="setting-item">
+    <div class="setting-text">
+      <div class="setting-name">移动速度百分比</div>
+      <div class="setting-desc">调节角色移动速度</div>
+      <input type="range" id="setting-speed" class="setting-slider" min="50" max="400" value="100">
+      <div class="setting-val" id="setting-speed-val">100%</div>
+    </div>
+  </div>
+  <div class="setting-item setting-item-clickable" id="setting-control-mode">
+    <div class="setting-text">
+      <div class="setting-name">操作方式</div>
+      <div class="setting-desc">自定义按钮位置、大小和键盘映射（按i键也可进入）</div>
+    </div>
+  </div>
+  <div style="margin-top:auto; padding-top:20px;">
+    <button id="btn-save-settings">保存并退出</button>
+  </div>
+</div>
+
+<!-- UI Edit Overlay -->
+<div id="ui-edit-overlay">
+  <div id="ui-edit-hint">单击按钮拖动位置，长按按钮进行编辑</div>
+  <button id="ui-btn-save-layout">保存并退出</button>
+</div>
+
+<!-- UI Button Edit Menu -->
+<div id="ui-button-edit-menu">
+  <h3>编辑按钮</h3>
+  <div class="ui-edit-menu-section">
+    <div class="ui-edit-menu-label">大小百分比</div>
+    <input type="range" id="ui-btn-size-slider" min="10" max="300" value="100">
+    <div id="ui-btn-size-display">100%</div>
+  </div>
+  <div class="ui-edit-menu-section" id="ui-joystick-key-section" style="display:none;">
+    <div class="ui-edit-menu-label">摇杆方向按键</div>
+    <div class="ui-joy-key-grid">
+      <div class="ui-joy-key-item"><div>上</div><button class="ui-joy-key-btn" data-dir="up">W</button></div>
+      <div class="ui-joy-key-item"><div>下</div><button class="ui-joy-key-btn" data-dir="down">S</button></div>
+      <div class="ui-joy-key-item"><div>左</div><button class="ui-joy-key-btn" data-dir="left">A</button></div>
+      <div class="ui-joy-key-item"><div>右</div><button class="ui-joy-key-btn" data-dir="right">D</button></div>
+    </div>
+  </div>
+  <div class="ui-edit-menu-section" id="ui-normal-key-section">
+    <div class="ui-edit-menu-label">响应按键</div>
+    <button id="ui-btn-key-detect">点击检测按键</button>
+    <div id="ui-btn-key-display">未设置</div>
+  </div>
+  <button id="ui-btn-close-edit-menu">关闭</button>
+</div>
+
+<!-- Creator Overlay -->
+<div id="creator-overlay">
+  <div id="cr-canvas-container"></div>
+  <div id="cr-crosshair"></div>
+  <div id="cr-joystick-zone">
+    <div id="cr-joystick-base"></div>
+    <div id="cr-joystick-knob"></div>
+  </div>
+  <div id="cr-touch-zone"></div>
+  <div id="cr-right-controls">
+    <div class="creator-control-btn" id="cr-btn-up">↑</div>
+    <div class="creator-control-btn" id="cr-btn-down">↓</div>
+  </div>
+  <div id="cr-action-buttons">
+    <div class="creator-action-btn" id="cr-btn-edit-params">编辑参数</div>
+    <div class="creator-action-btn" id="cr-btn-delete">删除图形</div>
+    <div class="creator-action-btn" id="cr-btn-mirror">映像视角</div>
+    <div class="creator-action-btn" id="cr-btn-settings">设置(V)</div>
+    <div class="creator-action-btn" id="cr-btn-save-exit">保存并退出</div>
+    <div class="creator-action-btn" id="cr-btn-edit-text">编辑悬浮文本</div>
+    <div class="creator-action-btn" id="cr-btn-create">创建</div>
+  </div>
+  <div id="cr-shape-menu">
+    <h2>选择图形</h2>
+    <div class="cr-shape-option" data-shape="cube">正方体</div>
+    <div class="cr-shape-option" data-shape="circle">圆片</div>
+    <div class="cr-shape-option" data-shape="sphere">球</div>
+    <div class="cr-shape-option" data-shape="triangle">三角片</div>
+  </div>
+  <div id="cr-preview-panel">
+    <div id="cr-preview-left">
+      <div class="cr-preview-label">参数设置</div>
+      <div id="cr-preview-inputs"></div>
+    </div>
+    <div id="cr-preview-center">
+      <div id="cr-preview-canvas"></div>
+      <button id="cr-preview-confirm">确认创建</button>
+    </div>
+    <div id="cr-preview-right">
+      <div class="cr-preview-label">颜色</div>
+      <input type="color" id="cr-preview-color" class="cr-preview-input" value="#ff4444">
+      <div class="cr-preview-label">透明度</div>
+      <input type="range" id="cr-preview-opacity" min="0" max="100" value="100" style="width:100%; margin:8px 0;">
+      <div id="cr-opacity-display" style="text-align:center; color:#333; font-size:14px;">100%</div>
+      <div class="cr-preview-label">X轴旋转 (0-270°)</div>
+      <input type="text" id="cr-preview-rot-x" class="cr-preview-input" value="0">
+      <div class="cr-preview-label">Z轴旋转 (0-270°)</div>
+      <input type="text" id="cr-preview-rot-z" class="cr-preview-input" value="0">
+    </div>
+  </div>
+  <div id="cr-settings-panel">
+    <div id="cr-settings-header">
+      <h2>设置</h2>
+      <button id="cr-btn-close-settings">X</button>
+    </div>
+    <div class="cr-settings-item" id="cr-setting-control-mode">
+      <div class="cr-settings-text" style="flex:1;">
+        <div class="cr-settings-name">操作方式</div>
+        <div class="cr-settings-desc">自定义按钮位置、大小和键盘映射</div>
+      </div>
+    </div>
+    <div class="cr-settings-item">
+      <label class="cr-toggle-switch-wrapper">
+        <input type="checkbox" id="cr-setting-auto-calibrate" checked>
+        <span class="cr-toggle-switch"></span>
+      </label>
+      <div class="cr-settings-text">
+        <div class="cr-settings-name">自动校准</div>
+        <div class="cr-settings-desc">开启时预生成图形的位置始终不与其他已生成图形重合</div>
+      </div>
+    </div>
+    <div class="cr-settings-item">
+      <label class="cr-toggle-switch-wrapper">
+        <input type="checkbox" id="cr-setting-show-grid" checked>
+        <span class="cr-toggle-switch"></span>
+      </label>
+      <div class="cr-settings-text">
+        <div class="cr-settings-name">显示平面表格与轴</div>
+        <div class="cr-settings-desc">在世界里面显示平面直角坐标系和轴</div>
+      </div>
+    </div>
+    <div class="cr-settings-item">
+      <label class="cr-toggle-switch-wrapper">
+        <input type="checkbox" id="cr-setting-show-coord" checked>
+        <span class="cr-toggle-switch"></span>
+      </label>
+      <div class="cr-settings-text">
+        <div class="cr-settings-name">坐标显示</div>
+        <div class="cr-settings-desc">在屏幕上方显示角色当前坐标</div>
+      </div>
+    </div>
+  </div>
+  <div id="cr-control-edit-overlay">
+    <div id="cr-control-edit-hint">单击按钮拖动位置，长按按钮进行编辑</div>
+    <button id="cr-btn-save-layout">保存并退出</button>
+  </div>
+  <div id="cr-button-edit-menu">
+    <h3>编辑按钮</h3>
+    <div class="cr-edit-menu-section">
+      <div class="cr-edit-menu-label">大小</div>
+      <input type="range" id="cr-btn-size-slider" min="20" max="400" value="100">
+      <div id="cr-btn-size-display">100%</div>
+    </div>
+    <div class="cr-edit-menu-section" id="cr-joystick-key-section" style="display:none;">
+      <div class="cr-edit-menu-label">摇杆方向按键</div>
+      <div class="cr-joy-key-grid">
+        <div class="cr-joy-key-item"><div>上</div><button class="cr-joy-key-btn" data-dir="up">W</button></div>
+        <div class="cr-joy-key-item"><div>下</div><button class="cr-joy-key-btn" data-dir="down">S</button></div>
+        <div class="cr-joy-key-item"><div>左</div><button class="cr-joy-key-btn" data-dir="left">A</button></div>
+        <div class="cr-joy-key-item"><div>右</div><button class="cr-joy-key-btn" data-dir="right">D</button></div>
+      </div>
+    </div>
+    <div class="cr-edit-menu-section" id="cr-normal-key-section">
+      <div class="cr-edit-menu-label">键盘按键</div>
+      <button id="cr-btn-key-detect">点击检测按键</button>
+      <div id="cr-btn-key-display">未设置</div>
+    </div>
+    <button id="cr-btn-close-edit-menu">关闭</button>
+  </div>
+  <div id="cr-coord-display">X: 0.00 Y: 10.00 Z: 0.00</div>
+
+  <!-- Edit Params Panel -->
+  <div id="cr-edit-params-panel">
+    <div id="cr-edit-params-header">
+      <h2>编辑Kimi参数</h2>
+      <button id="cr-btn-close-edit-params">X</button>
+    </div>
+    <div class="cr-param-row">
+      <label>AI选择</label>
+      <select id="cr-param-ai">
+        <option value="none">无</option>
+        <option value="flee">逃跑AI</option>
+        <option value="attack">攻击AI</option>
+        <option value="patrol">巡逻AI</option>
+      </select>
+    </div>
+    <div class="cr-param-row" id="cr-weapon-row" style="display:none;">
+      <label>武器选择</label>
+      <select id="cr-param-weapon">
+        <option value="random">随机</option>
+        <option value="whip">鞭子</option>
+        <option value="sword">长剑</option>
+        <option value="axe">战斧</option>
+        <option value="hammer">流星锤</option>
+        <option value="scythe">镰刀</option>
+        <option value="spear">长矛</option>
+      </select>
+    </div>
+    <div class="cr-param-row">
+      <label>移动速度 (单位/秒)</label>
+      <input type="number" id="cr-param-speed" value="9" min="0" max="100" step="0.1">
+    </div>
+    <div class="cr-param-row">
+      <label>粒子效果百分比</label>
+      <input type="range" id="cr-param-particle" min="0" max="600" value="100">
+      <div class="cr-param-val" id="cr-param-particle-val">100%</div>
+    </div>
+    <div class="cr-param-row">
+      <label>粒子效果颜色</label>
+      <input type="color" id="cr-param-pcolor" value="#ff0000">
+    </div>
+    <div class="cr-param-row">
+      <label>血条百分比</label>
+      <input type="range" id="cr-param-hp" min="1" max="1000" value="100">
+      <div class="cr-param-val" id="cr-param-hp-val">100%</div>
+    </div>
+    <div class="cr-param-row">
+      <label>屏幕震动效果百分比</label>
+      <input type="range" id="cr-param-shake" min="0" max="500" value="100">
+      <div class="cr-param-val" id="cr-param-shake-val">100%</div>
+    </div>
+    <button id="cr-btn-save-params">保存并应用</button>
+  </div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ==================== 全局配置 ====================
+const ROOM_SIZE = 40;
+const HALF_SIZE = ROOM_SIZE / 2;
+const PLAYER_HEIGHT = 1.7;
+const MOVE_SPEED = 9;
+const KIMI_RADIUS = 0.85;
+
+let currentMoveSpeed = MOVE_SPEED;
+let roomMaterials = {};
+let roomGrids = [];
+const roomColors = [0xffffff, 0xffe0e0, 0xe0ffe0, 0xe0e0ff, 0xffffe0, 0xffe0ff, 0xe0ffff, 0x333333];
+let currentRoomColorIndex = 0;
+
+const WEAPONS = [
+  { id:'whip',   name:'鞭子',   bloodMul:2.5, knockUp:5,  knockBack:5,   damage:0.05, shake:0.08, melee:true },
+  { id:'sword',  name:'长剑',   bloodMul:0.5, knockUp:1,  knockBack:2.5, damage:0.06, shake:0.10, melee:true },
+  { id:'axe',    name:'战斧',   bloodMul:1.0, knockUp:0.5,knockBack:10,  damage:0.04, shake:0.12, melee:true },
+  { id:'hammer', name:'流星锤', bloodMul:1.5, knockUp:10, knockBack:15,  damage:0.10, shake:0.40, melee:true },
+  { id:'scythe', name:'镰刀',   bloodMul:0.5, knockUp:1,  knockBack:2.5, damage:0.06, shake:0.10, melee:true },
+  { id:'spear',  name:'长矛',   bloodMul:1.0, knockUp:0.005,knockBack:12,  damage:0.05, shake:0.06, melee:true },
+  { id:'bow',    name:'弓箭',   bloodMul:-0.2,knockUp:2.5,knockBack:20,  damage:0.03, shake:0.05, melee:false },
+  { id:'rifle',  name:'步枪',   bloodMul:-0.4,knockUp:0,  knockBack:0.25,damage:0.03, shake:0.00, melee:false }
+];
+
+let currentWeaponIndex = 0;
+let stackSummon = false;
+const entities = [];
+let isCreatorMode = false;
+let customKimiModel = null;
+let customKimiText = '';
+let customKimiConfig = {
+  aiType: 'none',
+  weapon: 'random',
+  moveSpeed: 9,
+  particlePercent: 100,
+  particleColor: '#ff0000',
+  hpPercent: 100,
+  shakePercent: 100
+};
+let healCooldown = 0;
+
+// UI Edit mode globals
+let uiEditMode = false;
+let uiButtonConfigs = {};
+let isUIDetectingKey = false;
+let uiDetectingJoyDir = null;
+let uiEditCurrentBtn = null;
+let uiEditLongPressTimer = null;
+let uiEditDragStartX = 0, uiEditDragStartY = 0;
+let uiEditDragInitialLeft = 0, uiEditDragInitialTop = 0;
+let uiEditIsDragging = false;
+const uiJoystickKeys = { up: 'w', down: 's', left: 'a', right: 'd' };
+
+// ==================== 场景初始化 ====================
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf0f0f3);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(10, 30, 10);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 100;
+dirLight.shadow.camera.left = -25;
+dirLight.shadow.camera.right = 25;
+dirLight.shadow.camera.top = 25;
+dirLight.shadow.camera.bottom = -25;
+scene.add(dirLight);
+
+// ==================== 房间 ====================
+function createRoom() {
+  const floorMat = new THREE.MeshStandardMaterial({ color:0xffffff, roughness:0.9 });
+  roomMaterials.floor = floorMat;
+  const floorGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI/2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  const ceilingMat = new THREE.MeshStandardMaterial({ color:0xffffff, roughness:0.9 });
+  roomMaterials.ceiling = ceilingMat;
+  const ceilingGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+  const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
+  ceiling.rotation.x = Math.PI/2;
+  ceiling.position.y = ROOM_SIZE;
+  scene.add(ceiling);
+
+  const wallMat = new THREE.MeshStandardMaterial({ color:0xffffff, side:THREE.DoubleSide, roughness:0.9 });
+  roomMaterials.wall = wallMat;
+  const wallGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+  const walls = [
+    { pos:[0, HALF_SIZE, -HALF_SIZE], rot:[0,0,0] },
+    { pos:[0, HALF_SIZE, HALF_SIZE],  rot:[0,Math.PI,0] },
+    { pos:[-HALF_SIZE, HALF_SIZE, 0], rot:[0,Math.PI/2,0] },
+    { pos:[HALF_SIZE, HALF_SIZE, 0],  rot:[0,-Math.PI/2,0] }
+  ];
+  walls.forEach(w => {
+    const mesh = new THREE.Mesh(wallGeo, wallMat);
+    mesh.position.set(...w.pos);
+    mesh.rotation.set(...w.rot);
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+  });
+
+  const gridColor = 0x000000;
+  const gridFloor = new THREE.GridHelper(ROOM_SIZE, 40, gridColor, gridColor);
+  gridFloor.position.y = 0.02;
+  gridFloor.material.transparent = true;
+  gridFloor.material.opacity = 0.2;
+  scene.add(gridFloor);
+  roomGrids.push(gridFloor);
+
+  const gridCeiling = new THREE.GridHelper(ROOM_SIZE, 40, gridColor, gridColor);
+  gridCeiling.position.y = ROOM_SIZE - 0.02;
+  gridCeiling.material.transparent = true;
+  gridCeiling.material.opacity = 0.2;
+  scene.add(gridCeiling);
+  roomGrids.push(gridCeiling);
+
+  function createWallGrid(w, h, divisions, rotY, pos) {
+    const pts = [];
+    const stepW = w/divisions, stepH = h/divisions;
+    for(let i=0;i<=divisions;i++){
+      const x = -w/2 + i*stepW;
+      pts.push(x, -h/2, 0, x, h/2, 0);
+    }
+    for(let i=0;i<=divisions;i++){
+      const y = -h/2 + i*stepH;
+      pts.push(-w/2, y, 0, w/2, y, 0);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    const mat = new THREE.LineBasicMaterial({ color:gridColor, transparent:true, opacity:0.15 });
+    const mesh = new THREE.LineSegments(geo, mat);
+    mesh.rotation.y = rotY;
+    mesh.position.copy(pos);
+    return mesh;
+  }
+  const wg1 = createWallGrid(ROOM_SIZE, ROOM_SIZE, 40, 0, new THREE.Vector3(0, HALF_SIZE, -HALF_SIZE));
+  const wg2 = createWallGrid(ROOM_SIZE, ROOM_SIZE, 40, Math.PI, new THREE.Vector3(0, HALF_SIZE, HALF_SIZE));
+  const wg3 = createWallGrid(ROOM_SIZE, ROOM_SIZE, 40, Math.PI/2, new THREE.Vector3(-HALF_SIZE, HALF_SIZE, 0));
+  const wg4 = createWallGrid(ROOM_SIZE, ROOM_SIZE, 40, -Math.PI/2, new THREE.Vector3(HALF_SIZE, HALF_SIZE, 0));
+  scene.add(wg1, wg2, wg3, wg4);
+  roomGrids.push(wg1, wg2, wg3, wg4);
+}
+createRoom();
+
+function cycleRoomColor() {
+  currentRoomColorIndex = (currentRoomColorIndex + 1) % roomColors.length;
+  const color = roomColors[currentRoomColorIndex];
+  const r = ((color >> 16) & 0xff);
+  const g = ((color >> 8) & 0xff);
+  const b = (color & 0xff);
+  const invColor = ((255 - r) << 16) | ((255 - g) << 8) | (255 - b);
+  roomMaterials.floor.color.setHex(color);
+  roomMaterials.ceiling.color.setHex(color);
+  roomMaterials.wall.color.setHex(color);
+  roomGrids.forEach(g => {
+    if (g.material) {
+      if (Array.isArray(g.material)) {
+        g.material.forEach(m => { if(m.color) m.color.setHex(invColor); });
+      } else {
+        if(g.material.color) g.material.color.setHex(invColor);
+      }
+    }
+  });
+}
+
+// ==================== 玩家 ====================
+const player = new THREE.Group();
+player.position.set(0, PLAYER_HEIGHT, 15);
+scene.add(player);
+player.add(camera);
+
+const weaponHolder = new THREE.Group();
+weaponHolder.position.set(0.35, -0.28, -0.55);
+camera.add(weaponHolder);
+
+let playerVelocity = new THREE.Vector3();
+let playerHp = 500;
+let playerMaxHp = 500;
+let playerDead = false;
+
+function updatePlayerHpBar() {
+  const ratio = Math.max(0, playerHp / playerMaxHp);
+  document.getElementById('player-hp-fill').style.width = (ratio * 100) + '%';
+}
+updatePlayerHpBar();
+
+// ==================== 生命恢复 ====================
+const btnHeal = document.getElementById('btn-heal');
+btnHeal.addEventListener('click', () => {
+  if (healCooldown > 0 || playerDead) return;
+  playerHp = playerMaxHp;
+  updatePlayerHpBar();
+  healCooldown = 30;
+  updateHealBtn();
+});
+function updateHealBtn() {
+  if (healCooldown > 0) {
+    btnHeal.textContent = `冷却 ${Math.ceil(healCooldown)}s`;
+    btnHeal.style.opacity = '0.5';
+  } else {
+    btnHeal.textContent = '生命恢复';
+    btnHeal.style.opacity = '1';
+  }
+}
+
+// ==================== 实体工厂 ====================
+function createHpSprite() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 32;
+  const ctx = canvas.getContext('2d');
+  const texture = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map:texture, transparent:true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(2, 0.25, 1);
+  sprite.position.y = 1.15;
+  return { sprite, canvas, ctx, texture };
+}
+
+function updateEntityHpBar(entity) {
+  const { ctx, canvas, texture } = entity.hpBar;
+  const ratio = Math.max(0, entity.hp / entity.maxHp);
+  ctx.clearRect(0,0,256,32);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0,0,256,32);
+  ctx.fillStyle = '#333';
+  ctx.fillRect(4,4,248,24);
+  const grad = ctx.createLinearGradient(0,0,256,0);
+  grad.addColorStop(0,'#ff4444');
+  grad.addColorStop(1,'#ffaa00');
+  ctx.fillStyle = grad;
+  ctx.fillRect(4,4,248*ratio,24);
+  texture.needsUpdate = true;
+  entity.hpBar.sprite.material.opacity = ratio <= 0 ? 0 : 1;
+}
+
+function createKimiMesh(isRed, hasRedNose) {
+  const g = new THREE.Group();
+  const geo = new THREE.SphereGeometry(KIMI_RADIUS, 32, 32);
+  const mat = new THREE.MeshStandardMaterial({ color: isRed ? 0xff0000 : 0x1E82FB, roughness:0.3, metalness:0.1 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  g.add(mesh);
+
+  const eyeGeo = new THREE.CapsuleGeometry(0.09, 0.22, 4, 8);
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+  const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+  leftEye.position.set(-0.22, 0.04, 0.74);
+  rightEye.position.set(0.22, 0.04, 0.74);
+  leftEye.rotation.x = Math.PI/2;
+  rightEye.rotation.x = Math.PI/2;
+  mesh.add(leftEye);
+  mesh.add(rightEye);
+
+  const pupilGeo = new THREE.SphereGeometry(0.05, 8, 8);
+  const pupilMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+  const leftPupil = new THREE.Mesh(pupilGeo, pupilMat);
+  const rightPupil = new THREE.Mesh(pupilGeo, pupilMat);
+  leftPupil.position.set(0, 0, 0.07);
+  rightPupil.position.set(0, 0, 0.07);
+  leftEye.add(leftPupil);
+  rightEye.add(rightPupil);
+
+  if(hasRedNose) {
+    const noseGeo = new THREE.SphereGeometry(0.08, 16, 16);
+    const noseMat = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.2 });
+    const nose = new THREE.Mesh(noseGeo, noseMat);
+    nose.position.set(0, -0.15, 0.78);
+    mesh.add(nose);
+  }
+  return g;
+}
+
+function createEggMesh() {
+  const g = new THREE.Group();
+  const geo = new THREE.SphereGeometry(KIMI_RADIUS, 32, 32);
+  geo.scale(1, 1.25, 1);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  g.add(mesh);
+  return g;
+}
+
+function attachEntityWeapon(entityGroup, weaponId) {
+  const holder = new THREE.Group();
+  holder.position.set(KIMI_RADIUS + 0.05, -0.1, 0.2);
+  entityGroup.add(holder);
+
+  const matDark = new THREE.MeshStandardMaterial({color:0x3d2817});
+  const matMetal = new THREE.MeshStandardMaterial({color:0xdddddd, roughness:0.3, metalness:0.8});
+  const matGold = new THREE.MeshStandardMaterial({color:0xb8860b});
+
+  switch(weaponId) {
+    case 'whip': {
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.03,0.18,8), matDark);
+      h.rotation.x = Math.PI/2; holder.add(h);
+      const l = new THREE.Mesh(new THREE.BoxGeometry(0.015,0.015,0.6), new THREE.MeshStandardMaterial({color:0x2a1a0a}));
+      l.position.z = -0.35; holder.add(l);
+      break;
+    }
+    case 'sword': {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.006, 0.5), matMetal);
+      b.position.z = -0.25; holder.add(b);
+      const g = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.015, 0.03), matGold);
+      g.position.z = 0.02; holder.add(g);
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.022,0.12,8), matDark);
+      h.rotation.x = Math.PI/2; h.position.z = 0.1; holder.add(h);
+      break;
+    }
+    case 'axe': {
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.028,0.4,8), matDark);
+      h.rotation.x = Math.PI/2; h.position.z = -0.1; holder.add(h);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.03, 0.12), matMetal);
+      head.position.z = -0.3; holder.add(head);
+      break;
+    }
+    case 'hammer': {
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.022,0.35,8), matDark);
+      h.rotation.x = Math.PI/2; h.position.z = -0.05; holder.add(h);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.15), new THREE.MeshStandardMaterial({color:0x444444}));
+      head.position.z = -0.25; holder.add(head);
+      break;
+    }
+    case 'scythe': {
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.022,0.5,8), matDark);
+      h.rotation.x = Math.PI/2; h.position.z = -0.15; holder.add(h);
+      const b = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.02, 8, 20, Math.PI), matMetal);
+      b.position.z = -0.4; b.rotation.y = Math.PI/2; holder.add(b);
+      break;
+    }
+    case 'spear': {
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,0.5,8), new THREE.MeshStandardMaterial({color:0x111111}));
+      h.rotation.x = Math.PI/2; h.position.z = -0.2; holder.add(h);
+      const t = new THREE.Mesh(new THREE.ConeGeometry(0.04,0.2,8), new THREE.MeshStandardMaterial({color:0x888888}));
+      t.rotation.x = -Math.PI/2; t.position.z = -0.55; holder.add(t);
+      break;
+    }
+  }
+  return holder;
+}
+
+function getRandomMeleeWeapon() {
+  const ids = ['whip','sword','axe','hammer','scythe','spear'];
+  return ids[Math.floor(Math.random() * ids.length)];
+}
+
+function createTextSprite(text) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 512; canvas.height = 128;
+  ctx.fillStyle = 'rgba(0,0,0,0.85)';
+  ctx.fillRect(10, 10, 492, 108);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 48px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 256, 64);
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(3, 0.75, 1);
+  return sprite;
+}
+
+function showFloatingText(position, text) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 512; canvas.height = 128;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, 0, 512, 128);
+  ctx.fillStyle = '#ff4444';
+  ctx.font = 'bold 40px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 256, 64);
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(material);
+  sprite.scale.set(3, 0.75, 1);
+  sprite.position.copy(position);
+  sprite.position.y += 1.5;
+  scene.add(sprite);
+  let life = 2.0;
+  function update() {
+    life -= 0.016;
+    sprite.position.y += 0.02;
+    sprite.material.opacity = Math.max(0, life);
+    if (life > 0) requestAnimationFrame(update);
+    else {
+      scene.remove(sprite);
+      sprite.material.dispose();
+      texture.dispose();
+    }
+  }
+  update();
+}
+
+function createEntity(type, pos) {
+  const group = new THREE.Group();
+  group.position.copy(pos);
+  scene.add(group);
+
+  let mesh;
+  let weaponId = null;
+  let ai = null;
+  let isCustom = false;
+
+  if (type === 'custom' && customKimiModel) {
+    mesh = customKimiModel.clone();
+    isCustom = true;
+    group.add(mesh);
+  } else {
+    switch(type) {
+      case 'kimi': mesh = createKimiMesh(false, false); break;
+      case 'jokimi': mesh = createKimiMesh(false, true); break;
+      case 'redkimi':
+        mesh = createKimiMesh(true, false);
+        weaponId = getRandomMeleeWeapon();
+        attachEntityWeapon(group, weaponId);
+        ai = { state:'chase', attackCooldown:0, weapon:weaponId };
+        break;
+      case 'kunkunegg': mesh = createEggMesh(); break;
+      case 'custom': mesh = createKimiMesh(false, false); break;
+    }
+    group.add(mesh);
+  }
+
+  const hpBar = createHpSprite();
+  group.add(hpBar.sprite);
+
+  const bbox = new THREE.Box3().setFromObject(mesh);
+  const bSize = new THREE.Vector3();
+  bbox.getSize(bSize);
+  hpBar.sprite.position.y = bSize.y / 2 + 0.3;
+
+  if (isCustom && customKimiText && customKimiText.trim() !== '') {
+    const textSprite = createTextSprite(customKimiText);
+    textSprite.position.y = bSize.y / 2 + 1.0;
+    group.add(textSprite);
+    group.userData.textSprite = textSprite;
+  }
+
+  const entity = {
+    type, group, mesh, hp:500, maxHp:500,
+    velocity: new THREE.Vector3(),
+    weapon: weaponId, ai, hpBar,
+    dead: false, weaponHolder: null,
+    aiType: 'none', moveSpeed: MOVE_SPEED,
+    particlePercent: 100, particleColor: '#ff0000',
+    hpPercent: 100, shakePercent: 100
+  };
+
+  if (type === 'redkimi') {
+    entity.aiType = 'attack';
+    entity.moveSpeed = MOVE_SPEED * (0.85 + Math.random() * 0.25);
+  }
+
+  if (isCustom) {
+    entity.aiType = customKimiConfig.aiType;
+    entity.moveSpeed = customKimiConfig.moveSpeed;
+    entity.particlePercent = customKimiConfig.particlePercent;
+    entity.particleColor = customKimiConfig.particleColor;
+    entity.hpPercent = customKimiConfig.hpPercent;
+    entity.shakePercent = customKimiConfig.shakePercent;
+    entity.maxHp = 500 * (entity.hpPercent / 100);
+    entity.hp = entity.maxHp;
+
+    if (entity.aiType === 'attack') {
+      const wId = customKimiConfig.weapon === 'random' ? getRandomMeleeWeapon() : customKimiConfig.weapon;
+      attachEntityWeapon(group, wId);
+      ai = { state:'chase', attackCooldown:0, weapon:wId };
+      entity.weapon = wId;
+      entity.ai = ai;
+    }
+  }
+
+  if(type === 'redkimi') {
+    entity.weaponHolder = group.children.find(c => c !== mesh && c !== hpBar.sprite && c !== group.userData.textSprite);
+  }
+
+  if (entity.aiType === 'attack' && entity.weapon) {
+    entity.weaponHolder = group.children.find(c => c !== mesh && c !== hpBar.sprite && c !== group.userData.textSprite);
+  }
+
+  entities.push(entity);
+  return entity;
+}
+
+function clearEntities() {
+  for(let e of entities) {
+    scene.remove(e.group);
+    e.group.traverse(c => {
+      if(c.isMesh) {
+        if(c.geometry) c.geometry.dispose();
+        if(c.material) {
+          if(Array.isArray(c.material)) c.material.forEach(m=>m.dispose());
+          else c.material.dispose();
+        }
+      }
+    });
+  }
+  entities.length = 0;
+}
+
+function summon(type) {
+  if (type === 'custom') {
+    document.getElementById('creator-overlay').style.display = 'block';
+    isCreatorMode = true;
+    Creator.init();
+    summonMenu.style.display = 'none';
+    return;
+  }
+  if(!stackSummon) clearEntities();
+  const pos = new THREE.Vector3(
+    (Math.random() - 0.5) * 10,
+    KIMI_RADIUS,
+    (Math.random() - 0.5) * 10
+  );
+  pos.x = THREE.MathUtils.clamp(pos.x, -HALF_SIZE + 2, HALF_SIZE - 2);
+  pos.z = THREE.MathUtils.clamp(pos.z, -HALF_SIZE + 2, HALF_SIZE - 2);
+  createEntity(type, pos);
+}
+
+// ==================== 武器系统（玩家） ====================
+function clearPlayerWeapon() {
+  weaponHolder.traverse(c => {
+    if(c.isMesh) {
+      if(c.geometry) c.geometry.dispose();
+      if(c.material) {
+        if(Array.isArray(c.material)) c.material.forEach(m=>m.dispose());
+        else c.material.dispose();
+      }
+    }
+  });
+  while(weaponHolder.children.length > 0) weaponHolder.remove(weaponHolder.children[0]);
+}
+
+function buildPlayerWeapon(type) {
+  clearPlayerWeapon();
+  const g = new THREE.Group();
+  const matDark = new THREE.MeshStandardMaterial({color:0x3d2817});
+  const matMetal = new THREE.MeshStandardMaterial({color:0xdddddd, roughness:0.3, metalness:0.8});
+  const matGold = new THREE.MeshStandardMaterial({color:0xb8860b});
+
+  switch(type) {
+    case 'whip': {
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.03,0.18,8), matDark);
+      h.rotation.x = Math.PI/2; g.add(h);
+      const l = new THREE.Mesh(new THREE.BoxGeometry(0.015,0.015,0.9), new THREE.MeshStandardMaterial({color:0x2a1a0a}));
+      l.position.z = -0.5; g.add(l);
+      break;
+    }
+    case 'sword': {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.008, 0.7), matMetal);
+      b.position.z = -0.35; g.add(b);
+      const gu = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.02, 0.04), matGold);
+      gu.position.z = 0.02; g.add(gu);
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.025,0.15,8), matDark);
+      h.rotation.x = Math.PI/2; h.position.z = 0.12; g.add(h);
+      break;
+    }
+    case 'axe': {
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.03,0.5,8), matDark);
+      h.rotation.x = Math.PI/2; h.position.z = -0.15; g.add(h);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.04, 0.15), matMetal);
+      head.position.z = -0.4; g.add(head);
+      const edge = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.15, 4), matMetal);
+      edge.rotation.x = -Math.PI/2; edge.rotation.z = Math.PI/4;
+      edge.position.z = -0.55; g.add(edge);
+      break;
+    }
+    case 'hammer': {
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.025,0.5,8), matDark);
+      h.rotation.x = Math.PI/2; h.position.z = -0.1; g.add(h);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshStandardMaterial({color:0x444444}));
+      head.position.z = -0.4; g.add(head);
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.1, 8), matMetal);
+      spike.rotation.x = -Math.PI/2; spike.position.z = -0.55; g.add(spike);
+      break;
+    }
+    case 'scythe': {
+      const h = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.025,0.7,8), matDark);
+      h.rotation.x = Math.PI/2; h.position.z = -0.25; g.add(h);
+      const b = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.025, 8, 20, Math.PI), matMetal);
+      b.position.z = -0.6; b.rotation.y = Math.PI/2; g.add(b);
+      break;
+    }
+    case 'spear': {
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.7,8), new THREE.MeshStandardMaterial({color:0x111111}));
+      handle.rotation.x = Math.PI/2;
+      handle.position.z = -0.35;
+      g.add(handle);
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.3, 8), new THREE.MeshStandardMaterial({color:0x888888}));
+      tip.rotation.x = -Math.PI/2;
+      tip.position.z = -0.85;
+      g.add(tip);
+      break;
+    }
+    case 'bow': {
+      const bow = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.02, 8, 24, Math.PI), matDark);
+      bow.rotation.y = Math.PI/2; bow.position.z = -0.2; g.add(bow);
+      const s = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.005, 0.5), new THREE.MeshBasicMaterial({color:0xaaaaaa}));
+      s.position.z = -0.2; g.add(s);
+      break;
+    }
+    case 'rifle': {
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.12, 0.5), new THREE.MeshStandardMaterial({color:0x222222}));
+      body.position.z = -0.25; g.add(body);
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.4,8), matMetal);
+      barrel.rotation.x = Math.PI/2; barrel.position.z = -0.6; g.add(barrel);
+      const stock = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.2), matDark);
+      stock.position.z = 0.15; g.add(stock);
+      const mag = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.08, 0.12), new THREE.MeshStandardMaterial({color:0x111111}));
+      mag.position.set(0, -0.08, -0.2); g.add(mag);
+      break;
+    }
+  }
+  weaponHolder.add(g);
+}
+buildPlayerWeapon(WEAPONS[0].id);
+
+// ==================== 粒子系统 ====================
+const particles = [];
+const MAX_PARTICLES = 1500;
+
+function hexToColor(hex) {
+  const c = new THREE.Color(hex);
+  return (c.r * 255 << 16) | (c.g * 255 << 8) | (c.b * 255);
+}
+
+function spawnBlood(origin, direction, countMul, isBlue=false, isGray=false, isEggDeath=false, color=null) {
+  const baseCount = 30;
+  const count = Math.floor(baseCount * Math.max(0.1, 1 + countMul));
+  let pColor = color !== null ? color : (isBlue ? 0x0088ff : isGray ? 0x888888 : 0xff0000);
+  if (typeof pColor === 'string') pColor = hexToColor(pColor);
+
+  for(let i=0; i<count; i++) {
+    if(particles.length >= MAX_PARTICLES) break;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.random() * Math.PI;
+    const speed = 2 + Math.random() * 6;
+    const v = new THREE.Vector3(
+      Math.sin(phi)*Math.cos(theta),
+      Math.cos(phi) + 0.5,
+      Math.sin(phi)*Math.sin(theta)
+    ).normalize().multiplyScalar(speed);
+
+    const geo = new THREE.SphereGeometry(0.02 + Math.random()*0.03, 5, 5);
+    let finalColor = pColor;
+    if(isEggDeath) finalColor = Math.random() > 0.5 ? 0xffffff : 0xffee00;
+
+    const mat = new THREE.MeshBasicMaterial({ color: finalColor });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(origin);
+    scene.add(mesh);
+
+    particles.push({ mesh, velocity:v, life: isBlue?15:10, attached:false });
+  }
+}
+
+function updateParticles(dt) {
+  for(let i=particles.length-1; i>=0; i--) {
+    const p = particles[i];
+    if(p.attached) {
+      p.life -= dt;
+      if(p.life <= 0) {
+        scene.remove(p.mesh);
+        if(p.mesh.geometry) p.mesh.geometry.dispose();
+        if(p.mesh.material) p.mesh.material.dispose();
+        particles.splice(i,1);
+      }
+      continue;
+    }
+    p.velocity.y -= 9.8 * dt;
+    p.mesh.position.addScaledVector(p.velocity, dt);
+    const pos = p.mesh.position;
+    let hit = false;
+    if(pos.y <= 0.02) { pos.y = 0.02; p.velocity.y *= -0.2; p.velocity.x *= 0.7; p.velocity.z *= 0.7; hit = true; }
+    if(pos.y >= ROOM_SIZE - 0.02) { pos.y = ROOM_SIZE - 0.02; p.velocity.y *= -0.2; hit = true; }
+    if(pos.x <= -HALF_SIZE + 0.02) { pos.x = -HALF_SIZE + 0.02; p.velocity.x *= -0.2; hit = true; }
+    if(pos.x >= HALF_SIZE - 0.02) { pos.x = HALF_SIZE - 0.02; p.velocity.x *= -0.2; hit = true; }
+    if(pos.z <= -HALF_SIZE + 0.02) { pos.z = -HALF_SIZE + 0.02; p.velocity.z *= -0.2; hit = true; }
+    if(pos.z >= HALF_SIZE - 0.02) { pos.z = HALF_SIZE - 0.02; p.velocity.z *= -0.2; hit = true; }
+    if(hit && p.velocity.length() < 1.5) { p.attached = true; p.velocity.set(0,0,0); }
+    if(p.life <= 0) {
+      scene.remove(p.mesh);
+      if(p.mesh.geometry) p.mesh.geometry.dispose();
+      if(p.mesh.material) p.mesh.material.dispose();
+      particles.splice(i,1);
+    }
+  }
+}
+
+// ==================== 输入系统 ====================
+let yaw = 0, pitch = 0;
+let moveInput = { x:0, z:0 };
+let joystickActive = false;
+let joystickId = -1;
+let joystickCenter = { x:0, y:0 };
+let isRotating = false;
+let rotateId = -1;
+let lastRotX = 0, lastRotY = 0;
+
+const joystickZone = document.getElementById('joystick-zone');
+const joystickKnob = document.getElementById('joystick-knob');
+const crosshair = document.getElementById('crosshair');
+const weaponLabel = document.getElementById('weapon-label');
+
+function updateJoystick(cx, cy) {
+  let dx = cx - joystickCenter.x;
+  let dy = cy - joystickCenter.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const maxDist = 45;
+  if(dist > maxDist) { dx = dx/dist*maxDist; dy = dy/dist*maxDist; }
+  joystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+  moveInput.x = dx / maxDist;
+  moveInput.z = dy / maxDist;
+}
+
+joystickZone.addEventListener('touchstart', e => {
+  e.preventDefault();
+  for(let i=0;i<e.changedTouches.length;i++) {
+    const t = e.changedTouches[i];
+    if(!joystickActive) {
+      joystickActive = true;
+      joystickId = t.identifier;
+      const rect = joystickZone.getBoundingClientRect();
+      joystickCenter = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+      updateJoystick(t.clientX, t.clientY);
+    }
+  }
+}, {passive:false});
+
+joystickZone.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for(let i=0;i<e.touches.length;i++) {
+    if(e.touches[i].identifier === joystickId) {
+      updateJoystick(e.touches[i].clientX, e.touches[i].clientY);
+      break;
+    }
+  }
+}, {passive:false});
+
+function endJoystick(id) {
+  if(joystickActive && (id === undefined || id === joystickId)) {
+    joystickActive = false;
+    joystickId = -1;
+    joystickKnob.style.transform = `translate(0px, 0px)`;
+    moveInput.x = 0;
+    moveInput.z = 0;
+  }
+}
+joystickZone.addEventListener('touchend', e => { e.preventDefault(); for(let i=0;i<e.changedTouches.length;i++) endJoystick(e.changedTouches[i].identifier); }, {passive:false});
+joystickZone.addEventListener('touchcancel', e => { e.preventDefault(); for(let i=0;i<e.changedTouches.length;i++) endJoystick(e.changedTouches[i].identifier); }, {passive:false});
+
+document.addEventListener('touchstart', e => {
+  for(let i=0;i<e.changedTouches.length;i++) {
+    const t = e.changedTouches[i];
+    if(e.target.closest('.ui-btn') || e.target.closest('#joystick-zone') || e.target.closest('#summon-menu') || e.target.closest('#creator-overlay') || e.target.closest('#settings-panel') || e.target.closest('#ui-edit-overlay') || e.target.closest('#ui-button-edit-menu')) continue;
+    if(!isRotating) {
+      isRotating = true;
+      rotateId = t.identifier;
+      lastRotX = t.clientX;
+      lastRotY = t.clientY;
+    }
+  }
+}, {passive:false});
+
+document.addEventListener('touchmove', e => {
+  for(let i=0;i<e.touches.length;i++) {
+    const t = e.touches[i];
+    if(t.identifier === rotateId) {
+      const dx = t.clientX - lastRotX;
+      const dy = t.clientY - lastRotY;
+      yaw -= dx * 0.003;
+      pitch -= dy * 0.003;
+      pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, pitch));
+      lastRotX = t.clientX;
+      lastRotY = t.clientY;
+      break;
+    }
+  }
+}, {passive:false});
+
+document.addEventListener('touchend', e => {
+  for(let i=0;i<e.changedTouches.length;i++) {
+    if(e.changedTouches[i].identifier === rotateId) {
+      isRotating = false;
+      rotateId = -1;
+    }
+  }
+});
+document.addEventListener('touchcancel', e => {
+  for(let i=0;i<e.changedTouches.length;i++) {
+    if(e.changedTouches[i].identifier === rotateId) {
+      isRotating = false;
+      rotateId = -1;
+    }
+  }
+});
+
+let mouseDown = false;
+document.addEventListener('mousedown', e => {
+  if(e.button === 0 && !e.target.closest('.ui-btn') && !e.target.closest('#joystick-zone') && !e.target.closest('#summon-menu') && !e.target.closest('#creator-overlay') && !e.target.closest('#settings-panel') && !e.target.closest('#ui-edit-overlay') && !e.target.closest('#ui-button-edit-menu')) {
+    mouseDown = true;
+    startAttackLoop();
+  }
+});
+document.addEventListener('mouseup', e => {
+  if(e.button === 0) { mouseDown = false; stopAttackLoop(); }
+});
+
+const keys = {};
+document.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (k === 'f') { switchWeapon(); return; }
+  if (e.key === 'Tab') { e.preventDefault(); toggleSummonMenu(); return; }
+  if (k === 'k' && document.getElementById('settings-panel').style.display !== 'flex' && !uiEditMode) {
+    openSettings();
+    return;
+  }
+  if (k === 'i' && document.getElementById('settings-panel').style.display === 'flex') {
+    enterUIEditMode();
+    return;
+  }
+  if (uiEditMode && isUIDetectingKey) {
+    if (e.key === 'Escape') { clearUIKeyDetect(); return; }
+    if (uiDetectingJoyDir) {
+      uiJoystickKeys[uiDetectingJoyDir] = e.key.toLowerCase();
+      const btn = document.querySelector(`.ui-joy-key-btn[data-dir="${uiDetectingJoyDir}"]`);
+      if (btn) { btn.textContent = e.key.toUpperCase(); btn.style.background = '#333'; }
+    } else {
+      const targetId = document.getElementById('ui-button-edit-menu').dataset.targetId;
+      if (targetId && targetId !== 'joystick-zone') {
+        if (!uiButtonConfigs[targetId]) uiButtonConfigs[targetId] = {};
+        uiButtonConfigs[targetId].key = e.key.toLowerCase();
+        document.getElementById('ui-btn-key-display').textContent = e.key.toUpperCase();
+      }
+    }
+    isUIDetectingKey = false;
+    uiDetectingJoyDir = null;
+    e.preventDefault();
+    return;
+  }
+  keys[k] = true;
+  updateKeyboardInput();
+});
+document.addEventListener('keyup', e => {
+  keys[e.key.toLowerCase()] = false;
+  updateKeyboardInput();
+});
+
+function updateKeyboardInput() {
+  let x=0, z=0;
+  if(keys[uiJoystickKeys.up || 'w']) z -= 1;
+  if(keys[uiJoystickKeys.down || 's']) z += 1;
+  if(keys[uiJoystickKeys.left || 'a']) x -= 1;
+  if(keys[uiJoystickKeys.right || 'd']) x += 1;
+  if(x===0 && z===0) { moveInput.x=0; moveInput.z=0; }
+  else {
+    const len = Math.sqrt(x*x+z*z);
+    moveInput.x = x/len;
+    moveInput.z = z/len;
+  }
+}
+
+// Pointer Lock for main game
+function onLockedMouseMove(e) {
+  if (playerDead || splashShown || isCreatorMode) return;
+  yaw -= e.movementX * 0.002;
+  pitch -= e.movementY * 0.002;
+  pitch = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, pitch));
+}
+
+document.addEventListener('pointerlockchange', () => {
+  if (document.pointerLockElement === document.body) {
+    document.addEventListener('mousemove', onLockedMouseMove);
+  } else {
+    document.removeEventListener('mousemove', onLockedMouseMove);
+  }
+});
+
+document.addEventListener('click', e => {
+  if (!isCreatorMode && !playerDead && !splashShown && 
+      !e.target.closest('.ui-btn') && !e.target.closest('#joystick-zone') && 
+      !e.target.closest('#summon-menu') && !e.target.closest('#creator-overlay') &&
+      !e.target.closest('#settings-panel') && !e.target.closest('#ui-edit-overlay') &&
+      !e.target.closest('#ui-button-edit-menu') && !e.target.closest('#summon-panel')) {
+    if (document.pointerLockElement !== document.body) {
+      document.body.requestPointerLock();
+    }
+  }
+});
+
+// ==================== 攻击逻辑 ====================
+let attackAnim = 0;
+let isAttackAnimating = false;
+let screenShake = 0;
+const raycaster = new THREE.Raycaster();
+
+function triggerAttack() {
+  if(playerDead) return;
+  const wp = WEAPONS[currentWeaponIndex];
+  if(wp.melee) performMelee(wp);
+  else fireProjectile(wp);
+}
+
+function damageEntity(entity, wp, direction) {
+  if(entity.dead) return;
+  const shakeMul = (entity.shakePercent !== undefined ? entity.shakePercent : 100) / 100;
+  screenShake = wp.shake * 10 * shakeMul;
+
+  const isGray = entity.type === 'kunkunegg';
+  const particleMul = (entity.particlePercent !== undefined ? entity.particlePercent : 100) / 100;
+  spawnBlood(entity.group.position, direction, wp.bloodMul * particleMul, false, isGray, false, entity.particleColor);
+
+  const knockDir = direction.clone();
+  knockDir.y = 0.5;
+  knockDir.normalize();
+  const kbMul = wp.id === 'spear' ? 3 : 1;
+  entity.velocity.add(knockDir.multiplyScalar(wp.knockBack * kbMul));
+  entity.velocity.y += wp.knockUp;
+
+  entity.hp -= entity.maxHp * wp.damage;
+  if(entity.hp <= 0) {
+    entity.hp = 0;
+    killEntity(entity);
+  }
+  updateEntityHpBar(entity);
+
+  if (entity.type === 'jokimi' && entity.hp > 0) {
+    const taunts = ["就这就这？","你啥也不是～","没吃饭吗？","挠痒痒呢？","太弱了！","再来一次？","打不中啊～","就这力度？"];
+    showFloatingText(entity.group.position.clone().add(new THREE.Vector3(0, entity.mesh ? 1.5 : 1, 0)), taunts[Math.floor(Math.random() * taunts.length)]);
+  }
+}
+
+function killEntity(entity) {
+  entity.dead = true;
+  if(entity.type === 'kunkunegg') {
+    spawnBlood(entity.group.position, new THREE.Vector3(0,1,0), 1.5, false, false, true);
+  } else {
+    spawnBlood(entity.group.position, new THREE.Vector3(0,1,0), 0, true);
+  }
+  entity.group.visible = false;
+  setTimeout(() => {
+    scene.remove(entity.group);
+    const idx = entities.indexOf(entity);
+    if(idx > -1) entities.splice(idx, 1);
+  }, 3000);
+}
+
+function performMelee(wp) {
+  if(isAttackAnimating) return;
+  const forward = new THREE.Vector3(0,0,-1).applyQuaternion(player.quaternion);
+  const attackRange = wp.id === 'spear' ? 10 : 5;
+  let hitAny = false;
+
+  for(let entity of entities) {
+    if(entity.dead) continue;
+    const toEntity = new THREE.Vector3().subVectors(entity.group.position, player.position);
+    const dist = toEntity.length();
+    toEntity.normalize();
+    const dot = toEntity.dot(forward);
+    if(dist <= attackRange && dot > 0) {
+      damageEntity(entity, wp, forward);
+      hitAny = true;
+    }
+  }
+
+  if (hitAny && navigator.vibrate) navigator.vibrate(40);
+  isAttackAnimating = true;
+  attackAnim = 0;
+}
+
+function fireProjectile(wp) {
+  if(playerDead) return;
+  screenShake = wp.shake * 10;
+  raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
+  const meshes = entities.filter(e => !e.dead).map(e => e.mesh);
+  const intersects = raycaster.intersectObjects(meshes);
+  if(intersects.length > 0) {
+    const hitObj = intersects[0].object;
+    const entity = entities.find(e => e.mesh === hitObj || e.mesh === hitObj.parent);
+    if(entity) {
+      damageEntity(entity, wp, raycaster.ray.direction);
+      if (navigator.vibrate) navigator.vibrate(40);
+    }
+  }
+  isAttackAnimating = true;
+  attackAnim = 0;
+}
+
+function attackPlayer(attacker) {
+  if(playerDead) return;
+  const wp = WEAPONS.find(w => w.id === attacker.ai.weapon) || WEAPONS[0];
+  screenShake = wp.shake * 10;
+
+  const forward = new THREE.Vector3(0,0,1).applyQuaternion(attacker.group.quaternion);
+  const playerPos = player.position.clone();
+  playerPos.y -= 0.5;
+  spawnBlood(playerPos, forward, wp.bloodMul);
+
+  const knockDir = forward.clone();
+  knockDir.y = 0.5;
+  knockDir.normalize();
+  const kbMul = wp.id === 'spear' ? 3 : 1;
+  playerVelocity.add(knockDir.multiplyScalar(wp.knockBack * kbMul));
+  playerVelocity.y += wp.knockUp;
+
+  playerHp -= playerMaxHp * wp.damage;
+  if(playerHp <= 0) {
+    playerHp = 0;
+    playerDie();
+  }
+  updatePlayerHpBar();
+}
+
+function playerDie() {
+  playerDead = true;
+  if (document.pointerLockElement) document.exitPointerLock();
+  document.getElementById('death-screen').style.display = 'flex';
+  setTimeout(() => { location.reload(); }, 3000);
+}
+
+// ==================== UI事件 ====================
+const btnAttack = document.getElementById('btn-attack');
+const btnWeapon = document.getElementById('btn-weapon');
+const btnSummon = document.getElementById('btn-summon');
+const btnReload = document.getElementById('btn-reload');
+const btnSettings = document.getElementById('btn-settings');
+const summonMenu = document.getElementById('summon-menu');
+const toggleSwitch = document.getElementById('toggle-switch');
+
+let attackInterval = null;
+
+function startAttackLoop() {
+  if(attackInterval || playerDead) return;
+  triggerAttack();
+  attackInterval = setInterval(() => triggerAttack(), 220);
+}
+function stopAttackLoop() {
+  if(attackInterval) { clearInterval(attackInterval); attackInterval = null; }
+}
+
+function bindBtn(btn, handler) {
+  btn.addEventListener('click', handler);
+  btn.addEventListener('touchstart', (e) => { e.preventDefault(); handler(); }, {passive:false});
+}
+
+bindBtn(btnAttack, () => {
+  if(!attackInterval) startAttackLoop();
+});
+btnAttack.addEventListener('touchend', (e) => { e.preventDefault(); stopAttackLoop(); }, {passive:false});
+btnAttack.addEventListener('mouseup', (e) => { e.preventDefault(); stopAttackLoop(); });
+btnAttack.addEventListener('touchcancel', (e) => { e.preventDefault(); stopAttackLoop(); }, {passive:false});
+btnAttack.addEventListener('mouseleave', () => stopAttackLoop());
+
+function switchWeapon() {
+  currentWeaponIndex = (currentWeaponIndex + 1) % WEAPONS.length;
+  const wp = WEAPONS[currentWeaponIndex];
+  weaponLabel.textContent = `当前武器：${wp.name}`;
+  buildPlayerWeapon(wp.id);
+  crosshair.style.display = (wp.id === 'rifle' || wp.id === 'bow') ? 'block' : 'none';
+}
+bindBtn(btnWeapon, switchWeapon);
+
+function toggleSummonMenu() {
+  const visible = summonMenu.style.display === 'flex';
+  summonMenu.style.display = visible ? 'none' : 'flex';
+}
+bindBtn(btnSummon, toggleSummonMenu);
+
+bindBtn(btnReload, () => location.reload());
+
+document.querySelectorAll('.summon-option').forEach(btn => {
+  bindBtn(btn, () => {
+    summon(btn.dataset.type);
+    summonMenu.style.display = 'none';
+  });
+});
+
+function toggleStack() {
+  stackSummon = !stackSummon;
+  toggleSwitch.classList.toggle('on', stackSummon);
+}
+bindBtn(toggleSwitch, toggleStack);
+
+// ==================== Settings Panel ====================
+function openSettings() {
+  document.getElementById('settings-panel').style.display = 'flex';
+  if (document.pointerLockElement) document.exitPointerLock();
+}
+
+function closeSettings() {
+  document.getElementById('settings-panel').style.display = 'none';
+}
+
+document.getElementById('btn-settings').addEventListener('click', openSettings);
+document.getElementById('btn-close-settings').addEventListener('click', closeSettings);
+document.getElementById('btn-save-settings').addEventListener('click', closeSettings);
+
+document.getElementById('setting-room-color').addEventListener('click', cycleRoomColor);
+
+document.getElementById('setting-fov').addEventListener('input', e => {
+  const val = parseInt(e.target.value);
+  document.getElementById('setting-fov-val').textContent = val + '°';
+  camera.fov = val;
+  camera.updateProjectionMatrix();
+});
+
+document.getElementById('setting-speed').addEventListener('input', e => {
+  const val = parseInt(e.target.value);
+  document.getElementById('setting-speed-val').textContent = val + '%';
+  currentMoveSpeed = MOVE_SPEED * (val / 100);
+});
+
+document.getElementById('setting-control-mode').addEventListener('click', enterUIEditMode);
+
+// ==================== UI Edit Mode ====================
+const uiEditables = ['btn-reload', 'btn-settings', 'player-hp-bar', 'btn-heal', 'joystick-zone', 'right-controls', 'weapon-label', 'hint'];
+
+function enterUIEditMode() {
+  closeSettings();
+  uiEditMode = true;
+  document.getElementById('ui-edit-overlay').style.display = 'block';
+  uiEditables.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.dataset.uiEdit = 'true';
+    el.style.transition = 'none';
+    el.style.boxShadow = '0 0 15px rgba(33, 150, 243, 0.6)';
+    if (el.style.position !== 'fixed') el.style.position = 'fixed';
+    el.addEventListener('touchstart', onUIEditTouchStart, {passive: false});
+    el.addEventListener('touchmove', onUIEditTouchMove, {passive: false});
+    el.addEventListener('touchend', onUIEditTouchEnd, {passive: false});
+    el.addEventListener('mousedown', onUIEditMouseDown);
+  });
+}
+
+function saveUILayout() {
+  uiEditables.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el || !el.dataset.uiEdit) return;
+    if (!uiButtonConfigs[id]) uiButtonConfigs[id] = {};
+    uiButtonConfigs[id].left = el.style.left;
+    uiButtonConfigs[id].top = el.style.top;
+    uiButtonConfigs[id].scale = parseFloat(el.dataset.scale) || 1;
+    el.style.boxShadow = '';
+    el.style.transition = '';
+    el.removeEventListener('touchstart', onUIEditTouchStart);
+    el.removeEventListener('touchmove', onUIEditTouchMove);
+    el.removeEventListener('touchend', onUIEditTouchEnd);
+    el.removeEventListener('mousedown', onUIEditMouseDown);
+    delete el.dataset.uiEdit;
+  });
+  document.getElementById('ui-edit-overlay').style.display = 'none';
+  document.getElementById('ui-button-edit-menu').style.display = 'none';
+  uiEditMode = false;
+  clearUIKeyDetect();
+}
+
+document.getElementById('ui-btn-save-layout').addEventListener('click', saveUILayout);
+
+function onUIEditTouchStart(e) {
+  const btn = e.currentTarget;
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  uiEditCurrentBtn = btn;
+  const touch = e.touches[0];
+  uiEditDragStartX = touch.clientX;
+  uiEditDragStartY = touch.clientY;
+  uiEditIsDragging = false;
+  const rect = btn.getBoundingClientRect();
+  uiEditDragInitialLeft = rect.left;
+  uiEditDragInitialTop = rect.top;
+  if (btn.style.position !== 'fixed') {
+    btn.style.position = 'fixed';
+    btn.style.left = rect.left + 'px';
+    btn.style.top = rect.top + 'px';
+    btn.style.right = 'auto';
+    btn.style.bottom = 'auto';
+  }
+  uiEditLongPressTimer = setTimeout(() => { if (!uiEditIsDragging) showUIEditMenu(btn); }, 600);
+}
+
+function onUIEditTouchMove(e) {
+  if (!uiEditCurrentBtn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const touch = e.touches[0];
+  const dx = touch.clientX - uiEditDragStartX;
+  const dy = touch.clientY - uiEditDragStartY;
+  if (Math.sqrt(dx*dx + dy*dy) > 5) { uiEditIsDragging = true; clearTimeout(uiEditLongPressTimer); }
+  if (uiEditIsDragging) {
+    uiEditCurrentBtn.style.left = (uiEditDragInitialLeft + dx) + 'px';
+    uiEditCurrentBtn.style.top = (uiEditDragInitialTop + dy) + 'px';
+  }
+}
+
+function onUIEditTouchEnd(e) {
+  clearTimeout(uiEditLongPressTimer);
+  uiEditCurrentBtn = null;
+  uiEditIsDragging = false;
+}
+
+function onUIEditMouseDown(e) {
+  const btn = e.currentTarget;
+  uiEditCurrentBtn = btn;
+  uiEditDragStartX = e.clientX;
+  uiEditDragStartY = e.clientY;
+  uiEditIsDragging = false;
+  const rect = btn.getBoundingClientRect();
+  uiEditDragInitialLeft = rect.left;
+  uiEditDragInitialTop = rect.top;
+  if (btn.style.position !== 'fixed') {
+    btn.style.position = 'fixed';
+    btn.style.left = rect.left + 'px';
+    btn.style.top = rect.top + 'px';
+    btn.style.right = 'auto';
+    btn.style.bottom = 'auto';
+  }
+  uiEditLongPressTimer = setTimeout(() => { if (!uiEditIsDragging) showUIEditMenu(btn); }, 600);
+  function onMouseMove(ev) {
+    const dx = ev.clientX - uiEditDragStartX;
+    const dy = ev.clientY - uiEditDragStartY;
+    if (Math.sqrt(dx*dx + dy*dy) > 5) { uiEditIsDragging = true; clearTimeout(uiEditLongPressTimer); }
+    if (uiEditIsDragging) {
+      btn.style.left = (uiEditDragInitialLeft + dx) + 'px';
+      btn.style.top = (uiEditDragInitialTop + dy) + 'px';
+    }
+  }
+  function onMouseUp() {
+    clearTimeout(uiEditLongPressTimer);
+    uiEditCurrentBtn = null;
+    uiEditIsDragging = false;
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+  }
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+}
+
+function showUIEditMenu(btn) {
+  document.getElementById('ui-button-edit-menu').style.display = 'block';
+  const isJoystick = btn.id === 'joystick-zone';
+  document.getElementById('ui-joystick-key-section').style.display = isJoystick ? 'block' : 'none';
+  document.getElementById('ui-normal-key-section').style.display = isJoystick ? 'none' : 'block';
+  const cfg = uiButtonConfigs[btn.id] || { scale: 1, key: null };
+  const scale = cfg.scale || 1;
+  document.getElementById('ui-btn-size-slider').value = Math.round(scale * 100);
+  document.getElementById('ui-btn-size-display').textContent = Math.round(scale * 100) + '%';
+  if (!isJoystick) {
+    document.getElementById('ui-btn-key-display').textContent = cfg.key ? cfg.key.toUpperCase() : '未设置';
+  } else {
+    document.querySelectorAll('.ui-joy-key-btn').forEach(b => {
+      const dir = b.dataset.dir;
+      b.textContent = (uiJoystickKeys[dir] || '').toUpperCase() || '-';
+      b.style.background = '#333';
+    });
+  }
+  document.getElementById('ui-button-edit-menu').dataset.targetId = btn.id;
+}
+
+document.getElementById('ui-btn-size-slider').addEventListener('input', e => {
+  const val = e.target.value;
+  document.getElementById('ui-btn-size-display').textContent = val + '%';
+  const targetId = document.getElementById('ui-button-edit-menu').dataset.targetId;
+  if (targetId) {
+    const el = document.getElementById(targetId);
+    const scale = val / 100;
+    el.style.transform = `scale(${scale})`;
+    el.style.transformOrigin = 'top left';
+    el.dataset.scale = scale;
+    if (!uiButtonConfigs[targetId]) uiButtonConfigs[targetId] = {};
+    uiButtonConfigs[targetId].scale = scale;
+  }
+});
+
+document.getElementById('ui-btn-key-detect').addEventListener('click', () => {
+  clearUIKeyDetect();
+  isUIDetectingKey = true;
+  document.getElementById('ui-btn-key-detect').textContent = '请按下按键...';
+});
+
+document.querySelectorAll('.ui-joy-key-btn').forEach(btn => {
+  btn.addEventListener('click', e => {
+    clearUIKeyDetect();
+    const dir = e.target.dataset.dir;
+    isUIDetectingKey = true;
+    uiDetectingJoyDir = dir;
+    e.target.textContent = '请按键...';
+    e.target.style.background = '#2196F3';
+  });
+});
+
+document.getElementById('ui-btn-close-edit-menu').addEventListener('click', () => {
+  clearUIKeyDetect();
+  document.getElementById('ui-button-edit-menu').style.display = 'none';
+});
+
+function clearUIKeyDetect() {
+  isUIDetectingKey = false;
+  uiDetectingJoyDir = null;
+  const detectBtn = document.getElementById('ui-btn-key-detect');
+  if (detectBtn) detectBtn.textContent = '点击检测按键';
+  document.querySelectorAll('.ui-joy-key-btn').forEach(b => {
+    if (b.textContent === '请按键...') {
+      const dir = b.dataset.dir;
+      b.textContent = (uiJoystickKeys[dir] || '').toUpperCase() || '-';
+      b.style.background = '#333';
+    }
+  });
+}
+
+// ==================== 启动画面 ====================
+const splashScreen = document.getElementById('splash-screen');
+let splashShown = false;
+
+setTimeout(() => {
+  splashShown = true;
+  splashScreen.style.display = 'flex';
+  setTimeout(() => {
+    splashScreen.style.display = 'none';
+    splashShown = false;
+  }, 1500);
+}, 300);
+
+// ==================== Creator Mode ====================
+const Creator = (function() {
+  let scene, camera, renderer;
+  let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+  let moveUp = false, moveDown = false;
+  let velocity = new THREE.Vector3();
+  let prevTime = performance.now();
+  let objects = [];
+  let ghostObject = null;
+  let isPlacing = false;
+  let selectedShape = null;
+  let previewScene, previewCamera, previewRenderer, previewMesh;
+  let cYaw = 0, cPitch = 0;
+  let cameraTouch = null;
+  let joystickActive = false, joystickCenter = { x: 0, y: 0 }, joystickDelta = { x: 0, y: 0 };
+  let joystickTouchId = null;
+  let deleteConfirmTimer = null;
+  let previewRotX = 0, previewRotY = 0;
+  let isPreviewTouching = false, pLastX = 0, pLastY = 0;
+  let playerPos = new THREE.Vector3(0, 10, 0);
+  let mirrorMode = 0;
+  let savedYaw = 0, savedPitch = 0;
+  let gridGroup = new THREE.Group();
+  let lastValidGhostPos = null;
+  let settings = { autoCalibrate: true, showGrid: true, showCoord: true };
+  let buttonConfigs = {
+    'cr-btn-create': { scale: 1, key: null },
+    'cr-btn-delete': { scale: 1, key: null },
+    'cr-btn-mirror': { scale: 1, key: null },
+    'cr-btn-settings': { scale: 1, key: 'v' },
+    'cr-btn-up': { scale: 1, key: null },
+    'cr-btn-down': { scale: 1, key: null },
+    'cr-joystick-zone': { scale: 1, key: null }
+  };
+  let joystickKeys = { up: 'w', down: 's', left: 'a', right: 'd' };
+  let isDetectingKey = false;
+  let detectingJoyDir = null;
+  let editLongPressTimer = null;
+  let editCurrentBtn = null;
+  let editDragStartX = 0, editDragStartY = 0;
+  let editDragInitialLeft = 0, editDragInitialTop = 0;
+  let editIsDragging = false;
+  let isRunning = false;
+
+  function init() {
+    if (scene) {
+      if (!isRunning) { isRunning = true; animate(); }
+      return;
+    }
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB);
+    scene.fog = new THREE.Fog(0x87CEEB, 100, 300);
+
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.copy(playerPos);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    document.getElementById('cr-canvas-container').appendChild(renderer.domElement);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(50, 100, 50);
+    dirLight.castShadow = true;
+    scene.add(dirLight);
+
+    createGrid();
+    setupEvents();
+    applyButtonLayout();
+    centerActionButtons();
+    adjustCreatorLayout();
+    document.getElementById('cr-coord-display').style.display = 'block';
+    isRunning = true;
+    animate();
+  }
+
+  function adjustCreatorLayout() {
+    const btnUp = document.getElementById('cr-btn-up');
+    const btnDown = document.getElementById('cr-btn-down');
+    btnUp.style.position = 'fixed';
+    btnUp.style.left = '30px';
+    btnUp.style.bottom = '190px';
+    btnUp.style.right = 'auto';
+    btnUp.style.top = 'auto';
+    btnDown.style.position = 'fixed';
+    btnDown.style.left = '30px';
+    btnDown.style.bottom = '120px';
+    btnDown.style.right = 'auto';
+    btnDown.style.top = 'auto';
+    const actionBtns = document.getElementById('cr-action-buttons');
+    actionBtns.style.top = 'auto';
+    actionBtns.style.bottom = '80px';
+    actionBtns.style.transform = 'none';
+  }
+
+  function isMobile() {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window);
+  }
+
+  function createGrid() {
+    const axesHelper = new THREE.AxesHelper(100);
+    const colors = axesHelper.geometry.attributes.color;
+    colors.setXYZ(2, 1, 1, 0);
+    colors.setXYZ(3, 1, 1, 0);
+    colors.needsUpdate = true;
+    gridGroup.add(axesHelper);
+
+    const material = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25 });
+    const range = 50;
+    const step = 5;
+    for (let i = -range; i <= range; i += step) {
+      if (i === 0) continue;
+      const zLineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(i, 0, -range), new THREE.Vector3(i, 0, range)
+      ]);
+      gridGroup.add(new THREE.Line(zLineGeo, material));
+      const xLineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-range, 0, i), new THREE.Vector3(range, 0, i)
+      ]);
+      gridGroup.add(new THREE.Line(xLineGeo, material));
+    }
+    scene.add(gridGroup);
+  }
+
+  function applyButtonLayout() {
+    for (let id in buttonConfigs) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      const cfg = buttonConfigs[id];
+      if (cfg.left !== undefined && cfg.top !== undefined) {
+        el.style.position = 'fixed';
+        el.style.left = cfg.left;
+        el.style.top = cfg.top;
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
+      }
+      if (cfg.scale && cfg.scale !== 1) {
+        el.style.transform = `scale(${cfg.scale})`;
+        el.style.transformOrigin = 'top left';
+      }
+    }
+  }
+
+  function centerActionButtons() {
+    const el = document.getElementById('cr-action-buttons');
+    if (el && el.offsetHeight > 0) {
+      el.style.marginTop = (-el.offsetHeight / 2) + 'px';
+    }
+  }
+
+  function setupEvents() {
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+
+    const touchZone = document.getElementById('cr-touch-zone');
+    touchZone.addEventListener('touchstart', onTouchStart, { passive: false });
+    touchZone.addEventListener('touchmove', onTouchMove, { passive: false });
+    touchZone.addEventListener('touchend', onTouchEnd, { passive: false });
+
+    const joystickZone = document.getElementById('cr-joystick-zone');
+    joystickZone.addEventListener('touchstart', onJoystickStart, { passive: false });
+    joystickZone.addEventListener('touchmove', onJoystickMove, { passive: false });
+    joystickZone.addEventListener('touchend', onJoystickEnd, { passive: false });
+
+    const btnUp = document.getElementById('cr-btn-up');
+    btnUp.addEventListener('touchstart', (e) => { if (isEditMode()) return; e.preventDefault(); moveUp = true; }, {passive: false});
+    btnUp.addEventListener('touchend', (e) => { if (isEditMode()) return; e.preventDefault(); moveUp = false; }, {passive: false});
+    btnUp.addEventListener('mousedown', () => { if (isEditMode()) return; moveUp = true; });
+    btnUp.addEventListener('mouseup', () => { if (isEditMode()) return; moveUp = false; });
+    btnUp.addEventListener('mouseleave', () => { if (isEditMode()) return; moveUp = false; });
+
+    const btnDown = document.getElementById('cr-btn-down');
+    btnDown.addEventListener('touchstart', (e) => { if (isEditMode()) return; e.preventDefault(); moveDown = true; }, {passive: false});
+    btnDown.addEventListener('touchend', (e) => { if (isEditMode()) return; e.preventDefault(); moveDown = false; }, {passive: false});
+    btnDown.addEventListener('mousedown', () => { if (isEditMode()) return; moveDown = true; });
+    btnDown.addEventListener('mouseup', () => { if (isEditMode()) return; moveDown = false; });
+    btnDown.addEventListener('mouseleave', () => { if (isEditMode()) return; moveDown = false; });
+
+    document.getElementById('cr-btn-create').addEventListener('click', (e) => { if (isEditMode()) return; onCreateClick(e); });
+    document.getElementById('cr-btn-delete').addEventListener('click', (e) => { if (isEditMode()) return; onDeleteClick(e); });
+    document.getElementById('cr-btn-mirror').addEventListener('click', (e) => { if (isEditMode()) return; onMirrorClick(e); });
+    document.getElementById('cr-btn-settings').addEventListener('click', (e) => { if (isEditMode()) return; if (document.pointerLockElement) document.exitPointerLock(); document.getElementById('cr-settings-panel').style.display = 'flex'; });
+    document.getElementById('cr-btn-close-settings').addEventListener('click', () => { document.getElementById('cr-settings-panel').style.display = 'none'; if (!isMobile()) document.body.requestPointerLock(); });
+
+    document.getElementById('cr-setting-control-mode').addEventListener('click', enterControlEditMode);
+    document.getElementById('cr-btn-save-layout').addEventListener('click', saveLayout);
+    document.getElementById('cr-btn-close-edit-menu').addEventListener('click', () => { clearKeyDetect(); document.getElementById('cr-button-edit-menu').style.display = 'none'; });
+
+    document.getElementById('cr-btn-size-slider').addEventListener('input', (e) => {
+      const val = e.target.value;
+      document.getElementById('cr-btn-size-display').textContent = val + '%';
+      const targetId = document.getElementById('cr-button-edit-menu').dataset.targetId;
+      if (targetId) {
+        const el = document.getElementById(targetId);
+        const scale = val / 100;
+        el.style.transform = `scale(${scale})`;
+        el.style.transformOrigin = 'top left';
+        if (!buttonConfigs[targetId]) buttonConfigs[targetId] = {};
+        buttonConfigs[targetId].scale = scale;
+      }
+    });
+
+    document.getElementById('cr-btn-key-detect').addEventListener('click', () => {
+      clearKeyDetect();
+      isDetectingKey = true;
+      document.getElementById('cr-btn-key-detect').textContent = '请按下按键...';
+    });
+
+    document.querySelectorAll('.cr-joy-key-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        clearKeyDetect();
+        const dir = e.target.dataset.dir;
+        isDetectingKey = true;
+        detectingJoyDir = dir;
+        e.target.textContent = '请按键...';
+        e.target.style.background = '#2196F3';
+      });
+    });
+
+    document.getElementById('cr-setting-auto-calibrate').addEventListener('change', (e) => { settings.autoCalibrate = e.target.checked; });
+    document.getElementById('cr-setting-show-grid').addEventListener('change', (e) => { settings.showGrid = e.target.checked; gridGroup.visible = e.target.checked; });
+    document.getElementById('cr-setting-show-coord').addEventListener('change', (e) => { settings.showCoord = e.target.checked; document.getElementById('cr-coord-display').style.display = e.target.checked ? 'block' : 'none'; });
+
+    document.querySelectorAll('.cr-shape-option').forEach(opt => {
+      opt.addEventListener('click', selectShape);
+      opt.addEventListener('touchstart', (e) => { e.preventDefault(); selectShape(e); });
+    });
+
+    const confirmBtn = document.getElementById('cr-preview-confirm');
+    confirmBtn.addEventListener('click', confirmCreate);
+    confirmBtn.addEventListener('touchstart', (e) => { e.preventDefault(); confirmCreate(); });
+
+    document.getElementById('cr-preview-panel').addEventListener('input', (e) => {
+      if (e.target.tagName === 'INPUT' && previewMesh) {
+        if (e.target.id === 'cr-preview-opacity') {
+          document.getElementById('cr-opacity-display').textContent = e.target.value + '%';
+          const val = parseInt(e.target.value) / 100;
+          previewMesh.material.transparent = val < 1;
+          previewMesh.material.opacity = val;
+        } else {
+          updatePreviewMesh();
+        }
+      }
+    });
+
+    document.querySelectorAll('.creator-action-btn, .creator-control-btn').forEach(btn => {
+      btn.addEventListener('touchstart', (e) => { e.stopPropagation(); }, {passive: false});
+    });
+
+    document.addEventListener('click', (e) => {
+      if (isMobile()) return;
+      if (isEditMode()) return;
+      if (document.getElementById('cr-preview-panel').style.display === 'flex') return;
+      if (document.getElementById('cr-settings-panel').style.display === 'flex') return;
+      if (document.getElementById('cr-shape-menu').style.display === 'block') return;
+      if (document.getElementById('cr-button-edit-menu').style.display === 'block') return;
+      if (document.getElementById('cr-edit-params-panel').style.display === 'flex') return;
+      if (e.target.closest('.creator-action-btn') || e.target.closest('.creator-control-btn')) return;
+      if (document.pointerLockElement !== document.body) {
+        document.body.requestPointerLock();
+      }
+    });
+
+    document.addEventListener('pointerlockchange', () => {
+      if (document.pointerLockElement === document.body) {
+        document.addEventListener('mousemove', onLockedMouseMove);
+      } else {
+        document.removeEventListener('mousemove', onLockedMouseMove);
+      }
+    });
+
+    window.addEventListener('resize', onWindowResize);
+
+    // Edit params events
+    document.getElementById('cr-btn-edit-params').addEventListener('click', () => {
+      document.getElementById('cr-edit-params-panel').style.display = 'flex';
+      document.getElementById('cr-param-ai').value = customKimiConfig.aiType;
+      document.getElementById('cr-param-weapon').value = customKimiConfig.weapon;
+      document.getElementById('cr-weapon-row').style.display = customKimiConfig.aiType === 'attack' ? 'block' : 'none';
+      document.getElementById('cr-param-speed').value = customKimiConfig.moveSpeed;
+      document.getElementById('cr-param-particle').value = customKimiConfig.particlePercent;
+      document.getElementById('cr-param-particle-val').textContent = customKimiConfig.particlePercent + '%';
+      document.getElementById('cr-param-pcolor').value = customKimiConfig.particleColor;
+      document.getElementById('cr-param-hp').value = customKimiConfig.hpPercent;
+      document.getElementById('cr-param-hp-val').textContent = customKimiConfig.hpPercent + '%';
+      document.getElementById('cr-param-shake').value = customKimiConfig.shakePercent;
+      document.getElementById('cr-param-shake-val').textContent = customKimiConfig.shakePercent + '%';
+    });
+
+    document.getElementById('cr-btn-close-edit-params').addEventListener('click', () => {
+      document.getElementById('cr-edit-params-panel').style.display = 'none';
+    });
+
+    document.getElementById('cr-btn-save-params').addEventListener('click', () => {
+      customKimiConfig.aiType = document.getElementById('cr-param-ai').value;
+      customKimiConfig.weapon = document.getElementById('cr-param-weapon').value;
+      customKimiConfig.moveSpeed = parseFloat(document.getElementById('cr-param-speed').value) || 9;
+      customKimiConfig.particlePercent = parseInt(document.getElementById('cr-param-particle').value) || 100;
+      customKimiConfig.particleColor = document.getElementById('cr-param-pcolor').value;
+      customKimiConfig.hpPercent = parseInt(document.getElementById('cr-param-hp').value) || 100;
+      customKimiConfig.shakePercent = parseInt(document.getElementById('cr-param-shake').value) || 100;
+      document.getElementById('cr-edit-params-panel').style.display = 'none';
+    });
+
+    document.getElementById('cr-param-ai').addEventListener('change', (e) => {
+      document.getElementById('cr-weapon-row').style.display = e.target.value === 'attack' ? 'block' : 'none';
+    });
+    document.getElementById('cr-param-particle').addEventListener('input', (e) => {
+      document.getElementById('cr-param-particle-val').textContent = e.target.value + '%';
+    });
+    document.getElementById('cr-param-hp').addEventListener('input', (e) => {
+      document.getElementById('cr-param-hp-val').textContent = e.target.value + '%';
+    });
+    document.getElementById('cr-param-shake').addEventListener('input', (e) => {
+      document.getElementById('cr-param-shake-val').textContent = e.target.value + '%';
+    });
+  }
+
+  function isEditMode() {
+    return document.getElementById('cr-control-edit-overlay').style.display === 'block';
+  }
+
+  function onLockedMouseMove(e) {
+    if (mirrorMode !== 0) return;
+    cYaw -= e.movementX * 0.002;
+    cPitch -= e.movementY * 0.002;
+    cPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, cPitch));
+  }
+
+  function enterControlEditMode() {
+    if (document.pointerLockElement) document.exitPointerLock();
+    document.getElementById('cr-settings-panel').style.display = 'none';
+    document.getElementById('cr-control-edit-overlay').style.display = 'block';
+    const editables = document.querySelectorAll('.creator-action-btn, .creator-control-btn, #cr-joystick-zone');
+    editables.forEach(el => {
+      el.dataset.editMode = 'true';
+      el.style.transition = 'none';
+      el.style.boxShadow = '0 0 15px rgba(33, 150, 243, 0.6)';
+      el.style.borderColor = 'rgba(33, 150, 243, 0.8)';
+      el.addEventListener('touchstart', onEditTouchStart, {passive: false});
+      el.addEventListener('touchmove', onEditTouchMove, {passive: false});
+      el.addEventListener('touchend', onEditTouchEnd, {passive: false});
+      el.addEventListener('mousedown', onEditMouseDown);
+    });
+  }
+
+  function saveLayout() {
+    const editables = document.querySelectorAll('.creator-action-btn, .creator-control-btn, #cr-joystick-zone');
+    editables.forEach(el => {
+      if (el.dataset.editMode) {
+        if (!buttonConfigs[el.id]) buttonConfigs[el.id] = {};
+        buttonConfigs[el.id].left = el.style.left;
+        buttonConfigs[el.id].top = el.style.top;
+        el.style.boxShadow = '';
+        el.style.borderColor = '';
+        el.style.transition = '';
+        el.removeEventListener('touchstart', onEditTouchStart);
+        el.removeEventListener('touchmove', onEditTouchMove);
+        el.removeEventListener('touchend', onEditTouchEnd);
+        el.removeEventListener('mousedown', onEditMouseDown);
+        delete el.dataset.editMode;
+      }
+    });
+    document.getElementById('cr-control-edit-overlay').style.display = 'none';
+    document.getElementById('cr-button-edit-menu').style.display = 'none';
+    document.getElementById('cr-settings-panel').style.display = 'flex';
+  }
+
+  function onEditTouchStart(e) {
+    const btn = e.currentTarget;
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    editCurrentBtn = btn;
+    const touch = e.touches[0];
+    editDragStartX = touch.clientX;
+    editDragStartY = touch.clientY;
+    editIsDragging = false;
+    const rect = btn.getBoundingClientRect();
+    editDragInitialLeft = rect.left;
+    editDragInitialTop = rect.top;
+    if (btn.style.position !== 'fixed') {
+      btn.style.position = 'fixed';
+      btn.style.left = rect.left + 'px';
+      btn.style.top = rect.top + 'px';
+      btn.style.right = 'auto';
+      btn.style.bottom = 'auto';
+      btn.style.transform = `scale(${buttonConfigs[btn.id]?.scale || 1})`;
+      btn.style.transformOrigin = 'top left';
+    }
+    editLongPressTimer = setTimeout(() => { if (!editIsDragging) showEditMenu(btn); }, 600);
+  }
+
+  function onEditTouchMove(e) {
+    if (!editCurrentBtn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const touch = e.touches[0];
+    const dx = touch.clientX - editDragStartX;
+    const dy = touch.clientY - editDragStartY;
+    if (Math.sqrt(dx*dx + dy*dy) > 5) { editIsDragging = true; clearTimeout(editLongPressTimer); }
+    if (editIsDragging) {
+      editCurrentBtn.style.left = (editDragInitialLeft + dx) + 'px';
+      editCurrentBtn.style.top = (editDragInitialTop + dy) + 'px';
+    }
+  }
+
+  function onEditTouchEnd(e) {
+    clearTimeout(editLongPressTimer);
+    editCurrentBtn = null;
+    editIsDragging = false;
+  }
+
+  function onEditMouseDown(e) {
+    const btn = e.currentTarget;
+    editCurrentBtn = btn;
+    editDragStartX = e.clientX;
+    editDragStartY = e.clientY;
+    editIsDragging = false;
+    const rect = btn.getBoundingClientRect();
+    editDragInitialLeft = rect.left;
+    editDragInitialTop = rect.top;
+    if (btn.style.position !== 'fixed') {
+      btn.style.position = 'fixed';
+      btn.style.left = rect.left + 'px';
+      btn.style.top = rect.top + 'px';
+      btn.style.right = 'auto';
+      btn.style.bottom = 'auto';
+      btn.style.transform = `scale(${buttonConfigs[btn.id]?.scale || 1})`;
+      btn.style.transformOrigin = 'top left';
+    }
+    editLongPressTimer = setTimeout(() => { if (!editIsDragging) showEditMenu(btn); }, 600);
+    function onMouseMove(ev) {
+      const dx = ev.clientX - editDragStartX;
+      const dy = ev.clientY - editDragStartY;
+      if (Math.sqrt(dx*dx + dy*dy) > 5) { editIsDragging = true; clearTimeout(editLongPressTimer); }
+      if (editIsDragging) {
+        btn.style.left = (editDragInitialLeft + dx) + 'px';
+        btn.style.top = (editDragInitialTop + dy) + 'px';
+      }
+    }
+    function onMouseUp() {
+      clearTimeout(editLongPressTimer);
+      editCurrentBtn = null;
+      editIsDragging = false;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    }
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }
+
+  function showEditMenu(btn) {
+    document.getElementById('cr-button-edit-menu').style.display = 'block';
+    const isJoystick = btn.id === 'cr-joystick-zone';
+    document.getElementById('cr-joystick-key-section').style.display = isJoystick ? 'block' : 'none';
+    document.getElementById('cr-normal-key-section').style.display = isJoystick ? 'none' : 'block';
+    const cfg = buttonConfigs[btn.id] || { scale: 1, key: null };
+    document.getElementById('cr-btn-size-slider').value = Math.round((cfg.scale || 1) * 100);
+    document.getElementById('cr-btn-size-display').textContent = Math.round((cfg.scale || 1) * 100) + '%';
+    if (!isJoystick) {
+      document.getElementById('cr-btn-key-display').textContent = cfg.key ? cfg.key.toUpperCase() : '未设置';
+    } else {
+      document.querySelectorAll('.cr-joy-key-btn').forEach(b => {
+        const dir = b.dataset.dir;
+        b.textContent = (joystickKeys[dir] || '').toUpperCase() || '-';
+        b.style.background = '#333';
+      });
+    }
+    document.getElementById('cr-button-edit-menu').dataset.targetId = btn.id;
+  }
+
+  function clearKeyDetect() {
+    isDetectingKey = false;
+    detectingJoyDir = null;
+    const detectBtn = document.getElementById('cr-btn-key-detect');
+    if (detectBtn) detectBtn.textContent = '点击检测按键';
+    document.querySelectorAll('.cr-joy-key-btn').forEach(b => {
+      if (b.textContent === '请按键...') {
+        const dir = b.dataset.dir;
+        b.textContent = (joystickKeys[dir] || '').toUpperCase() || '-';
+        b.style.background = '#333';
+      }
+    });
+  }
+
+  function selectShape(e) {
+    selectedShape = e.target.dataset.shape;
+    document.getElementById('cr-shape-menu').style.display = 'none';
+    openPreview();
+  }
+
+  function onKeyDown(e) {
+    if (isDetectingKey) {
+      if (e.key === 'Escape') { clearKeyDetect(); return; }
+      if (detectingJoyDir) {
+        joystickKeys[detectingJoyDir] = e.key.toLowerCase();
+        const btn = document.querySelector(`.cr-joy-key-btn[data-dir="${detectingJoyDir}"]`);
+        if (btn) { btn.textContent = e.key.toUpperCase(); btn.style.background = '#333'; }
+      } else {
+        const targetId = document.getElementById('cr-button-edit-menu').dataset.targetId;
+        if (targetId && targetId !== 'cr-joystick-zone') {
+          if (!buttonConfigs[targetId]) buttonConfigs[targetId] = {};
+          buttonConfigs[targetId].key = e.key.toLowerCase();
+          document.getElementById('cr-btn-key-display').textContent = e.key.toUpperCase();
+        }
+      }
+      isDetectingKey = false;
+      detectingJoyDir = null;
+      e.preventDefault();
+      return;
+    }
+    if (document.getElementById('cr-settings-panel').style.display === 'flex') return;
+    if (document.getElementById('cr-edit-params-panel').style.display === 'flex') return;
+    if (isEditMode()) return;
+    const key = e.key.toLowerCase();
+    if (joystickKeys.up && key === joystickKeys.up.toLowerCase()) moveForward = true;
+    if (joystickKeys.down && key === joystickKeys.down.toLowerCase()) moveBackward = true;
+    if (joystickKeys.left && key === joystickKeys.left.toLowerCase()) moveLeft = true;
+    if (joystickKeys.right && key === joystickKeys.right.toLowerCase()) moveRight = true;
+    for (let id in buttonConfigs) {
+      if (buttonConfigs[id].key && buttonConfigs[id].key === key) {
+        if (id === 'cr-btn-up') moveUp = true;
+        else if (id === 'cr-btn-down') moveDown = true;
+        else {
+          const btn = document.getElementById(id);
+          if (btn) {
+            btn.style.background = 'rgba(255, 255, 255, 0.3)';
+            setTimeout(() => { btn.style.background = ''; }, 100);
+            btn.click();
+          }
+        }
+        e.preventDefault();
+        return;
+      }
+    }
+    switch (e.code) {
+      case 'ArrowUp': moveUp = true; break;
+      case 'ArrowDown': moveDown = true; break;
+    }
+  }
+
+  function onKeyUp(e) {
+    if (document.getElementById('cr-settings-panel').style.display === 'flex') return;
+    if (document.getElementById('cr-edit-params-panel').style.display === 'flex') return;
+    if (isEditMode()) return;
+    const key = e.key.toLowerCase();
+    if (joystickKeys.up && key === joystickKeys.up.toLowerCase()) moveForward = false;
+    if (joystickKeys.down && key === joystickKeys.down.toLowerCase()) moveBackward = false;
+    if (joystickKeys.left && key === joystickKeys.left.toLowerCase()) moveLeft = false;
+    if (joystickKeys.right && key === joystickKeys.right.toLowerCase()) moveRight = false;
+    for (let id in buttonConfigs) {
+      if (buttonConfigs[id].key && buttonConfigs[id].key === key) {
+        if (id === 'cr-btn-up') moveUp = false;
+        else if (id === 'cr-btn-down') moveDown = false;
+        return;
+      }
+    }
+    switch (e.code) {
+      case 'ArrowUp': moveUp = false; break;
+      case 'ArrowDown': moveDown = false; break;
+    }
+  }
+
+  function onTouchStart(e) {
+    e.preventDefault();
+    if (isEditMode()) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      if (!cameraTouch) {
+        cameraTouch = { id: touch.identifier, x: touch.clientX, y: touch.clientY };
+      }
+    }
+  }
+
+  function onTouchMove(e) {
+    e.preventDefault();
+    if (isEditMode()) return;
+    if (mirrorMode !== 0) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      if (cameraTouch && touch.identifier === cameraTouch.id) {
+        const deltaX = touch.clientX - cameraTouch.x;
+        const deltaY = touch.clientY - cameraTouch.y;
+        cYaw -= deltaX * 0.005;
+        cPitch -= deltaY * 0.005;
+        cPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, cPitch));
+        cameraTouch.x = touch.clientX;
+        cameraTouch.y = touch.clientY;
+      }
+    }
+  }
+
+  function onTouchEnd(e) {
+    e.preventDefault();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      if (cameraTouch && touch.identifier === cameraTouch.id) {
+        cameraTouch = null;
+      }
+    }
+  }
+
+  function onJoystickStart(e) {
+    e.preventDefault();
+    if (isEditMode()) return;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      if (!joystickTouchId) {
+        joystickTouchId = touch.identifier;
+        joystickActive = true;
+        const rect = document.getElementById('cr-joystick-base').getBoundingClientRect();
+        joystickCenter.x = rect.left + rect.width / 2;
+        joystickCenter.y = rect.top + rect.height / 2;
+        updateJoystick(touch.clientX, touch.clientY);
+      }
+    }
+  }
+
+  function onJoystickMove(e) {
+    e.preventDefault();
+    if (isEditMode()) return;
+    if (joystickActive) {
+      for (let i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].identifier === joystickTouchId) {
+          updateJoystick(e.touches[i].clientX, e.touches[i].clientY);
+          break;
+        }
+      }
+    }
+  }
+
+  function onJoystickEnd(e) {
+    e.preventDefault();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === joystickTouchId) {
+        joystickActive = false;
+        joystickTouchId = null;
+        joystickDelta.x = 0;
+        joystickDelta.y = 0;
+        document.getElementById('cr-joystick-knob').style.transform = `translate(0px, 0px)`;
+        break;
+      }
+    }
+  }
+
+  function updateJoystick(x, y) {
+    const maxDist = 45;
+    let dx = x - joystickCenter.x;
+    let dy = y - joystickCenter.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > maxDist) {
+      dx = (dx / dist) * maxDist;
+      dy = (dy / dist) * maxDist;
+    }
+    joystickDelta.x = dx / maxDist;
+    joystickDelta.y = dy / maxDist;
+    document.getElementById('cr-joystick-knob').style.transform = `translate(${dx}px, ${dy}px)`;
+  }
+
+  function onCreateClick() {
+    if (isPlacing && ghostObject) {
+      if (ghostObject.userData.border) {
+        ghostObject.remove(ghostObject.userData.border);
+        ghostObject.userData.border.geometry.dispose();
+        ghostObject.userData.border.material.dispose();
+        ghostObject.userData.border = null;
+      }
+      ghostObject.userData.finalPosition = ghostObject.position.clone();
+      objects.push(ghostObject);
+      ghostObject = null;
+      isPlacing = false;
+      lastValidGhostPos = null;
+      return;
+    }
+    document.getElementById('cr-shape-menu').style.display = 'block';
+  }
+
+  function onDeleteClick() {
+    const btn = document.getElementById('cr-btn-delete');
+    if (btn.textContent === '再次点击确认') {
+      if (deleteConfirmTimer) clearTimeout(deleteConfirmTimer);
+      deleteTargetObject();
+      btn.textContent = '删除图形';
+    } else {
+      btn.textContent = '再次点击确认';
+      deleteConfirmTimer = setTimeout(() => { btn.textContent = '删除图形'; }, 3000);
+    }
+  }
+
+  function deleteTargetObject() {
+    const raycaster = new THREE.Raycaster();
+    if (mirrorMode !== 0) {
+      const origin = playerPos.clone();
+      const direction = new THREE.Vector3(0, 0, -1);
+      direction.applyEuler(new THREE.Euler(savedPitch, savedYaw, 0, 'YXZ'));
+      raycaster.set(origin, direction);
+    } else {
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+    }
+    const intersects = raycaster.intersectObjects(objects);
+    if (intersects.length > 0) {
+      const target = intersects[0].object;
+      scene.remove(target);
+      if (target.geometry) target.geometry.dispose();
+      if (target.material) target.material.dispose();
+      objects = objects.filter(obj => obj !== target);
+    }
+  }
+
+  function onMirrorClick() {
+    const btn = document.getElementById('cr-btn-mirror');
+    if (mirrorMode === 0) {
+      savedYaw = cYaw;
+      savedPitch = cPitch;
+      mirrorMode = 1;
+      btn.textContent = '映像视角(俯)';
+    } else if (mirrorMode === 1) {
+      mirrorMode = 2;
+      btn.textContent = '映像视角(X)';
+    } else if (mirrorMode === 2) {
+      mirrorMode = 3;
+      btn.textContent = '映像视角(Z)';
+    } else {
+      mirrorMode = 0;
+      cYaw = savedYaw;
+      cPitch = savedPitch;
+      btn.textContent = '映像视角';
+    }
+  }
+
+  function openPreview() {
+    document.getElementById('cr-preview-panel').style.display = 'flex';
+    const inputsDiv = document.getElementById('cr-preview-inputs');
+    inputsDiv.innerHTML = '';
+    let inputs = [];
+    switch (selectedShape) {
+      case 'cube': inputs = [{ label: '长(X轴)', id: 'cr-param-0', value: '1' }, { label: '宽(Z轴)', id: 'cr-param-1', value: '1' }, { label: '高(Y轴)', id: 'cr-param-2', value: '1' }]; break;
+      case 'circle': inputs = [{ label: '半径', id: 'cr-param-0', value: '1' }, { label: '高(Y轴厚度)', id: 'cr-param-1', value: '0.2' }]; break;
+      case 'sphere': inputs = [{ label: '半径', id: 'cr-param-0', value: '1' }]; break;
+      case 'triangle': inputs = [{ label: '边1', id: 'cr-param-0', value: '3' }, { label: '边2', id: 'cr-param-1', value: '4' }, { label: '边3', id: 'cr-param-2', value: '5' }, { label: '高(Y轴)', id: 'cr-param-3', value: '1' }]; break;
+    }
+    inputs.forEach(inp => {
+      const label = document.createElement('div');
+      label.className = 'cr-preview-label';
+      label.textContent = inp.label;
+      inputsDiv.appendChild(label);
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'cr-preview-input';
+      input.id = inp.id;
+      input.value = inp.value;
+      inputsDiv.appendChild(input);
+    });
+    document.getElementById('cr-preview-opacity').value = 100;
+    document.getElementById('cr-opacity-display').textContent = '100%';
+    initPreviewRenderer();
+  }
+
+  function initPreviewRenderer() {
+    const container = document.getElementById('cr-preview-canvas');
+    container.innerHTML = '';
+    previewScene = new THREE.Scene();
+    previewScene.background = new THREE.Color(0xffffff);
+    const aspect = container.clientWidth / container.clientHeight;
+    previewCamera = new THREE.PerspectiveCamera(50, aspect, 0.1, 100);
+    previewCamera.position.set(5, 5, 5);
+    previewCamera.lookAt(0, 0, 0);
+    previewRenderer = new THREE.WebGLRenderer({ antialias: true });
+    previewRenderer.setSize(container.clientWidth, container.clientHeight);
+    container.appendChild(previewRenderer.domElement);
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(5, 10, 5);
+    previewScene.add(light);
+    previewScene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    previewRotX = 0;
+    previewRotY = 0;
+    updatePreviewMesh();
+    const canvas = previewRenderer.domElement;
+    canvas.addEventListener('touchstart', (e) => { if (e.touches.length === 1) { isPreviewTouching = true; pLastX = e.touches[0].clientX; pLastY = e.touches[0].clientY; } });
+    canvas.addEventListener('touchmove', (e) => { if (isPreviewTouching && e.touches.length === 1) { const dx = e.touches[0].clientX - pLastX; const dy = e.touches[0].clientY - pLastY; previewRotY += dx * 0.01; previewRotX += dy * 0.01; if (previewMesh) { previewMesh.rotation.x = previewRotX; previewMesh.rotation.y = previewRotY; } pLastX = e.touches[0].clientX; pLastY = e.touches[0].clientY; } });
+    canvas.addEventListener('touchend', () => { isPreviewTouching = false; });
+    canvas.addEventListener('mousedown', (e) => { isPreviewTouching = true; pLastX = e.clientX; pLastY = e.clientY; });
+    window.addEventListener('mousemove', (e) => { if (isPreviewTouching) { const dx = e.clientX - pLastX; const dy = e.clientY - pLastY; previewRotY += dx * 0.01; previewRotX += dy * 0.01; if (previewMesh) { previewMesh.rotation.x = previewRotX; previewMesh.rotation.y = previewRotY; } pLastX = e.clientX; pLastY = e.clientY; } });
+    window.addEventListener('mouseup', () => { isPreviewTouching = false; });
+    animatePreview();
+  }
+
+  function updatePreviewMesh() {
+    if (previewMesh) {
+      previewScene.remove(previewMesh);
+      previewMesh.geometry.dispose();
+      previewMesh.material.dispose();
+    }
+    const color = document.getElementById('cr-preview-color').value;
+    const rotX = Math.min(270, Math.max(0, parseFloat(document.getElementById('cr-preview-rot-x').value) || 0));
+    const rotZ = Math.min(270, Math.max(0, parseFloat(document.getElementById('cr-preview-rot-z').value) || 0));
+    const opacityVal = parseInt(document.getElementById('cr-preview-opacity').value) / 100;
+    const params = [];
+    let i = 0;
+    while (document.getElementById(`cr-param-${i}`)) {
+      params.push(parseFloat(document.getElementById(`cr-param-${i}`).value) || 1);
+      i++;
+    }
+    let geometry = createGeometry(selectedShape, params);
+    const material = new THREE.MeshStandardMaterial({ color: color, transparent: opacityVal < 1, opacity: opacityVal });
+    previewMesh = new THREE.Mesh(geometry, material);
+    previewMesh.rotation.x = rotX * Math.PI / 180;
+    previewMesh.rotation.z = rotZ * Math.PI / 180;
+    previewScene.add(previewMesh);
+  }
+
+  function createGeometry(type, params) {
+    switch (type) {
+      case 'cube': return new THREE.BoxGeometry(params[0] || 1, params[2] || 1, params[1] || 1);
+      case 'circle': return new THREE.CylinderGeometry(params[0] || 1, params[0] || 1, params[1] || 0.2, 32);
+      case 'sphere': return new THREE.SphereGeometry(params[0] || 1, 32, 32);
+      case 'triangle': return createTriangularPrism(params[0] || 1, params[1] || 1, params[2] || 1, params[3] || 1);
+      default: return new THREE.BoxGeometry(1, 1, 1);
+    }
+  }
+
+  function createTriangularPrism(a, b, c, height) {
+    if (a <= 0 || b <= 0 || c <= 0 || height <= 0) { a = b = c = 1; height = 1; }
+    if (a + b <= c || a + c <= b || b + c <= a) { const max = Math.max(a, b, c, 1); a = b = c = max; }
+    const A = new THREE.Vector3(0, 0, 0);
+    const B = new THREE.Vector3(a, 0, 0);
+    const Cx = (a * a + b * b - c * c) / (2 * a);
+    const Cz = Math.sqrt(Math.max(0, b * b - Cx * Cx));
+    const C = new THREE.Vector3(Cx, 0, Cz);
+    const At = new THREE.Vector3(A.x, height, A.z);
+    const Bt = new THREE.Vector3(B.x, height, B.z);
+    const Ct = new THREE.Vector3(C.x, height, C.z);
+    const vertices = new Float32Array([
+      A.x, A.y, A.z, B.x, B.y, B.z, C.x, C.y, C.z,
+      At.x, At.y, At.z, Bt.x, Bt.y, Bt.z, Ct.x, Ct.y, Ct.z
+    ]);
+    const indices = [0,1,2, 3,5,4, 0,3,1, 1,3,4, 1,4,2, 2,4,5, 2,5,0, 0,5,3];
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    return geometry;
+  }
+
+  function animatePreview() {
+    if (document.getElementById('cr-preview-panel').style.display === 'flex') {
+      requestAnimationFrame(animatePreview);
+      if (previewRenderer && previewCamera) previewRenderer.render(previewScene, previewCamera);
+    }
+  }
+
+  function addGhostBorder(mesh) {
+    if (mesh.userData.border) {
+      mesh.remove(mesh.userData.border);
+      mesh.userData.border.geometry.dispose();
+      mesh.userData.border.material.dispose();
+    }
+    const box = new THREE.Box3().setFromObject(mesh);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    const geometry = new THREE.BoxGeometry(size.x * 1.02, size.y * 1.02, size.z * 1.02);
+    const edges = new THREE.EdgesGeometry(geometry);
+    const material = new THREE.LineDashedMaterial({ color: 0x000000, dashSize: 0.15, gapSize: 0.08, depthTest: false, opacity: 0.8, transparent: true });
+    const border = new THREE.LineSegments(edges, material);
+    border.computeLineDistances();
+    border.position.copy(center).sub(mesh.position);
+    mesh.userData.border = border;
+    mesh.add(border);
+  }
+
+  function confirmCreate() {
+    document.getElementById('cr-preview-panel').style.display = 'none';
+    isPlacing = true;
+    const color = document.getElementById('cr-preview-color').value;
+    const rotX = Math.min(270, Math.max(0, parseFloat(document.getElementById('cr-preview-rot-x').value) || 0));
+    const rotZ = Math.min(270, Math.max(0, parseFloat(document.getElementById('cr-preview-rot-z').value) || 0));
+    const opacityVal = parseInt(document.getElementById('cr-preview-opacity').value) / 100;
+    const params = [];
+    let i = 0;
+    while (document.getElementById(`cr-param-${i}`)) {
+      params.push(parseFloat(document.getElementById(`cr-param-${i}`).value) || 1);
+      i++;
+    }
+    const geometry = createGeometry(selectedShape, params);
+    const material = new THREE.MeshStandardMaterial({ color: color, transparent: opacityVal < 1, opacity: opacityVal });
+    ghostObject = new THREE.Mesh(geometry, material);
+    ghostObject.userData = { type: selectedShape, params: params, rotX: rotX, rotZ: rotZ };
+    ghostObject.rotation.x = rotX * Math.PI / 180;
+    ghostObject.rotation.z = rotZ * Math.PI / 180;
+    scene.add(ghostObject);
+    addGhostBorder(ghostObject);
+    lastValidGhostPos = null;
+  }
+
+  function checkCollision(ghost) {
+    const ghostBox = new THREE.Box3().setFromObject(ghost);
+    for (let obj of objects) {
+      const objBox = new THREE.Box3().setFromObject(obj);
+      if (ghostBox.intersectsBox(objBox)) return true;
+    }
+    return false;
+  }
+
+  function updateGhostObject() {
+    if (!ghostObject) return;
+    const direction = new THREE.Vector3(0, 0, -1);
+    if (mirrorMode !== 0) {
+      direction.applyEuler(new THREE.Euler(savedPitch, savedYaw, 0, 'YXZ'));
+    } else {
+      camera.getWorldDirection(direction);
+    }
+    const position = playerPos.clone().add(direction.multiplyScalar(7));
+    const oldPos = ghostObject.position.clone();
+    ghostObject.position.copy(position);
+    if (settings.autoCalibrate && checkCollision(ghostObject)) {
+      ghostObject.position.copy(oldPos);
+    } else {
+      lastValidGhostPos = position.clone();
+    }
+  }
+
+  function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    if (previewRenderer && document.getElementById('cr-preview-panel').style.display === 'flex') {
+      const container = document.getElementById('cr-preview-canvas');
+      previewCamera.aspect = container.clientWidth / container.clientHeight;
+      previewCamera.updateProjectionMatrix();
+      previewRenderer.setSize(container.clientWidth, container.clientHeight);
+    }
+  }
+
+  function animate() {
+    if (!isRunning) return;
+    requestAnimationFrame(animate);
+    const time = performance.now();
+    const delta = (time - prevTime) / 1000;
+    camera.position.copy(playerPos);
+    if (mirrorMode === 0) {
+      camera.rotation.set(cPitch, cYaw, 0, 'YXZ');
+    } else {
+      camera.rotation.set(savedPitch, savedYaw, 0, 'YXZ');
+    }
+    let targetZ = 0, targetX = 0, targetY = 0;
+    if (moveForward) targetZ -= 50;
+    if (moveBackward) targetZ += 50;
+    if (moveLeft) targetX -= 50;
+    if (moveRight) targetX += 50;
+    if (moveUp) targetY += 25;
+    if (moveDown) targetY -= 25;
+    if (joystickActive) {
+      targetZ += joystickDelta.y * 50;
+      targetX += joystickDelta.x * 50;
+    }
+    if (targetZ === 0) velocity.z = 0; else velocity.z += (targetZ - velocity.z) * 10 * delta;
+    if (targetX === 0) velocity.x = 0; else velocity.x += (targetX - velocity.x) * 10 * delta;
+    if (targetY === 0) velocity.y = 0; else velocity.y += (targetY - velocity.y) * 10 * delta;
+    const oldY = camera.position.y;
+    camera.translateZ(velocity.z * delta);
+    camera.translateX(velocity.x * delta);
+    camera.position.y = oldY;
+    camera.position.y += velocity.y * delta;
+    playerPos.copy(camera.position);
+    if (mirrorMode === 1) {
+      camera.position.set(playerPos.x, playerPos.y + 5, playerPos.z);
+      camera.lookAt(playerPos);
+    } else if (mirrorMode === 2) {
+      camera.position.set(playerPos.x + 5, playerPos.y, playerPos.z);
+      camera.lookAt(playerPos);
+    } else if (mirrorMode === 3) {
+      camera.position.set(playerPos.x, playerPos.y, playerPos.z + 5);
+      camera.lookAt(playerPos);
+    }
+    if (isPlacing && ghostObject) updateGhostObject();
+    if (settings.showCoord) {
+      document.getElementById('cr-coord-display').textContent = `X: ${playerPos.x.toFixed(2)} Y: ${playerPos.y.toFixed(2)} Z: ${playerPos.z.toFixed(2)}`;
+    }
+    renderer.render(scene, camera);
+    prevTime = time;
+  }
+
+  function stop() { isRunning = false; }
+  function getObjects() { return objects.slice(); }
+
+  return { init, stop, getObjects };
+})();
+
+// Creator external buttons
+document.getElementById('cr-btn-save-exit').addEventListener('click', () => {
+  const objs = Creator.getObjects();
+  if (objs.length > 0) {
+    customKimiModel = new THREE.Group();
+    objs.forEach(obj => {
+      const clone = obj.clone();
+      if (clone.userData.border) {
+        clone.remove(clone.userData.border);
+        clone.userData.border = null;
+      }
+      customKimiModel.add(clone);
+    });
+    const box = new THREE.Box3().setFromObject(customKimiModel);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    customKimiModel.children.forEach(c => c.position.sub(center));
+  } else {
+    customKimiModel = null;
+  }
+  document.getElementById('creator-overlay').style.display = 'none';
+  isCreatorMode = false;
+  Creator.stop();
+
+  if (!stackSummon) clearEntities();
+  const pos = new THREE.Vector3(
+    (Math.random() - 0.5) * 10,
+    KIMI_RADIUS,
+    (Math.random() - 0.5) * 10
+  );
+  pos.x = THREE.MathUtils.clamp(pos.x, -HALF_SIZE + 2, HALF_SIZE - 2);
+  pos.z = THREE.MathUtils.clamp(pos.z, -HALF_SIZE + 2, HALF_SIZE - 2);
+  createEntity('custom', pos);
+});
+
+document.getElementById('cr-btn-edit-text').addEventListener('click', () => {
+  const text = prompt('请输入悬浮文本:', customKimiText || '');
+  if (text !== null) customKimiText = text;
+});
+
+// ==================== AI系统 ====================
+function updateEntityAI(entity, dt) {
+  if (entity.dead) return;
+  if (entity.group.position.y > KIMI_RADIUS + 0.05) return;
+
+  const pos = entity.group.position;
+  const toPlayer = new THREE.Vector3().subVectors(player.position, pos);
+  const dist = toPlayer.length();
+  toPlayer.normalize();
+
+  const aiType = entity.aiType || 'none';
+  const speed = entity.moveSpeed !== undefined ? entity.moveSpeed : MOVE_SPEED;
+
+  if (aiType === 'none') {
+    entity.velocity.x *= 0.8;
+    entity.velocity.z *= 0.8;
+    const lookTarget = new THREE.Vector3(player.position.x, pos.y, player.position.z);
+    entity.group.lookAt(lookTarget);
+    return;
+  }
+
+  if (aiType === 'flee') {
+    if (dist < 6) {
+      const fleeDir = toPlayer.clone().negate();
+      fleeDir.y = 0;
+      fleeDir.normalize();
+      entity.velocity.x = fleeDir.x * speed;
+      entity.velocity.z = fleeDir.z * speed;
+    } else if (dist > 8) {
+      if (!entity.patrolDir || Math.random() < 0.02) {
+        const angle = Math.random() * Math.PI * 2;
+        entity.patrolDir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+      }
+      entity.velocity.x = entity.patrolDir.x * speed * 0.3;
+      entity.velocity.z = entity.patrolDir.z * speed * 0.3;
+    } else {
+      entity.velocity.x *= 0.8;
+      entity.velocity.z *= 0.8;
+    }
+    const lookTarget = new THREE.Vector3(player.position.x, pos.y, player.position.z);
+    entity.group.lookAt(lookTarget);
+    return;
+  }
+
+  if (aiType === 'attack') {
+    const forward = new THREE.Vector3(0,0,1).applyQuaternion(entity.group.quaternion);
+    const inHemisphere = forward.dot(toPlayer) > 0;
+    const isSpear = entity.weapon === 'spear';
+    const attackRange = isSpear ? 7.0 : 3.5;
+    if (dist <= attackRange && inHemisphere) {
+      if (entity.ai.attackCooldown <= 0) {
+        attackPlayer(entity);
+        entity.ai.attackCooldown = 0.6;
+        if (entity.weaponHolder) {
+          entity.weaponHolder.rotation.x = -1.0;
+          setTimeout(() => { if (entity.weaponHolder) entity.weaponHolder.rotation.x = 0; }, 200);
+        }
+      }
+    }
+    if (dist > 1.5) {
+      const moveDir = toPlayer.clone();
+      moveDir.y = 0;
+      moveDir.normalize();
+      entity.velocity.x = moveDir.x * speed;
+      entity.velocity.z = moveDir.z * speed;
+    } else {
+      entity.velocity.x *= 0.8;
+      entity.velocity.z *= 0.8;
+    }
+    const lookTarget = new THREE.Vector3(player.position.x, pos.y, player.position.z);
+    entity.group.lookAt(lookTarget);
+    if (entity.ai.attackCooldown > 0) entity.ai.attackCooldown -= dt;
+    return;
+  }
+
+  if (aiType === 'patrol') {
+    if (!entity.patrolDir || Math.random() < 0.02) {
+      const angle = Math.random() * Math.PI * 2;
+      entity.patrolDir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+    }
+    entity.velocity.x = entity.patrolDir.x * speed;
+    entity.velocity.z = entity.patrolDir.z * speed;
+    const lookTarget = new THREE.Vector3(player.position.x, pos.y, player.position.z);
+    entity.group.lookAt(lookTarget);
+    return;
+  }
+
+  const lookTarget = new THREE.Vector3(player.position.x, pos.y, player.position.z);
+  entity.group.lookAt(lookTarget);
+}
+
+// ==================== 主循环 ====================
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (isCreatorMode) return;
+  if(splashShown) { renderer.render(scene, camera); return; }
+
+  const dt = Math.min(clock.getDelta(), 0.1);
+
+  if (healCooldown > 0) {
+    healCooldown -= dt;
+    if (healCooldown < 0) healCooldown = 0;
+    updateHealBtn();
+  }
+
+  player.rotation.y = yaw;
+  camera.rotation.x = pitch;
+
+  if(!playerDead) {
+    if(moveInput.x !== 0 || moveInput.z !== 0) {
+      const forward = new THREE.Vector3(0,0,-1).applyQuaternion(player.quaternion);
+      forward.y = 0; forward.normalize();
+      const right = new THREE.Vector3(1,0,0).applyQuaternion(player.quaternion);
+      right.y = 0; right.normalize();
+      const moveVec = new THREE.Vector3().addScaledVector(right, moveInput.x).addScaledVector(forward, -moveInput.z);
+      moveVec.normalize();
+      player.position.addScaledVector(moveVec, currentMoveSpeed * dt);
+    }
+
+    playerVelocity.y -= 9.8 * dt;
+    player.position.addScaledVector(playerVelocity, dt);
+    if(player.position.y < PLAYER_HEIGHT) {
+      player.position.y = PLAYER_HEIGHT;
+      playerVelocity.y = 0;
+      playerVelocity.x *= 0.9;
+      playerVelocity.z *= 0.9;
+    }
+    if(player.position.y > ROOM_SIZE) { player.position.y = ROOM_SIZE; playerVelocity.y *= -0.5; }
+    player.position.x = THREE.MathUtils.clamp(player.position.x, -HALF_SIZE + 0.5, HALF_SIZE - 0.5);
+    player.position.z = THREE.MathUtils.clamp(player.position.z, -HALF_SIZE + 0.5, HALF_SIZE - 0.5);
+  }
+
+  for(let entity of entities) {
+    if(entity.dead) continue;
+    entity.velocity.y -= 9.8 * dt;
+    entity.group.position.addScaledVector(entity.velocity, dt);
+
+    const r = KIMI_RADIUS;
+    if(entity.group.position.y <= r) {
+      entity.group.position.y = r;
+      entity.velocity.y *= -0.3;
+      entity.velocity.x *= 0.9;
+      entity.velocity.z *= 0.9;
+    }
+    if(entity.group.position.y >= ROOM_SIZE - r) {
+      entity.group.position.y = ROOM_SIZE - r;
+      entity.velocity.y *= -0.5;
+    }
+    if(entity.group.position.x <= -HALF_SIZE + r) { entity.group.position.x = -HALF_SIZE + r; entity.velocity.x *= -0.5; }
+    if(entity.group.position.x >= HALF_SIZE - r) { entity.group.position.x = HALF_SIZE - r; entity.velocity.x *= -0.5; }
+    if(entity.group.position.z <= -HALF_SIZE + r) { entity.group.position.z = -HALF_SIZE + r; entity.velocity.z *= -0.5; }
+    if(entity.group.position.z >= HALF_SIZE - r) { entity.group.position.z = HALF_SIZE - r; entity.velocity.z *= -0.5; }
+
+    updateEntityAI(entity, dt);
+
+    entity.hpBar.sprite.lookAt(camera.position);
+  }
+
+  if(screenShake > 0) {
+    camera.position.x += (Math.random()-0.5)*screenShake;
+    camera.position.y += (Math.random()-0.5)*screenShake;
+    camera.position.z += (Math.random()-0.5)*screenShake;
+    screenShake *= 0.85;
+    if(screenShake < 0.01) { screenShake = 0; camera.position.set(0,0,0); }
+  } else {
+    camera.position.set(0,0,0);
+  }
+
+  if(isAttackAnimating) {
+    attackAnim += dt * 6;
+    if(attackAnim >= 1) {
+      attackAnim = 0;
+      isAttackAnimating = false;
+      weaponHolder.position.set(0.35, -0.28, -0.55);
+      weaponHolder.rotation.set(0,0,0);
+    } else {
+      const wp = WEAPONS[currentWeaponIndex];
+      if(wp.id === 'rifle' || wp.id === 'bow') {
+        weaponHolder.position.z = -0.55 + Math.sin(attackAnim*Math.PI)*0.12;
+        weaponHolder.rotation.x = -Math.sin(attackAnim*Math.PI)*0.25;
+      } else if(wp.id === 'spear') {
+        weaponHolder.position.z = -0.55 - Math.sin(attackAnim*Math.PI)*0.8;
+      } else {
+        weaponHolder.rotation.x = -Math.sin(attackAnim*Math.PI)*1.3;
+        weaponHolder.position.z = -0.55 - Math.sin(attackAnim*Math.PI)*0.35;
+      }
+    }
+  } else {
+    weaponHolder.position.y = -0.28 + Math.sin(Date.now()*0.002)*0.012;
+  }
+
+  updateParticles(dt);
+  renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+animate();
+</script>
+</body>
+</html>
