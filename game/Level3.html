@@ -1,0 +1,2165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>氛围后室 - Level 3</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            touch-action: none;
+            background: #000;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ===== 外层边框容器 (贴合屏幕) ===== */
+        #appContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            transform-origin: center center;
+            transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            background: #000;
+            z-index: 1;
+        }
+        /* 竖屏模式 (旋转90度) */
+        #appContainer.portrait {
+            width: 100vh;
+            height: 100vw;
+            transform: rotate(90deg);
+            transform-origin: center center;
+            margin-left: calc((100vw - 100vh) / 2);
+            margin-top: calc((100vh - 100vw) / 2);
+        }
+        /* 内部所有内容撑满容器 */
+        #appContainer>* {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        /* 菜单在竖屏下适配 */
+        #appContainer.portrait #menu .menu-btn {
+            width: 200px;
+            height: 64px;
+            font-size: 22px;
+        }
+        #appContainer.portrait #menu>div:first-child {
+            font-size: 36px;
+            letter-spacing: 8px;
+        }
+
+        /* ===== 菜单 ===== */
+        #menu {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            position: absolute;
+            z-index: 100;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.7);
+        }
+        .menu-btn {
+            width: 260px;
+            height: 80px;
+            border: 5px solid rgba(255, 255, 255, 0.9);
+            background: rgba(0, 0, 0, 0.45);
+            color: #fff;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            letter-spacing: 4px;
+            pointer-events: auto;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+            flex-direction: column;
+            line-height: 1.2;
+            padding: 6px 12px;
+            border-radius: 4px;
+        }
+        .menu-btn:active {
+            background: rgba(0, 0, 0, 0.7);
+            transform: scale(0.96);
+        }
+        .menu-btn-sm {
+            width: 200px;
+            height: 56px;
+            font-size: 20px;
+            border-width: 3px;
+            letter-spacing: 2px;
+            margin-top: -4px;
+        }
+
+        /* ===== 游戏UI ===== */
+        #gameUI {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 50;
+            pointer-events: none;
+        }
+        #gameUI>* {
+            pointer-events: auto;
+        }
+
+        /* ===== 摇杆 ===== */
+        #joystick {
+            position: absolute;
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            display: none;
+            touch-action: none;
+            left: 3%;
+            bottom: 10%;
+            width: 260px;
+            height: 260px;
+            max-width: 40vw;
+            max-height: 40vw;
+        }
+        #joystick-knob {
+            position: absolute;
+            width: 42%;
+            height: 42%;
+            background: rgba(255, 255, 255, 0.65);
+            border-radius: 50%;
+            left: 29%;
+            top: 29%;
+            pointer-events: none;
+        }
+
+        #backBtn {
+            position: absolute;
+            left: 5%;
+            top: 5%;
+            width: 110px;
+            height: 68px;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            background: rgba(0, 0, 0, 0.55);
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            z-index: 52;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 24px;
+            height: 24px;
+            pointer-events: none;
+            z-index: 55;
+            opacity: 0.85;
+        }
+        #crosshair-v {
+            position: absolute;
+            top: 0;
+            left: 11px;
+            width: 2px;
+            height: 24px;
+            background: #fff;
+        }
+        #crosshair-h {
+            position: absolute;
+            top: 11px;
+            left: 0;
+            width: 24px;
+            height: 2px;
+            background: #fff;
+        }
+        #crosshair-c {
+            position: absolute;
+            top: 11px;
+            left: 11px;
+            width: 2px;
+            height: 2px;
+            background: #fff;
+        }
+
+        #fpsDisplay {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #0f0;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: monospace;
+            text-shadow: 0 0 4px #000;
+            display: none;
+            pointer-events: none;
+            z-index: 60;
+        }
+
+        #interactBtn {
+            display: none;
+            position: absolute;
+            right: 6%;
+            bottom: 32%;
+            width: 85px;
+            height: 85px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 56;
+            align-items: center;
+            justify-content: center;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+            pointer-events: auto;
+        }
+
+        /* ===== 后摄像头 ===== */
+        #rearCamContainer {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 160px;
+            height: 120px;
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            border-radius: 8px;
+            overflow: hidden;
+            z-index: 58;
+            background: #111;
+            display: none;
+            pointer-events: none;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+        #rearCamContainer canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+        #rearCamLabel {
+            position: absolute;
+            bottom: 4px;
+            left: 6px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 11px;
+            font-weight: bold;
+            text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9);
+            pointer-events: none;
+            letter-spacing: 1px;
+        }
+
+        /* ===== 结算 ===== */
+        #resultScreen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 200;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+            pointer-events: none;
+        }
+        #resultText {
+            font-size: 46px;
+            font-weight: bold;
+            color: #fff;
+            letter-spacing: 8px;
+            text-shadow: 0 2px 16px rgba(0, 0, 0, 0.9);
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* ===== 启动画面 ===== */
+        #splashScreen {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            pointer-events: none;
+        }
+        #splashScreen .splash-text {
+            font-size: 64px;
+            font-weight: bold;
+            color: #00ff66;
+            letter-spacing: 12px;
+            text-shadow: 0 0 40px rgba(0, 255, 102, 0.3);
+            animation: splashPulse 0.8s ease-in-out infinite alternate;
+        }
+        @keyframes splashPulse {
+            0% {
+                opacity: 0.6;
+                transform: scale(0.96);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1.04);
+            }
+        }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 600px) {
+            .menu-btn {
+                width: 200px;
+                height: 64px;
+                font-size: 22px;
+            }
+            .menu-btn-sm {
+                width: 160px;
+                height: 48px;
+                font-size: 17px;
+            }
+            #joystick {
+                width: 200px;
+                height: 200px;
+                left: 2%;
+                bottom: 8%;
+            }
+            #rearCamContainer {
+                width: 110px;
+                height: 82px;
+                top: 6px;
+                right: 6px;
+            }
+            #splashScreen .splash-text {
+                font-size: 40px;
+                letter-spacing: 8px;
+            }
+            #appContainer.portrait #menu .menu-btn {
+                width: 160px;
+                height: 52px;
+                font-size: 18px;
+            }
+            #appContainer.portrait #menu .menu-btn-sm {
+                width: 140px;
+                height: 42px;
+                font-size: 15px;
+            }
+            #appContainer.portrait #menu>div:first-child {
+                font-size: 28px;
+                letter-spacing: 6px;
+            }
+        }
+        @media (max-width: 400px) {
+            #joystick {
+                width: 150px;
+                height: 150px;
+                left: 1%;
+                bottom: 6%;
+            }
+            #rearCamContainer {
+                width: 80px;
+                height: 60px;
+                top: 4px;
+                right: 4px;
+            }
+            #appContainer.portrait #menu .menu-btn {
+                width: 130px;
+                height: 44px;
+                font-size: 15px;
+            }
+            #appContainer.portrait #menu .menu-btn-sm {
+                width: 120px;
+                height: 36px;
+                font-size: 13px;
+            }
+            #appContainer.portrait #menu>div:first-child {
+                font-size: 22px;
+                letter-spacing: 4px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== 外层边框容器 (贴合屏幕) ===== -->
+    <div id="appContainer">
+
+        <!-- ===== 启动画面 ===== -->
+        <div id="splashScreen">
+            <div class="splash-text">3A 团队</div>
+        </div>
+
+        <!-- ===== 主菜单 ===== -->
+        <div id="menu">
+            <div style="position:absolute;top:40px;left:50%;transform:translateX(-50%);font-size:48px;font-weight:bold;color:#fff;letter-spacing:12px;text-shadow:0 2px 12px rgba(0,0,0,0.9);">氛围后室</div>
+
+            <div class="menu-btn" id="btnStart">开始游戏</div>
+
+            <!-- ★ 新增：翻转屏幕按钮 (在开始游戏下方) -->
+            <div class="menu-btn menu-btn-sm" id="btnFlipScreen">翻转屏幕</div>
+
+            <div id="loadingText" style="font-size:18px;color:#fff;opacity:0.85;text-shadow:0 1px 4px rgba(0,0,0,0.8);letter-spacing:2px;margin-top:-4px;">正在生成中，可能需要等待十几秒时间</div>
+
+            <div style="position:absolute;bottom:16px;right:20px;font-size:13px;color:#fff;font-weight:bold;letter-spacing:1px;opacity:0.7;text-shadow:0 1px 4px rgba(0,0,0,0.8);">小坤坤&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;版本号：1.1</div>
+        </div>
+
+        <!-- ===== 音视频 ===== -->
+        <video id="bgmVideo" loop playsinline webkit-playsinline x5-playsinline x5-video-player-type="h5" x5-video-player-fullscreen="false" muted preload="auto" crossorigin="anonymous" style="display:none;">
+            <source src="https://hwmov.a.yximgs.com/upic/2025/03/07/23/BMjAyNTAzMDcyMzI0MTVfMTk0MzEwNzIxOF8xNTg2NjkwNzM1ODBfMl8z_b_B0da76bdc62b9f5a1f435aefcb3b57455.mp4?clientCacheKey=3x5kehd48a36un4_b.mp4&tt=b&di=276b8ff3&bp=10000" type="video/mp4">
+        </video>
+
+        <audio id="moveAudio" loop preload="auto" playsinline webkit-playsinline muted crossorigin="anonymous" style="display:none;">
+            <source src="https://tymov2.a.kwimgs.com/upic/2024/03/23/14/BMjAyNDAzMjMxNDU0MjhfMjQxMzUzMzU3N18xMjc5ODk1NDA5MjlfMV8z_b_B928566b45cd64ed2e4fc9ac2d03d0896.mp4?clientCacheKey=3xnkkadzdbfu6pa_b.mp4&tt=b&di=7b39f346&bp=10000" type="audio/mp4">
+        </audio>
+
+        <audio id="scareAudio" preload="auto" playsinline webkit-playsinline muted crossorigin="anonymous" style="display:none;">
+            <source src="https://hwmov.a.yximgs.com/upic/2022/01/05/19/BMjAyMjAxMDUxOTA5NTdfMjYyMTU3NzM4NF82NDI4MjIwODQwN18xXzM=_b_Bcd4a4fbe20a7e358bd59c1c90af949f5.mp4?clientCacheKey=3xb4gbpqwt5pabm_b.mp4&tt=b&di=7b39ac2c&bp=10000" type="audio/mp4">
+        </audio>
+
+        <!-- ===== 游戏UI ===== -->
+        <div id="gameUI">
+            <div id="joystick"><div id="joystick-knob"></div></div>
+            <div id="backBtn">返回主菜单</div>
+            <div id="crosshair"><div id="crosshair-v"></div><div id="crosshair-h"></div><div id="crosshair-c"></div></div>
+            <div id="fpsDisplay">0 FPS</div>
+            <div id="interactBtn">互动</div>
+            <div id="rearCamContainer">
+                <canvas id="rearCamCanvas"></canvas>
+                <div id="rearCamLabel">● 后视</div>
+            </div>
+        </div>
+
+        <!-- ===== 结算 ===== -->
+        <div id="resultScreen">
+            <div id="resultText"></div>
+            <div class="menu-btn" id="btnResultBack" style="pointer-events:auto; width:220px; height:70px; font-size:24px;">返回主菜单</div>
+        </div>
+
+        <div id="canvas-container"></div>
+
+    </div>
+    <!-- ===== 外层容器结束 ===== -->
+
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
+    </script>
+    <script>
+        // ==================== 配置 ====================
+        const CONFIG = {
+            mazeSize: 100,
+            cellSize: 2.2,
+            wallHeight: 2.56,
+            cameraHeight: 1.6,
+            fov: 75,
+            sens: 1.3,
+            speed: 1.0,
+            viewRadius: 7,
+            showFps: false,
+            farClip: 500
+        };
+
+        const isMobileDevice = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (navigator
+            .maxTouchPoints > 0 && window.innerWidth < 800);
+        if (isMobileDevice) {
+            CONFIG.sens = 1.3 * 2;
+        }
+
+        // ==================== 核心变量 ====================
+        let scene, camera, renderer;
+        let appState = 'menu';
+        let clock = new THREE.Clock();
+        let fpsFrameCount = 0,
+            fpsLastTime = 0;
+        let joystick = { active: false, dx: 0, dy: 0, originX: 0, originY: 0, maxR: 43 };
+        let lookInput = { active: false, lastX: 0, lastY: 0 };
+        let pressedKeys = new Set();
+
+        const menu = document.getElementById('menu');
+        const gameUI = document.getElementById('gameUI');
+        const fpsDisplay = document.getElementById('fpsDisplay');
+        const joystickEl = document.getElementById('joystick');
+        const knobEl = document.getElementById('joystick-knob');
+        const backBtn = document.getElementById('backBtn');
+        const bgmVideo = document.getElementById('bgmVideo');
+        const resultScreen = document.getElementById('resultScreen');
+        const resultText = document.getElementById('resultText');
+        const btnResultBack = document.getElementById('btnResultBack');
+        const moveAudioEl = document.getElementById('moveAudio');
+        const scareAudio = document.getElementById('scareAudio');
+        const interactBtn = document.getElementById('interactBtn');
+        const splashScreen = document.getElementById('splashScreen');
+        const rearCamCanvas = document.getElementById('rearCamCanvas');
+        const rearCamContainer = document.getElementById('rearCamContainer');
+        const appContainer = document.getElementById('appContainer');
+        const btnFlipScreen = document.getElementById('btnFlipScreen');
+
+        let rearRenderer = null;
+        let rearCamera = null;
+        let rearScene = null;
+
+        // ==================== 动态世界 ====================
+        let activeCells = new Map();
+        let monsters = new Map();
+        let sharedWallGeo = null,
+            sharedWallMat = null,
+            sharedBoxMat = null;
+        let sharedBoxOfWallMat = null;
+        let sharedFloorGeo = null,
+            sharedFloorMat = null;
+        let sharedCeilGeo = null,
+            sharedCeilMat = null;
+        let sharedDoorMat = null,
+            sharedDoorGeo = null;
+        let sharedSmallFloorGeo = null,
+            sharedSmallFloorMat = null;
+        let sharedTrapDoorGeo = null,
+            sharedTrapDoorMat = null;
+        let sharedMetalDoorMat = null;
+        let manholeGeo = null,
+            manholeMat = null;
+        let floorMesh = null,
+            ceilMesh = null;
+        let texturesLoaded = false;
+        let wasMoving = false;
+        let audioContext = null,
+            moveAudioGain = null;
+
+        let mapGrid = null;
+        let mapDoors = [];
+        let doorMap = new Map();
+        let trapDoors = [];
+        let trapDoorMap = new Map();
+        let spawnedMonsters = new Set();
+        let spawnedManholes = new Set();
+
+        let flashLight = null;
+        let menuLight = null;
+
+        let lookingAtDoor = null;
+        let lookingAtTrapDoor = null;
+        let lookingAtWall = false;
+        const raycaster = new THREE.Raycaster();
+
+        let electricCtx = null,
+            electricSource = null;
+        let scareTimer = null;
+
+        let mazeDepth = 0;
+        let lastDescendTime = 0;
+        let lights = new Map();
+        let lightsOn = false;
+
+        let shakeTime = 0;
+        let isFalling = false;
+
+        // ★ 翻转状态
+        let isPortrait = false;
+
+        // ==================== 纹理加载 ====================
+        const textures = {};
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.setCrossOrigin('anonymous');
+
+        function loadTexture(name, url) {
+            return new Promise((resolve) => {
+                textureLoader.load(url, (tex) => {
+                    tex.wrapS = THREE.RepeatWrapping;
+                    tex.wrapT = THREE.RepeatWrapping;
+                    tex.magFilter = THREE.LinearFilter;
+                    tex.minFilter = THREE.LinearFilter;
+                    textures[name] = tex;
+                    resolve();
+                }, undefined, () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 64;
+                    canvas.height = 64;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#e6c840';
+                    ctx.fillRect(0, 0, 64, 64);
+                    const fallback = new THREE.CanvasTexture(canvas);
+                    fallback.wrapS = THREE.RepeatWrapping;
+                    fallback.wrapT = THREE.RepeatWrapping;
+                    textures[name] = fallback;
+                    resolve();
+                });
+            });
+        }
+
+        // ==================== 伪随机 ====================
+        function seededRandom(x, z, s) {
+            const n = Math.sin(x * 12.9898 + z * 78.233 + s * 53.53) * 43758.5453;
+            return n - Math.floor(n);
+        }
+
+        // ==================== 初始化 Three.js ====================
+        function initThree() {
+            if (renderer) return;
+            scene = new THREE.Scene();
+            scene.background = null;
+            scene.fog = new THREE.Fog(0x000000, 0, CONFIG.viewRadius * CONFIG.cellSize * 0.8);
+
+            camera = new THREE.PerspectiveCamera(CONFIG.fov, window.innerWidth / window.innerHeight, 0.1, CONFIG.farClip);
+            camera.position.set(0, CONFIG.cameraHeight, 0);
+            camera.rotation.order = 'YXZ';
+            scene.add(camera);
+
+            renderer = new THREE.WebGLRenderer({ antialias: false, alpha: false, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            window.addEventListener('resize', () => {
+                resizeRenderer();
+            });
+        }
+
+        // ===== 渲染尺寸自适应 (考虑翻转) =====
+        function resizeRenderer() {
+            const container = document.getElementById('canvas-container');
+            if (!container) return;
+            const w = container.clientWidth || window.innerWidth;
+            const h = container.clientHeight || window.innerHeight;
+            if (w === 0 || h === 0) return;
+            renderer.setSize(w, h);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+
+            if (rearRenderer) {
+                const rect = rearCamContainer.getBoundingClientRect();
+                const rw = rect.width || 160;
+                const rh = rect.height || 120;
+                rearRenderer.setSize(rw, rh);
+                if (rearCamera) {
+                    rearCamera.aspect = rw / rh;
+                    rearCamera.updateProjectionMatrix();
+                }
+            }
+        }
+
+        // ==================== 后摄像头 ====================
+        function initRearCamera() {
+            if (rearRenderer) return;
+            const rect = rearCamContainer.getBoundingClientRect();
+            const w = rect.width || 160;
+            const h = rect.height || 120;
+            rearRenderer = new THREE.WebGLRenderer({
+                canvas: rearCamCanvas,
+                antialias: false,
+                alpha: false,
+                powerPreference: "high-performance"
+            });
+            rearRenderer.setSize(w, h);
+            rearRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+
+            rearScene = new THREE.Scene();
+            rearScene.background = new THREE.Color(0x111122);
+            rearScene.fog = scene.fog ? scene.fog.clone() : null;
+
+            rearCamera = new THREE.PerspectiveCamera(60, w / h, 0.1, CONFIG.farClip);
+            rearCamera.position.set(0, CONFIG.cameraHeight, 0);
+            rearCamera.rotation.order = 'YXZ';
+            rearScene.add(rearCamera);
+
+            const ambient = new THREE.AmbientLight(0x404060, 0.4);
+            rearScene.add(ambient);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            dirLight.position.set(10, 20, 10);
+            rearScene.add(dirLight);
+        }
+
+        function syncRearScene() {
+            if (!rearScene) return;
+            const toRemove = [];
+            rearScene.children.forEach(child => {
+                if (child !== rearCamera && child.type !== 'AmbientLight' && child.type !== 'DirectionalLight' && child
+                    .type !== 'Fog') {
+                    toRemove.push(child);
+                }
+            });
+            toRemove.forEach(child => rearScene.remove(child));
+
+            const cs = CONFIG.cellSize;
+            const wh = CONFIG.wallHeight;
+
+            for (const [key, cell] of activeCells) {
+                if (cell.type === 1 && cell.mesh) {
+                    const clone = cell.mesh.clone();
+                    clone.position.copy(cell.mesh.position);
+                    rearScene.add(clone);
+                }
+                if (cell.floorMesh) {
+                    const clone = cell.floorMesh.clone();
+                    clone.position.copy(cell.floorMesh.position);
+                    rearScene.add(clone);
+                }
+            }
+            for (const door of mapDoors) {
+                if (door.group) {
+                    const clone = door.group.clone();
+                    clone.position.copy(door.group.position);
+                    clone.rotation.copy(door.group.rotation);
+                    rearScene.add(clone);
+                }
+            }
+            for (const td of trapDoors) {
+                if (td.group) {
+                    const clone = td.group.clone();
+                    clone.position.copy(td.group.position);
+                    clone.rotation.copy(td.group.rotation);
+                    rearScene.add(clone);
+                }
+                if (td.underground) {
+                    const clone = td.underground.clone();
+                    clone.position.copy(td.underground.position);
+                    rearScene.add(clone);
+                }
+            }
+            for (const [id, monster] of monsters) {
+                if (monster.mesh) {
+                    const clone = monster.mesh.clone();
+                    clone.position.copy(monster.mesh.position);
+                    rearScene.add(clone);
+                }
+            }
+            for (const [key, light] of lights) {
+                if (light.mesh) {
+                    const clone = light.mesh.clone();
+                    clone.position.copy(light.mesh.position);
+                    rearScene.add(clone);
+                }
+                if (light.pointLight) {
+                    const pl = new THREE.PointLight(light.pointLight.color, light.pointLight.intensity, light.pointLight
+                        .distance);
+                    pl.position.copy(light.pointLight.position);
+                    rearScene.add(pl);
+                }
+            }
+            if (ceilMesh) {
+                const clone = ceilMesh.clone();
+                clone.position.copy(ceilMesh.position);
+                rearScene.add(clone);
+            }
+        }
+
+        function updateRearCamera() {
+            if (!rearCamera || !camera) return;
+            rearCamera.position.copy(camera.position);
+            rearCamera.rotation.copy(camera.rotation);
+            rearCamera.rotation.y += Math.PI;
+            rearCamera.updateProjectionMatrix();
+        }
+
+        function renderRearView() {
+            if (!rearRenderer || !rearScene || !rearCamera) return;
+            const rect = rearCamContainer.getBoundingClientRect();
+            const w = rect.width || 160;
+            const h = rect.height || 120;
+            if (rearRenderer.domElement.width !== w * window.devicePixelRatio) {
+                rearRenderer.setSize(w, h);
+                rearCamera.aspect = w / h;
+                rearCamera.updateProjectionMatrix();
+            }
+            syncRearScene();
+            updateRearCamera();
+            rearRenderer.render(rearScene, rearCamera);
+        }
+
+        // ==================== 共享资源 ====================
+        function initSharedResources() {
+            const cs = CONFIG.cellSize;
+            const wh = CONFIG.wallHeight;
+            const ms = CONFIG.mazeSize;
+
+            sharedWallGeo = new THREE.BoxGeometry(cs, wh, cs);
+            sharedWallMat = new THREE.MeshStandardMaterial({ map: textures.wall, roughness: 0.9, metalness: 0.0 });
+            textures.wall.repeat.set(1, wh / cs);
+
+            sharedBoxMat = new THREE.MeshStandardMaterial({ map: textures.box, roughness: 0.9, metalness: 0.0 });
+            textures.box.repeat.set(1, wh / cs);
+
+            sharedBoxOfWallMat = new THREE.MeshStandardMaterial({ map: textures.boxOfWall, roughness: 0.9,
+                metalness: 0.0 });
+            textures.boxOfWall.repeat.set(1, wh / cs);
+
+            sharedFloorGeo = new THREE.PlaneGeometry(ms * cs, ms * cs);
+            sharedFloorMat = new THREE.MeshStandardMaterial({ map: textures.floor, roughness: 0.9, metalness: 0.0 });
+            textures.floor.repeat.set(ms, ms);
+
+            sharedCeilGeo = new THREE.PlaneGeometry(ms * cs, ms * cs);
+            sharedCeilMat = new THREE.MeshStandardMaterial({ map: textures.ceil, roughness: 0.9, metalness: 0.0 });
+            textures.ceil.repeat.set(ms, ms);
+
+            sharedDoorMat = new THREE.MeshStandardMaterial({ map: textures.door, roughness: 0.8, metalness: 0.1 });
+            textures.door.repeat.set(1, wh / cs);
+
+            sharedDoorGeo = new THREE.BoxGeometry(0.12, wh, cs);
+            sharedDoorGeo.translate(-0.06, wh / 2, -cs / 2);
+
+            sharedSmallFloorGeo = new THREE.PlaneGeometry(cs, cs);
+            sharedSmallFloorMat = new THREE.MeshStandardMaterial({ map: textures.floor, roughness: 0.9,
+            metalness: 0.0 });
+            textures.floor.repeat.set(2, 2);
+
+            sharedTrapDoorGeo = new THREE.BoxGeometry(cs, 0.12, cs);
+            sharedTrapDoorGeo.translate(0, 0, cs / 2);
+
+            const trapDoorCanvas = document.createElement('canvas');
+            trapDoorCanvas.width = 256;
+            trapDoorCanvas.height = 256;
+            const tctx = trapDoorCanvas.getContext('2d');
+            tctx.fillStyle = '#3a3a3a';
+            tctx.fillRect(0, 0, 256, 256);
+            tctx.strokeStyle = '#666';
+            tctx.lineWidth = 8;
+            tctx.strokeRect(4, 4, 248, 248);
+            tctx.strokeStyle = '#555';
+            tctx.lineWidth = 3;
+            for (let i = 1; i < 4; i++) {
+                const x = i * (256 / 4);
+                tctx.beginPath();
+                tctx.moveTo(x, 0);
+                tctx.lineTo(x, 256);
+                tctx.stroke();
+                tctx.beginPath();
+                tctx.moveTo(0, x);
+                tctx.lineTo(256, x);
+                tctx.stroke();
+            }
+            tctx.fillStyle = '#777';
+            tctx.fillRect(210, 118, 30, 20);
+            const trapDoorTex = new THREE.CanvasTexture(trapDoorCanvas);
+            sharedTrapDoorMat = new THREE.MeshStandardMaterial({ map: trapDoorTex, roughness: 0.8, metalness: 0.1 });
+
+            const metalCanvas = document.createElement('canvas');
+            metalCanvas.width = 128;
+            metalCanvas.height = 256;
+            const mctx = metalCanvas.getContext('2d');
+            mctx.clearRect(0, 0, 128, 256);
+            mctx.strokeStyle = '#888';
+            mctx.lineWidth = 5;
+            mctx.strokeRect(2, 2, 124, 252);
+            for (let i = 1; i < 4; i++) {
+                const x = i * (128 / 4);
+                mctx.beginPath();
+                mctx.moveTo(x, 0);
+                mctx.lineTo(x, 256);
+                mctx.stroke();
+            }
+            for (let i = 1; i < 8; i++) {
+                const y = i * (256 / 8);
+                mctx.beginPath();
+                mctx.moveTo(0, y);
+                mctx.lineTo(128, y);
+                mctx.stroke();
+            }
+            const metalTex = new THREE.CanvasTexture(metalCanvas);
+            sharedMetalDoorMat = new THREE.MeshStandardMaterial({
+                map: metalTex,
+                transparent: true,
+                alphaTest: 0.5,
+                roughness: 0.8,
+                metalness: 0.0,
+                side: THREE.DoubleSide
+            });
+
+            const manholeCanvas = document.createElement('canvas');
+            manholeCanvas.width = 128;
+            manholeCanvas.height = 128;
+            const mctx2 = manholeCanvas.getContext('2d');
+            mctx2.fillStyle = '#2a2a2a';
+            mctx2.fillRect(0, 0, 128, 128);
+            mctx2.beginPath();
+            mctx2.arc(64, 64, 58, 0, Math.PI * 2);
+            mctx2.fillStyle = '#4a4a4a';
+            mctx2.fill();
+            mctx2.strokeStyle = '#1a1a1a';
+            mctx2.lineWidth = 6;
+            mctx2.stroke();
+            mctx2.beginPath();
+            mctx2.arc(64, 64, 44, 0, Math.PI * 2);
+            mctx2.strokeStyle = '#333';
+            mctx2.lineWidth = 3;
+            mctx2.stroke();
+            for (let i = 0; i < 12; i++) {
+                const a = (i / 12) * Math.PI * 2;
+                mctx2.beginPath();
+                mctx2.moveTo(64 + Math.cos(a) * 22, 64 + Math.sin(a) * 22);
+                mctx2.lineTo(64 + Math.cos(a) * 52, 64 + Math.sin(a) * 52);
+                mctx2.strokeStyle = '#3a3a3a';
+                mctx2.lineWidth = 2;
+                mctx2.stroke();
+            }
+            const manholeTex = new THREE.CanvasTexture(manholeCanvas);
+            manholeGeo = new THREE.CircleGeometry(cs * 0.35, 32);
+            manholeMat = new THREE.MeshBasicMaterial({ map: manholeTex, side: THREE.DoubleSide });
+        }
+
+        // ==================== 地图生成 ====================
+        function generateMap() {
+            const size = CONFIG.mazeSize;
+            mapGrid = Array(size).fill(null).map(() => Array(size).fill(0));
+            mapDoors = [];
+            doorMap.clear();
+            trapDoors = [];
+            trapDoorMap.clear();
+            spawnedMonsters.clear();
+            spawnedManholes.clear();
+
+            for (let i = 0; i < size; i++) {
+                mapGrid[0][i] = 1;
+                mapGrid[size - 1][i] = 1;
+                mapGrid[i][0] = 1;
+                mapGrid[i][size - 1] = 1;
+            }
+
+            const ROOM_STRIDE = 5;
+            const ROOM_OUTER = 4;
+
+            for (let z = 1; z < size - ROOM_OUTER; z += ROOM_STRIDE) {
+                for (let x = 1; x < size - ROOM_OUTER; x += ROOM_STRIDE) {
+                    if (Math.random() < 0.22) {
+                        let empty = true;
+                        for (let rz = z; rz < z + ROOM_OUTER && empty; rz++) {
+                            for (let rx = x; rx < x + ROOM_OUTER; rx++) {
+                                if (mapGrid[rz][rx] !== 0) { empty = false; break; }
+                            }
+                        }
+                        if (!empty) continue;
+
+                        for (let rz = z + 1; rz < z + 3; rz++) {
+                            for (let rx = x + 1; rx < x + 3; rx++) {
+                                mapGrid[rz][rx] = 2;
+                            }
+                        }
+
+                        for (let rz = z; rz < z + ROOM_OUTER; rz++) {
+                            for (let rx = x; rx < x + ROOM_OUTER; rx++) {
+                                if (mapGrid[rz][rx] === 0) mapGrid[rz][rx] = 1;
+                            }
+                        }
+                    }
+                }
+            }
+
+            let trapDoorId = 0;
+            for (let z = 1; z < size - 1; z++) {
+                for (let x = 1; x < size - 1; x++) {
+                    if ((mapGrid[z][x] === 0 || mapGrid[z][x] === 2) && Math.random() < 0.05) {
+                        const td = {
+                            id: trapDoorId++,
+                            x: x,
+                            z: z,
+                            isOpen: false,
+                            angle: 0,
+                            targetAngle: 0,
+                            group: null,
+                            mesh: null,
+                            underground: null,
+                            isMetalGate: Math.random() < 0.5
+                        };
+                        trapDoors.push(td);
+                        trapDoorMap.set(`${x},${z}`, td);
+                    }
+                }
+            }
+
+            let doorId = 0;
+            for (let z = 1; z < size - 1; z++) {
+                for (let x = 1; x < size - 1; x++) {
+                    if ((mapGrid[z][x] === 0 || mapGrid[z][x] === 2) && Math.random() < 0.07) {
+                        mapGrid[z][x] = 3;
+                        const door = {
+                            id: doorId++,
+                            x: x,
+                            z: z,
+                            side: 'random',
+                            isOpen: false,
+                            angle: 0,
+                            targetAngle: 0,
+                            group: null,
+                            mesh: null,
+                            isMetalGate: Math.random() < 0.5
+                        };
+                        mapDoors.push(door);
+                        doorMap.set(`${x},${z}`, door);
+                    }
+                }
+            }
+
+            for (let z = 1; z < size - 1; z++) {
+                for (let x = 1; x < size - 1; x++) {
+                    if (mapGrid[z][x] === 0 && Math.random() < 0.30 && !trapDoorMap.has(`${x},${z}`)) {
+                        mapGrid[z][x] = 1;
+                    }
+                }
+            }
+        }
+
+        // ==================== 地下迷宫 ====================
+        function createUndergroundMesh(cx, cz) {
+            const group = new THREE.Group();
+            const cs = CONFIG.cellSize;
+            const wh = CONFIG.wallHeight;
+            const floorY = -wh - 0.1;
+
+            const floorGeo = new THREE.PlaneGeometry(cs * 3, cs * 3);
+            const floorMat = new THREE.MeshStandardMaterial({ map: textures.floor, roughness: 0.9, metalness: 0.0 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.y = floorY;
+            group.add(floor);
+
+            const wallY = floorY + wh / 2;
+            const wallBlockGeo = new THREE.BoxGeometry(cs, wh, cs);
+            const wallMat = sharedWallMat;
+
+            const wallPositions = [];
+            for (let x = -1; x <= 1; x++) {
+                wallPositions.push([x * cs, -1.5 * cs]);
+            }
+            for (let x = -1; x <= 1; x++) {
+                wallPositions.push([x * cs, 1.5 * cs]);
+            }
+            for (let z = -1; z <= 1; z++) {
+                wallPositions.push([-1.5 * cs, z * cs]);
+            }
+            for (let z = -1; z <= 1; z++) {
+                wallPositions.push([1.5 * cs, z * cs]);
+            }
+
+            for (const [wx, wz] of wallPositions) {
+                const wall = new THREE.Mesh(wallBlockGeo, wallMat);
+                wall.position.set(wx, wallY, wz);
+                group.add(wall);
+            }
+
+            group.position.set(cx, 0, cz);
+            return group;
+        }
+
+        // ==================== 门系统 ====================
+        function createDoorMesh(door) {
+            const cs = CONFIG.cellSize;
+            const group = new THREE.Group();
+            const mat = door.isMetalGate ? sharedMetalDoorMat : sharedDoorMat;
+            const mesh = new THREE.Mesh(sharedDoorGeo, mat);
+            mesh.userData = { isDoor: true, doorId: door.id };
+            group.add(mesh);
+            group.position.set(door.x * cs + cs / 2 - 0.06, 0, door.z * cs + cs / 2);
+            group.rotation.y = door.angle;
+            scene.add(group);
+            door.group = group;
+            door.mesh = mesh;
+        }
+
+        function createTrapDoorMesh(td) {
+            const cs = CONFIG.cellSize;
+            const group = new THREE.Group();
+            const mat = td.isMetalGate ? sharedMetalDoorMat : sharedTrapDoorMat;
+            const mesh = new THREE.Mesh(sharedTrapDoorGeo, mat);
+            mesh.userData = { isTrapDoor: true, trapDoorId: td.id };
+            group.add(mesh);
+            group.position.set(td.x * cs, 0.06, td.z * cs - cs / 2);
+            group.rotation.x = td.angle;
+            scene.add(group);
+            td.group = group;
+            td.mesh = mesh;
+        }
+
+        function updateDoors(dt) {
+            for (const door of mapDoors) {
+                if (!door.group) continue;
+                const target = door.isOpen ? Math.PI / 2 : 0;
+                if (Math.abs(door.angle - target) > 0.01) {
+                    door.angle += (target - door.angle) * 8 * dt;
+                    door.group.rotation.y = door.angle;
+                }
+            }
+            for (const td of trapDoors) {
+                if (!td.group) continue;
+                const target = td.isOpen ? Math.PI / 2 : 0;
+                if (Math.abs(td.angle - target) > 0.01) {
+                    td.angle += (target - td.angle) * 8 * dt;
+                    td.group.rotation.x = td.angle;
+                }
+            }
+        }
+
+        function toggleDoor(doorId) {
+            const door = mapDoors.find(d => d.id === doorId);
+            if (door) door.isOpen = !door.isOpen;
+        }
+
+        function toggleTrapDoor(id) {
+            const td = trapDoors.find(t => t.id === id);
+            if (td) td.isOpen = !td.isOpen;
+        }
+
+        // ==================== 世界构建 ====================
+        function buildBaseScene() {
+            const cs = CONFIG.cellSize;
+            const ms = CONFIG.mazeSize;
+
+            if (ceilMesh) scene.remove(ceilMesh);
+
+            ceilMesh = new THREE.Mesh(sharedCeilGeo, sharedCeilMat);
+            ceilMesh.rotation.x = Math.PI / 2;
+            ceilMesh.position.set((ms - 1) * cs / 2, CONFIG.wallHeight - 0.02, (ms - 1) * cs / 2);
+            scene.add(ceilMesh);
+
+            generateMap();
+
+            let sx = Math.floor(ms / 2);
+            let sz = Math.floor(ms / 2);
+            if (mapGrid[sz][sx] === 1 || mapGrid[sz][sx] === 3) {
+                let found = false;
+                for (let r = 1; r < 15 && !found; r++) {
+                    for (let dz = -r; dz <= r && !found; dz++) {
+                        for (let dx = -r; dx <= r; dx++) {
+                            const nx = sx + dx,
+                                nz = sz + dz;
+                            if (nx >= 0 && nx < ms && nz >= 0 && nz < ms) {
+                                if (mapGrid[nz][nx] === 0 || mapGrid[nz][nx] === 2) {
+                                    sx = nx;
+                                    sz = nz;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            for (let dz = -1; dz <= 1; dz++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    const nx = sx + dx,
+                        nz = sz + dz;
+                    if (nx >= 0 && nx < ms && nz >= 0 && nz < ms) {
+                        if (mapGrid[nz][nx] === 1) mapGrid[nz][nx] = 0;
+                        if (mapGrid[nz][nx] === 3) mapGrid[nz][nx] = 0;
+                    }
+                }
+            }
+            camera.position.set(sx * cs, CONFIG.cameraHeight, sz * cs);
+            camera.rotation.set(0, 0, 0);
+        }
+
+        function clearWorld() {
+            for (const [key, cell] of activeCells) {
+                if (cell.mesh) scene.remove(cell.mesh);
+                if (cell.floorMesh) scene.remove(cell.floorMesh);
+            }
+            activeCells.clear();
+
+            for (const door of mapDoors) {
+                if (door.group) scene.remove(door.group);
+            }
+
+            for (const td of trapDoors) {
+                if (td.group) scene.remove(td.group);
+                if (td.underground) scene.remove(td.underground);
+            }
+
+            for (const [id, monster] of monsters) {
+                scene.remove(monster.mesh);
+            }
+            monsters.clear();
+
+            for (const [key, light] of lights) {
+                scene.remove(light.mesh);
+                scene.remove(light.pointLight);
+            }
+            lights.clear();
+
+            if (floorMesh) { scene.remove(floorMesh);
+                floorMesh = null; }
+            if (ceilMesh) { scene.remove(ceilMesh);
+                ceilMesh = null; }
+
+            spawnedMonsters.clear();
+            spawnedManholes.clear();
+        }
+
+        function updateWorld() {
+            if (!mapGrid) return;
+
+            const cs = CONFIG.cellSize;
+            const pgx = Math.floor(camera.position.x / cs + 0.5);
+            const pgz = Math.floor(camera.position.z / cs + 0.5);
+            const R = CONFIG.viewRadius;
+            const needed = new Set();
+
+            for (let dz = -R; dz <= R; dz++) {
+                for (let dx = -R; dx <= R; dx++) {
+                    if (dx * dx + dz * dz > R * R) continue;
+                    const gx = pgx + dx,
+                        gz = pgz + dz;
+                    if (gx < 0 || gx >= CONFIG.mazeSize || gz < 0 || gz >= CONFIG.mazeSize) continue;
+                    needed.add(`${gx},${gz}`);
+                }
+            }
+
+            for (const [key, cell] of activeCells) {
+                if (!needed.has(key)) {
+                    if (cell.mesh) scene.remove(cell.mesh);
+                    if (cell.floorMesh) scene.remove(cell.floorMesh);
+                    activeCells.delete(key);
+                }
+            }
+
+            for (const key of needed) {
+                if (activeCells.has(key)) continue;
+                const [gx, gz] = key.split(',').map(Number);
+                const type = mapGrid[gz][gx];
+                let cellMesh = null;
+                let floorMesh = null;
+
+                if (type === 1) {
+                    const roll = seededRandom(gx, gz, 300.0);
+                    let mat = sharedWallMat;
+                    if (roll < 0.1) {
+                        mat = sharedBoxMat;
+                        const roll2 = seededRandom(gx, gz, 400.0);
+                        if (roll2 < 0.15) {
+                            mat = sharedBoxOfWallMat;
+                        }
+                    }
+                    cellMesh = new THREE.Mesh(sharedWallGeo, mat);
+                    cellMesh.position.set(gx * cs, CONFIG.wallHeight / 2, gz * cs);
+                    scene.add(cellMesh);
+                    activeCells.set(key, { type, mesh: cellMesh, floorMesh });
+                } else if (type === 0 || type === 2 || type === 3) {
+                    if (!trapDoorMap.has(`${gx},${gz}`)) {
+                        floorMesh = new THREE.Mesh(sharedSmallFloorGeo, sharedSmallFloorMat);
+                        floorMesh.rotation.x = -Math.PI / 2;
+                        floorMesh.position.set(gx * cs, 0, gz * cs);
+                        scene.add(floorMesh);
+                    }
+
+                    if (type === 0 || type === 2) {
+                        if (!lights.has(key) && Math.random() < 0.01) {
+                            const lightGroup = new THREE.Group();
+                            const bulbGeo = new THREE.SphereGeometry(0.15, 8, 8);
+                            const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffffee });
+                            const bulb = new THREE.Mesh(bulbGeo, bulbMat);
+                            bulb.position.set(gx * cs, CONFIG.wallHeight - 0.2, gz * cs);
+                            lightGroup.add(bulb);
+                            const pointLight = new THREE.PointLight(0xffffee, 1.2, 8);
+                            pointLight.position.set(gx * cs, CONFIG.wallHeight - 0.3, gz * cs);
+                            lightGroup.add(pointLight);
+                            lightGroup.visible = lightsOn;
+                            pointLight.visible = lightsOn;
+                            scene.add(lightGroup);
+                            lights.set(key, { mesh: lightGroup, pointLight });
+                        }
+
+                        const dx = gx - pgx;
+                        const dz = gz - pgz;
+                        const dist = Math.sqrt(dx * dx + dz * dz);
+                        const isEdge = dist >= R - 1.5 && dist <= R;
+
+                        if (isEdge) {
+                            const roll = seededRandom(gx, gz, 1.0);
+                            if (roll < 0.005 && !spawnedManholes.has(key)) {
+                                spawnedManholes.add(key);
+                                cellMesh = new THREE.Mesh(manholeGeo, manholeMat);
+                                cellMesh.rotation.x = -Math.PI / 2;
+                                cellMesh.position.set(gx * cs, 0.02, gz * cs);
+                                scene.add(cellMesh);
+                            } else if (roll < 0.08 && !spawnedMonsters.has(key)) {
+                                spawnedMonsters.add(key);
+                                const spriteMat = new THREE.SpriteMaterial({ map: textures.smiler });
+                                const sprite = new THREE.Sprite(spriteMat);
+                                sprite.position.set(gx * cs, CONFIG.cameraHeight, gz * cs);
+                                sprite.scale.set(1.6, 1.6, 1.6);
+                                scene.add(sprite);
+                                monsters.set(`m_${gx}_${gz}_${Date.now()}_${Math.floor(Math.random()*10000)}`, {
+                                    mesh: sprite,
+                                    x: gx * cs,
+                                    z: gz * cs,
+                                    spawnTime: Date.now()
+                                });
+                            }
+                        }
+                    }
+                    activeCells.set(key, { type, mesh: cellMesh, floorMesh });
+                }
+            }
+
+            for (const door of mapDoors) {
+                const inRange = Math.abs(door.x - pgx) <= R + 2 && Math.abs(door.z - pgz) <= R + 2;
+                if (inRange && !door.group) {
+                    createDoorMesh(door);
+                } else if (!inRange && door.group) {
+                    scene.remove(door.group);
+                    door.group = null;
+                    door.mesh = null;
+                }
+            }
+
+            for (const td of trapDoors) {
+                const inRange = Math.abs(td.x - pgx) <= R + 2 && Math.abs(td.z - pgz) <= R + 2;
+                if (inRange && !td.group) {
+                    createTrapDoorMesh(td);
+                }
+                if (inRange && !td.underground) {
+                    td.underground = createUndergroundMesh(td.x * cs, td.z * cs);
+                    scene.add(td.underground);
+                }
+                if (!inRange && td.group) {
+                    scene.remove(td.group);
+                    td.group = null;
+                    td.mesh = null;
+                }
+                if (!inRange && td.underground) {
+                    scene.remove(td.underground);
+                    td.underground = null;
+                }
+            }
+        }
+
+        // ==================== 碰撞检测 ====================
+        function canMoveTo(x, z, radius) {
+            const r = radius || 0.35;
+            const cs = CONFIG.cellSize;
+            const minX = Math.floor((x - r) / cs + 0.5);
+            const maxX = Math.floor((x + r) / cs + 0.5);
+            const minZ = Math.floor((z - r) / cs + 0.5);
+            const maxZ = Math.floor((z + r) / cs + 0.5);
+
+            for (let gz = minZ; gz <= maxZ; gz++) {
+                for (let gx = minX; gx <= maxX; gx++) {
+                    if (gz < 0 || gz >= CONFIG.mazeSize || gx < 0 || gx >= CONFIG.mazeSize) return false;
+
+                    const type = mapGrid[gz][gx];
+                    if (type === 1) {
+                        const wMinX = gx * cs - cs / 2;
+                        const wMaxX = gx * cs + cs / 2;
+                        const wMinZ = gz * cs - cs / 2;
+                        const wMaxZ = gz * cs + cs / 2;
+                        const cx = Math.max(wMinX, Math.min(x, wMaxX));
+                        const cz = Math.max(wMinZ, Math.min(z, wMaxZ));
+                        const dx = x - cx,
+                            dz = z - cz;
+                        if (dx * dx + dz * dz < r * r) return false;
+                    } else if (type === 3) {
+                        const door = doorMap.get(`${gx},${gz}`);
+                        if (!door) continue;
+
+                        const targetAngle = door.isOpen ? Math.PI / 2 : 0;
+                        if (Math.abs(door.angle - targetAngle) > 0.01) {
+                            continue;
+                        }
+
+                        let dMinX, dMaxX, dMinZ, dMaxZ;
+
+                        if (!door.isOpen) {
+                            dMinX = gx * cs + cs / 2 - 0.12;
+                            dMaxX = gx * cs + cs / 2;
+                            dMinZ = gz * cs - cs / 2;
+                            dMaxZ = gz * cs + cs / 2;
+                        } else {
+                            const Xg = gx * cs + cs / 2 - 0.06;
+                            const Zg = gz * cs + cs / 2;
+                            const a = door.angle;
+                            const cos = Math.cos(a);
+                            const sin = Math.sin(a);
+
+                            const corners = [
+                                [-0.12, -cs],
+                                [0, -cs],
+                                [-0.12, 0],
+                                [0, 0]
+                            ];
+
+                            let minX = Infinity,
+                                maxX = -Infinity;
+                            let minZ = Infinity,
+                                maxZ = -Infinity;
+
+                            for (const [lx, lz] of corners) {
+                                const wx = Xg + lx * cos + lz * sin;
+                                const wz = Zg - lx * sin + lz * cos;
+                                minX = Math.min(minX, wx);
+                                maxX = Math.max(maxX, wx);
+                                minZ = Math.min(minZ, wz);
+                                maxZ = Math.max(maxZ, wz);
+                            }
+
+                            dMinX = minX;
+                            dMaxX = maxX;
+                            dMinZ = minZ;
+                            dMaxZ = maxZ;
+                        }
+
+                        const cx = Math.max(dMinX, Math.min(x, dMaxX));
+                        const cz = Math.max(dMinZ, Math.min(z, dMaxZ));
+                        const dx = x - cx,
+                            dz = z - cz;
+                        if (dx * dx + dz * dz < r * r) return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        // ==================== 怪物 ====================
+        function updateMonsters(dt) {
+            const playerPos = camera.position;
+            const monsterSpeed = 3.2 * dt;
+            const now = Date.now();
+
+            for (const [id, monster] of monsters) {
+                if (now - monster.spawnTime > 30000) {
+                    scene.remove(monster.mesh);
+                    monsters.delete(id);
+                    continue;
+                }
+
+                const dx = playerPos.x - monster.x;
+                const dz = playerPos.z - monster.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+
+                if (dist < 0.7) { gameOver(false); return; }
+
+                if (dist > 0.1) {
+                    const mx = (dx / dist) * monsterSpeed;
+                    const mz = (dz / dist) * monsterSpeed;
+                    const newX = monster.x + mx;
+                    const newZ = monster.z + mz;
+                    if (canMoveTo(newX, newZ, 0.25)) {
+                        monster.x = newX;
+                        monster.z = newZ;
+                        monster.mesh.position.set(newX, CONFIG.cameraHeight, newZ);
+                    }
+                }
+            }
+        }
+
+        function checkWin() {
+            const cs = CONFIG.cellSize;
+            for (const [key, cell] of activeCells) {
+                if (cell.mesh && spawnedManholes.has(key)) {
+                    const [gx, gz] = key.split(',').map(Number);
+                    const mx = gx * cs;
+                    const mz = gz * cs;
+                    const dx = camera.position.x - mx;
+                    const dz = camera.position.z - mz;
+                    if (dx * dx + dz * dz < 0.6 * 0.6) { gameOver(true); return; }
+                }
+            }
+        }
+
+        function gameOver(win, customText) {
+            appState = 'result';
+            moveAudioEl.pause();
+            wasMoving = false;
+            bgmVideo.pause();
+            stopElectricHum();
+            stopScareTimer();
+            resultText.textContent = customText || (win ? '你成功逃脱了后室！' : '你被怪物抓住了...');
+            resultText.style.color = win ? '#0f0' : '#f00';
+            resultScreen.style.display = 'flex';
+        }
+
+        // ==================== 灯光 ====================
+        function toggleLights() {
+            lightsOn = !lightsOn;
+            for (const [key, light] of lights) {
+                light.mesh.visible = lightsOn;
+                light.pointLight.visible = lightsOn;
+                light.pointLight.intensity = lightsOn ? 1.2 : 0;
+            }
+        }
+
+        // ==================== 互动 ====================
+        function checkInteraction() {
+            if (appState !== 'game') return;
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const doorMeshes = [];
+            for (const door of mapDoors) { if (door.mesh) doorMeshes.push(door.mesh); }
+            for (const td of trapDoors) { if (td.mesh) doorMeshes.push(td.mesh); }
+            const intersects = raycaster.intersectObjects(doorMeshes);
+            if (intersects.length > 0 && intersects[0].distance < 4) {
+                const obj = intersects[0].object;
+                if (obj.userData.isDoor) {
+                    lookingAtDoor = obj.userData.doorId;
+                    lookingAtTrapDoor = null;
+                    lookingAtWall = false;
+                } else if (obj.userData.isTrapDoor) {
+                    lookingAtTrapDoor = obj.userData.trapDoorId;
+                    lookingAtDoor = null;
+                    lookingAtWall = false;
+                }
+                interactBtn.style.display = 'flex';
+                interactBtn.style.borderColor = 'rgba(0,255,0,0.8)';
+                interactBtn.style.background = 'rgba(0,255,0,0.15)';
+                return;
+            }
+
+            const wallMeshes = [];
+            for (const [key, cell] of activeCells) {
+                if (cell.type === 1 && cell.mesh) {
+                    wallMeshes.push(cell.mesh);
+                }
+            }
+            const wallIntersects = raycaster.intersectObjects(wallMeshes);
+            if (wallIntersects.length > 0 && wallIntersects[0].distance < 4) {
+                const obj = wallIntersects[0].object;
+                if (obj.material === sharedBoxMat || obj.material === sharedBoxOfWallMat) {
+                    lookingAtDoor = null;
+                    lookingAtTrapDoor = null;
+                    lookingAtWall = true;
+                    interactBtn.style.display = 'flex';
+                    interactBtn.style.borderColor = 'rgba(0,255,0,0.8)';
+                    interactBtn.style.background = 'rgba(0,255,0,0.15)';
+                    return;
+                }
+            }
+
+            lookingAtDoor = null;
+            lookingAtTrapDoor = null;
+            lookingAtWall = false;
+            interactBtn.style.display = 'none';
+            interactBtn.style.borderColor = 'rgba(255,255,255,0.5)';
+            interactBtn.style.background = 'rgba(255,255,255,0.2)';
+        }
+
+        // ==================== 输入 ====================
+        let joystickTouchId = null;
+
+        joystickEl.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const touch = e.changedTouches[0];
+            joystickTouchId = touch.identifier;
+            const rect = joystickEl.getBoundingClientRect();
+            joystick.active = true;
+            joystick.originX = rect.left + rect.width / 2;
+            joystick.originY = rect.top + rect.height / 2;
+            updateJoystick(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        joystickEl.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            for (let t of e.changedTouches) {
+                if (t.identifier === joystickTouchId) {
+                    updateJoystick(t.clientX, t.clientY);
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        joystickEl.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            for (let t of e.changedTouches) {
+                if (t.identifier === joystickTouchId) {
+                    joystick.active = false;
+                    joystickTouchId = null;
+                    joystick.dx = 0;
+                    joystick.dy = 0;
+                    knobEl.style.transform = 'translate(0px, 0px)';
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        function updateJoystick(x, y) {
+            let dx = x - joystick.originX;
+            let dy = y - joystick.originY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > joystick.maxR) { const s = joystick.maxR / dist;
+                dx *= s;
+                dy *= s; }
+            joystick.dx = dx / joystick.maxR;
+            joystick.dy = dy / joystick.maxR;
+            knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+        }
+
+        backBtn.addEventListener('touchstart', (e) => { e.preventDefault();
+            stopGame(); }, { passive: false });
+        backBtn.addEventListener('mousedown', (e) => { if (e.button === 0) stopGame(); });
+
+        interactBtn.addEventListener('touchstart', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            if (lookingAtDoor !== null) toggleDoor(lookingAtDoor);
+            if (lookingAtTrapDoor !== null) toggleTrapDoor(lookingAtTrapDoor);
+            if (lookingAtWall) toggleLights();
+        }, { passive: false });
+        interactBtn.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            if (e.button === 0) {
+                if (lookingAtDoor !== null) toggleDoor(lookingAtDoor);
+                if (lookingAtTrapDoor !== null) toggleTrapDoor(lookingAtTrapDoor);
+                if (lookingAtWall) toggleLights();
+            }
+        });
+
+        let lookTouchId = null;
+        // ★ 修改：移除右半屏限制，改为检查是否在摇杆或互动按钮上
+        document.addEventListener('touchstart', (e) => {
+            if (appState !== 'game') return;
+            // 如果触摸目标在摇杆或互动按钮上，忽略
+            if (e.target.closest('#joystick') || e.target.closest('#interactBtn')) return;
+            for (let t of e.changedTouches) {
+                if (lookTouchId === null) {
+                    lookTouchId = t.identifier;
+                    lookInput.active = true;
+                    lookInput.lastX = t.clientX;
+                    lookInput.lastY = t.clientY;
+                }
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchmove', (e) => {
+            if (appState !== 'game' || !lookInput.active) return;
+            for (let t of e.changedTouches) {
+                if (t.identifier === lookTouchId) {
+                    e.preventDefault();
+                    let dx = t.clientX - lookInput.lastX;
+                    let dy = t.clientY - lookInput.lastY;
+                    // ★ 竖屏模式下旋转视角增量
+                    if (isPortrait) {
+                        const temp = dx;
+                        dx = dy;
+                        dy = -temp;
+                    }
+                    const sens = CONFIG.sens * 0.0025;
+                    camera.rotation.y -= dx * sens;
+                    camera.rotation.x -= dy * sens;
+                    camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+                    lookInput.lastX = t.clientX;
+                    lookInput.lastY = t.clientY;
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchend', (e) => {
+            for (let t of e.changedTouches) {
+                if (t.identifier === lookTouchId) { lookInput.active = false;
+                    lookTouchId = null; break; }
+            }
+        });
+
+        let mouseLook = false;
+        document.addEventListener('mousedown', (e) => {
+            if (appState !== 'game' || e.target === interactBtn) return;
+            if (e.clientX > window.innerWidth * 0.5 && e.button === 0) {
+                mouseLook = true;
+                lookInput.lastX = e.clientX;
+                lookInput.lastY = e.clientY;
+            }
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (appState !== 'game' || !mouseLook) return;
+            let dx = e.clientX - lookInput.lastX;
+            let dy = e.clientY - lookInput.lastY;
+            // ★ 竖屏模式下旋转视角增量
+            if (isPortrait) {
+                const temp = dx;
+                dx = dy;
+                dy = -temp;
+            }
+            const sens = CONFIG.sens * 0.0025;
+            camera.rotation.y -= dx * sens;
+            camera.rotation.x -= dy * sens;
+            camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+            lookInput.lastX = e.clientX;
+            lookInput.lastY = e.clientY;
+        });
+        document.addEventListener('mouseup', () => { mouseLook = false; });
+
+        document.addEventListener('keydown', (e) => { if (appState === 'game') pressedKeys.add(e.code); });
+        document.addEventListener('keyup', (e) => { pressedKeys.delete(e.code); });
+
+        function updateKeyboardMovement(dt) {
+            if (appState !== 'game') return;
+            const speed = 3.2 * CONFIG.speed * dt;
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            forward.y = 0;
+            forward.normalize();
+            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            right.y = 0;
+            right.normalize();
+
+            let mx = 0,
+                mz = 0;
+            if (pressedKeys.has('KeyW')) { mx += forward.x;
+                mz += forward.z; }
+            if (pressedKeys.has('KeyS')) { mx -= forward.x;
+                mz -= forward.z; }
+            if (pressedKeys.has('KeyD')) { mx += right.x;
+                mz += right.z; }
+            if (pressedKeys.has('KeyA')) { mx -= right.x;
+                mz -= right.z; }
+
+            if (mx !== 0 || mz !== 0) {
+                const len = Math.sqrt(mx * mx + mz * mz);
+                mx /= len;
+                mz /= len;
+                const newX = camera.position.x + mx * speed;
+                const newZ = camera.position.z + mz * speed;
+                if (canMoveTo(newX, camera.position.z)) camera.position.x = newX;
+                if (canMoveTo(camera.position.x, newZ)) camera.position.z = newZ;
+            }
+        }
+
+        // ==================== 音效 ====================
+        function startElectricHum() {
+            if (electricCtx) return;
+            try {
+                const ctx = new(window.AudioContext || window.webkitAudioContext)();
+                electricCtx = ctx;
+                const bufferSize = ctx.sampleRate * 1;
+                const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+                const source = ctx.createBufferSource();
+                source.buffer = buffer;
+                source.loop = true;
+
+                const filter = ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.value = 120;
+                filter.Q.value = 1.5;
+
+                const lowpass = ctx.createBiquadFilter();
+                lowpass.type = 'lowpass';
+                lowpass.frequency.value = 400;
+
+                const gain = ctx.createGain();
+                gain.gain.value = 0.06;
+
+                source.connect(filter);
+                filter.connect(lowpass);
+                lowpass.connect(gain);
+                gain.connect(ctx.destination);
+                source.start();
+                electricSource = source;
+            } catch (e) {}
+        }
+
+        function stopElectricHum() {
+            if (electricSource) { try { electricSource.stop(); } catch (e) {} electricSource = null; }
+            if (electricCtx) { try { electricCtx.close(); } catch (e) {} electricCtx = null; }
+        }
+
+        function startScareTimer() {
+            if (scareTimer) clearInterval(scareTimer);
+            scareTimer = setInterval(() => {
+                if (appState === 'game') {
+                    scareAudio.currentTime = 0;
+                    scareAudio.volume = 0.5;
+                    scareAudio.muted = true;
+                    const p = scareAudio.play();
+                    if (p && p.then) {
+                        p.then(() => {
+                            scareAudio.muted = false;
+                        }).catch(() => {});
+                    }
+                }
+            }, 15000);
+        }
+
+        function stopScareTimer() {
+            if (scareTimer) { clearInterval(scareTimer);
+                scareTimer = null; }
+        }
+
+        function safePlayMedia(el, shouldLoop) {
+            el.volume = 0.5;
+            el.muted = true;
+            const playPromise = el.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    el.muted = false;
+                }).catch(() => {});
+            }
+        }
+
+        // ==================== 套娃迷宫 ====================
+        function descendToNextMaze() {
+            const now = Date.now();
+            if (now - lastDescendTime < 500) return;
+            lastDescendTime = now;
+
+            mazeDepth++;
+
+            clearWorld();
+            buildBaseScene();
+            updateWorld();
+
+            shakeTime = 0;
+            isFalling = false;
+            camera.position.y = CONFIG.cameraHeight;
+        }
+
+        // ==================== 游戏循环 ====================
+        function updateFPS() {
+            if (!CONFIG.showFps) { fpsDisplay.style.display = 'none'; return; }
+            fpsDisplay.style.display = 'block';
+            fpsFrameCount++;
+            const now = performance.now();
+            if (now - fpsLastTime >= 1000) {
+                fpsDisplay.textContent = Math.round(fpsFrameCount * 1000 / (now - fpsLastTime)) + ' FPS';
+                fpsFrameCount = 0;
+                fpsLastTime = now;
+            }
+        }
+
+        function update(dt) {
+            updateKeyboardMovement(dt);
+            let isMoving = false;
+
+            // ★ 获取摇杆输入并旋转（竖屏模式下）
+            let jx = joystick.dx;
+            let jy = joystick.dy;
+            if (isPortrait) {
+                const temp = jx;
+                jx = jy;
+                jy = -temp;
+            }
+
+            if (joystick.active && (jx !== 0 || jy !== 0)) {
+                isMoving = true;
+                const speed = 3.2 * CONFIG.speed * dt;
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+                forward.y = 0;
+                forward.normalize();
+                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+                right.y = 0;
+                right.normalize();
+                const moveX = (forward.x * -jy + right.x * jx) * speed;
+                const moveZ = (forward.z * -jy + right.z * jx) * speed;
+                const newX = camera.position.x + moveX;
+                const newZ = camera.position.z + moveZ;
+                if (canMoveTo(newX, camera.position.z)) camera.position.x = newX;
+                if (canMoveTo(camera.position.x, newZ)) camera.position.z = newZ;
+            }
+
+            if (pressedKeys.has('KeyW') || pressedKeys.has('KeyS') || pressedKeys.has('KeyA') || pressedKeys.has('KeyD')) {
+                isMoving = true;
+            }
+
+            if (isMoving && appState === 'game') {
+                if (!wasMoving) {
+                    moveAudioEl.volume = 0.5;
+                    safePlayMedia(moveAudioEl, true);
+                    wasMoving = true;
+                }
+            } else {
+                if (wasMoving) {
+                    moveAudioEl.pause();
+                    wasMoving = false;
+                }
+            }
+
+            if (appState === 'game') {
+                updateWorld();
+                updateDoors(dt);
+                updateMonsters(dt);
+                checkWin();
+                checkInteraction();
+
+                if (pressedKeys.has('KeyE')) {
+                    if (lookingAtDoor !== null) toggleDoor(lookingAtDoor);
+                    if (lookingAtTrapDoor !== null) toggleTrapDoor(lookingAtTrapDoor);
+                    if (lookingAtWall) toggleLights();
+                    pressedKeys.delete('KeyE');
+                }
+
+                const cs = CONFIG.cellSize;
+                const pgx = Math.floor(camera.position.x / cs + 0.5);
+                const pgz = Math.floor(camera.position.z / cs + 0.5);
+                const td = trapDoorMap.get(`${pgx},${pgz}`);
+                if (td && td.isOpen && Math.abs(td.angle - Math.PI / 2) < 0.1) {
+                    isFalling = true;
+                }
+
+                if (isFalling) {
+                    camera.position.y -= 5 * dt;
+                    const undergroundFloorY = -CONFIG.wallHeight - 0.1;
+                    const cameraHitY = undergroundFloorY + CONFIG.cameraHeight;
+                    if (camera.position.y < cameraHitY) {
+                        descendToNextMaze();
+                    }
+                }
+
+                if (rearRenderer && rearCamera) {
+                    renderRearView();
+                }
+            }
+
+            if (appState === 'game' && isMoving && !isFalling) {
+                shakeTime += dt;
+                camera.position.y = CONFIG.cameraHeight + Math.sin(shakeTime * 12) * 0.05;
+                camera.rotation.z = Math.sin(shakeTime * 10) * 0.01;
+            } else if (!isFalling) {
+                camera.position.y = CONFIG.cameraHeight;
+                camera.rotation.z = 0;
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.15);
+
+            if (appState === 'menu') {
+                if (camera) {
+                    camera.rotation.y += 0.12 * dt;
+                    renderer.render(scene, camera);
+                }
+            } else if (appState === 'game') {
+                update(dt);
+                updateFPS();
+                renderer.render(scene, camera);
+            } else if (appState === 'result') {
+                if (camera) renderer.render(scene, camera);
+            }
+        }
+
+        // ==================== 游戏状态管理 ====================
+        function showSplashAndStart() {
+            splashScreen.style.display = 'flex';
+            setTimeout(() => {
+                splashScreen.style.display = 'none';
+                doStartGame();
+            }, 1500);
+        }
+
+        function doStartGame() {
+            if (!texturesLoaded) return;
+
+            if (!audioContext) {
+                try {
+                    audioContext = new(window.AudioContext || window.webkitAudioContext)();
+                    const source = audioContext.createMediaElementSource(moveAudioEl);
+                    moveAudioGain = audioContext.createGain();
+                    moveAudioGain.gain.value = 2.0;
+                    source.connect(moveAudioGain);
+                    moveAudioGain.connect(audioContext.destination);
+                } catch (e) {}
+            }
+            if (audioContext && audioContext.state === 'suspended') audioContext.resume();
+
+            startElectricHum();
+            startScareTimer();
+
+            menu.style.display = 'none';
+            gameUI.style.display = 'block';
+            joystickEl.style.display = 'block';
+            backBtn.style.display = 'flex';
+            resultScreen.style.display = 'none';
+            appState = 'game';
+
+            rearCamContainer.style.display = 'block';
+            if (!rearRenderer) initRearCamera();
+
+            if (menuLight) { scene.remove(menuLight);
+                menuLight = null; }
+
+            if (!flashLight) {
+                flashLight = new THREE.SpotLight(0xffaa55, 2.5, 22, Math.PI / 3, 0.6, 1.5);
+                flashLight.position.set(0, -0.1, 0.2);
+                camera.add(flashLight);
+                const flashTarget = new THREE.Object3D();
+                flashTarget.position.set(0, 0, -1);
+                camera.add(flashTarget);
+                flashLight.target = flashTarget;
+            }
+
+            mazeDepth = 0;
+            lastDescendTime = 0;
+            lightsOn = false;
+            isFalling = false;
+
+            clearWorld();
+            buildBaseScene();
+            updateWorld();
+
+            if (scene) {
+                scene.fog = new THREE.Fog(0x000000, 0, CONFIG.viewRadius * CONFIG.cellSize * 0.8);
+                if (rearScene) rearScene.fog = scene.fog.clone();
+            }
+
+            scene.background = new THREE.Color(0x000000);
+
+            bgmVideo.volume = 0.5;
+            safePlayMedia(bgmVideo, true);
+
+            moveAudioEl.volume = 0.5;
+            moveAudioEl.play().then(() => {
+                moveAudioEl.pause();
+                moveAudioEl.currentTime = 0;
+            }).catch(() => {});
+
+            resizeRenderer();
+        }
+
+        function startGame() {
+            showSplashAndStart();
+        }
+
+        function stopGame() {
+            appState = 'menu';
+            menu.style.display = 'flex';
+            gameUI.style.display = 'none';
+            joystickEl.style.display = 'none';
+            backBtn.style.display = 'none';
+            fpsDisplay.style.display = 'none';
+            resultScreen.style.display = 'none';
+            interactBtn.style.display = 'none';
+            rearCamContainer.style.display = 'none';
+            stopElectricHum();
+            stopScareTimer();
+            bgmVideo.pause();
+            moveAudioEl.pause();
+            wasMoving = false;
+            lookingAtDoor = null;
+            lookingAtTrapDoor = null;
+            lookingAtWall = false;
+
+            if (flashLight) {
+                camera.remove(flashLight);
+                camera.remove(flashLight.target);
+                flashLight = null;
+            }
+
+            clearWorld();
+            scene.background = null;
+
+            if (!menuLight) {
+                menuLight = new THREE.AmbientLight(0xffffff, 0.25);
+                scene.add(menuLight);
+            }
+
+            const cs = CONFIG.cellSize;
+            const ms = CONFIG.mazeSize;
+            camera.position.set(Math.floor(ms / 2) * cs, CONFIG.cameraHeight, Math.floor(ms / 2) * cs);
+            camera.rotation.set(0, 0, 0);
+
+            buildBaseScene();
+            updateWorld();
+
+            mazeDepth = 0;
+            isFalling = false;
+
+            if (scene) scene.fog = null;
+            resizeRenderer();
+        }
+
+        // ★ 翻转屏幕功能
+        function toggleFlipScreen() {
+            isPortrait = !isPortrait;
+            appContainer.classList.toggle('portrait', isPortrait);
+            btnFlipScreen.textContent = isPortrait ? '横屏模式' : '翻转屏幕';
+            // 延迟一帧重新调整渲染器尺寸，确保布局已更新
+            requestAnimationFrame(() => {
+                resizeRenderer();
+            });
+        }
+
+        // ===== 事件绑定 =====
+        document.getElementById('btnStart').addEventListener('click', startGame);
+        document.getElementById('btnStart').addEventListener('touchstart', (e) => { e.preventDefault();
+            startGame(); }, { passive: false });
+
+        btnResultBack.addEventListener('click', stopGame);
+        btnResultBack.addEventListener('touchstart', (e) => { e.preventDefault();
+            stopGame(); }, { passive: false });
+
+        // ★ 翻转屏幕按钮事件
+        btnFlipScreen.addEventListener('click', toggleFlipScreen);
+        btnFlipScreen.addEventListener('touchstart', (e) => { e.preventDefault();
+            toggleFlipScreen(); }, { passive: false });
+
+        // ==================== 启动 ====================
+        window.addEventListener('load', () => {
+            initThree();
+            Promise.all([
+                loadTexture('wall', 'https://smallkun0.github.io/Grass/Level%202/Wall.jpg'),
+                loadTexture('box', 'https://smallkun0.github.io/Grass/Level%202/Box.jpg'),
+                loadTexture('boxOfWall', 'https://smallkun0.github.io/Grass/Level%202/Box_Of_Wall.jpg'),
+                loadTexture('floor', 'https://smallkun0.github.io/Grass/Level%202/Floor.jpg'),
+                loadTexture('ceil', 'https://smallkun0.github.io/Grass/Level%202/TopFloor.jpg'),
+                loadTexture('door', 'https://smallkun0.github.io/Grass/Level%202/Door.jpg'),
+                loadTexture('smiler', 'https://smallkun0.github.io/Grass/Backrooms/Smiler.png')
+            ]).then(() => {
+                texturesLoaded = true;
+                initSharedResources();
+                initRearCamera();
+
+                if (!menuLight) {
+                    menuLight = new THREE.AmbientLight(0xffffff, 0.25);
+                    scene.add(menuLight);
+                }
+
+                const cs = CONFIG.cellSize;
+                const ms = CONFIG.mazeSize;
+                camera.position.set(Math.floor(ms / 2) * cs, CONFIG.cameraHeight, Math.floor(ms / 2) * cs);
+                camera.rotation.set(0, 0, 0);
+                buildBaseScene();
+                updateWorld();
+                clock.start();
+                animate();
+                document.getElementById('loadingText').style.display = 'none';
+                resizeRenderer();
+
+                // 初始按钮文字
+                btnFlipScreen.textContent = '翻转屏幕';
+            });
+        });
+    </script>
+</body>
+</html>

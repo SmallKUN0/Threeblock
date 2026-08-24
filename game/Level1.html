@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>地下停车场 - 1.0</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-touch-callout: none; user-select: none; }
+html, body { width: 100%; height: 100%; overflow: hidden; font-family: "Microsoft YaHei", Arial, sans-serif; touch-action: none; background: #000; }
+
+#menu {
+  width: 100%; height: 100%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 40px; position: absolute; z-index: 100;
+  pointer-events: none;
+}
+.menu-btn {
+  width: 260px; height: 80px; border: 5px solid rgba(255,255,255,0.9); background: rgba(0,0,0,0.45);
+  color: #fff; font-size: 28px; font-weight: bold; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; transition: all 0.15s; letter-spacing: 4px;
+  pointer-events: auto; text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+}
+.menu-btn:active { background: rgba(0,0,0,0.7); transform: scale(0.96); }
+
+#gameUI { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 50; pointer-events: none; }
+#gameUI > * { pointer-events: auto; }
+
+#joystick {
+  position: absolute; border: 3px solid rgba(255,255,255,0.4); border-radius: 50%;
+  background: rgba(255,255,255,0.1); display: none; touch-action: none;
+  left: 5%; top: 82%; width: 130px; height: 130px;
+}
+#joystick-knob {
+  position: absolute; width: 42%; height: 42%; background: rgba(255,255,255,0.65);
+  border-radius: 50%; left: 29%; top: 29%; pointer-events: none;
+}
+
+#backBtn {
+  position: absolute; left: 5%; top: 5%; width: 110px; height: 68px;
+  border: 2px solid rgba(255,255,255,0.8); background: rgba(0,0,0,0.55); color: #fff;
+  font-size: 14px; cursor: pointer; display: none; align-items: center; justify-content: center;
+  font-weight: bold; letter-spacing: 1px; border-radius: 4px; z-index: 52;
+}
+
+#interactBtn {
+  position: absolute; right: 5%; bottom: 28%; width: 110px; height: 68px;
+  border: 2px solid rgba(255,255,255,0.8); background: rgba(0,0,0,0.55); color: #fff;
+  font-size: 16px; cursor: pointer; display: none; align-items: center; justify-content: center;
+  font-weight: bold; letter-spacing: 1px; border-radius: 4px; z-index: 52;
+}
+
+#repellentBtn {
+  position: absolute; top: 12%; left: 50%; transform: translateX(-50%);
+  width: 200px; height: 54px; border: 2px solid rgba(255,255,255,0.9);
+  background: rgba(0, 80, 180, 0.65); color: #fff; font-size: 15px;
+  font-weight: bold; cursor: pointer; display: none; align-items: center;
+  justify-content: center; border-radius: 6px; z-index: 52; letter-spacing: 2px;
+  transition: opacity 0.2s;
+}
+
+#rearCamFrame {
+  position: absolute; top: 12px; right: 12px;
+  border: 2px solid rgba(255,255,255,0.6);
+  background: rgba(0,0,0,0.2);
+  display: none; z-index: 51; pointer-events: none;
+  box-shadow: 0 0 12px rgba(0,0,0,0.8);
+}
+
+#crosshair {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 24px; height: 24px; pointer-events: none; z-index: 55; opacity: 0.85;
+}
+#crosshair-v { position: absolute; top: 0; left: 11px; width: 2px; height: 24px; background: #fff; }
+#crosshair-h { position: absolute; top: 11px; left: 0; width: 24px; height: 2px; background: #fff; }
+#crosshair-c { position: absolute; top: 11px; left: 11px; width: 2px; height: 2px; background: #fff; }
+
+#fpsDisplay {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  color: #0f0; font-size: 16px; font-weight: bold; font-family: monospace;
+  text-shadow: 0 0 4px #000; display: none; pointer-events: none; z-index: 60;
+}
+
+#resultScreen {
+  display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.9); z-index: 200; flex-direction: column;
+  align-items: center; justify-content: center; gap: 30px; pointer-events: none;
+}
+#resultText {
+  font-size: 46px; font-weight: bold; color: #fff; letter-spacing: 8px;
+  text-shadow: 0 2px 16px rgba(0,0,0,0.9);
+}
+
+#canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+canvas { display: block; width: 100%; height: 100%; }
+
+#hintText {
+  position: absolute; top: 22%; left: 50%; transform: translateX(-50%);
+  color: #fff; font-size: 16px; font-weight: bold; text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+  display: none; pointer-events: none; z-index: 56; letter-spacing: 2px;
+}
+</style>
+</head>
+<body>
+
+<div id="menu">
+  <div style="position:absolute;top:40px;left:50%;transform:translateX(-50%);font-size:48px;font-weight:bold;color:#fff;letter-spacing:12px;text-shadow:0 2px 12px rgba(0,0,0,0.9);">地下停车场</div>
+  <div class="menu-btn" id="btnStart">开始游戏</div>
+  <div id="loadingText" style="font-size:18px;color:#fff;opacity:0.85;text-shadow:0 1px 4px rgba(0,0,0,0.8);letter-spacing:2px;margin-top:-24px;">正在生成中，可能需要等待十几秒时间</div>
+  <div style="position:absolute;bottom:16px;right:20px;font-size:13px;color:#fff;font-weight:bold;letter-spacing:1px;opacity:0.7;text-shadow:0 1px 4px rgba(0,0,0,0.8);">小坤坤&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;版本号：1.0</div>
+</div>
+
+<video id="bgmVideo" loop playsinline webkit-playsinline muted crossorigin="anonymous" style="display:none;">
+  <source src="https://hwmov.a.yximgs.com/upic/2025/03/07/23/BMjAyNTAzMDcyMzI0MTVfMTk0MzEwNzIxOF8xNTg2NjkwNzM1ODBfMl8z_b_B0da76bdc62b9f5a1f435aefcb3b57455.mp4?clientCacheKey=3x5kehd48a36un4_b.mp4&tt=b&di=276b8ff3&bp=10000" type="video/mp4">
+</video>
+
+<video id="moveAudio" loop playsinline webkit-playsinline muted crossorigin="anonymous" style="display:none;">
+  <source src="https://tymov2.a.kwimgs.com/upic/2024/03/23/14/BMjAyNDAzMjMxNDU0MjhfMjQxMzUzMzU3N18xMjc5ODk1NDA5MjlfMV8z_b_B928566b45cd64ed2e4fc9ac2d03d0896.mp4?clientCacheKey=3xnkkadzdbfu6pa_b.mp4&tt=b&di=7b39f346&bp=10000" type="video/mp4">
+</video>
+
+<div id="gameUI">
+  <div id="joystick"><div id="joystick-knob"></div></div>
+  <div id="backBtn">返回主菜单</div>
+  <div id="interactBtn">互动(F)</div>
+  <div id="crosshair"><div id="crosshair-v"></div><div id="crosshair-h"></div><div id="crosshair-c"></div></div>
+  <div id="fpsDisplay">0 FPS</div>
+  <div id="hintText"></div>
+</div>
+
+<div id="repellentBtn">使用环境驱笑剂</div>
+<div id="rearCamFrame"></div>
+
+<div id="resultScreen">
+  <div id="resultText"></div>
+  <div class="menu-btn" id="btnResultBack" style="pointer-events:auto; width:220px; height:70px; font-size:24px;">返回主菜单</div>
+</div>
+
+<div id="canvas-container"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ==================== 硬编码配置 ====================
+const CONFIG = {
+  mazeSize: 100,
+  cellSize: 2.2,
+  wallHeight: 2.56,
+  cameraHeight: 1.6,
+  fov: 75,
+  sens: 1.3,
+  speed: 2.0,
+  viewRadius: 14,
+  showFps: false,
+  dimColor: 0x808080
+};
+
+// ==================== 核心变量 ====================
+let scene, camera, renderer, rearCamera;
+let appState = 'menu';
+let clock = new THREE.Clock();
+let fpsFrameCount = 0, fpsLastTime = 0;
+let joystick = { active: false, dx: 0, dy: 0, originX: 0, originY: 0, maxR: 43 };
+let lookInput = { active: false, lastX: 0, lastY: 0 };
+let pressedKeys = new Set();
+let monsterSpawnTimer = 0;
+let spawnIdCounter = 0;
+
+const menu = document.getElementById('menu');
+const gameUI = document.getElementById('gameUI');
+const fpsDisplay = document.getElementById('fpsDisplay');
+const joystickEl = document.getElementById('joystick');
+const knobEl = document.getElementById('joystick-knob');
+const backBtn = document.getElementById('backBtn');
+const interactBtn = document.getElementById('interactBtn');
+const bgmVideo = document.getElementById('bgmVideo');
+const resultScreen = document.getElementById('resultScreen');
+const resultText = document.getElementById('resultText');
+const btnResultBack = document.getElementById('btnResultBack');
+const moveAudioEl = document.getElementById('moveAudio');
+const hintText = document.getElementById('hintText');
+const repellentBtn = document.getElementById('repellentBtn');
+const rearCamFrame = document.getElementById('rearCamFrame');
+
+// 驱笑剂状态
+let repellent = {
+  state: 'ready', // ready | freezing | cooldown
+  freezeEnd: 0,
+  cooldownEnd: 0,
+  frozenId: null
+};
+
+// ==================== 地图数据 ====================
+const mapData = {
+  pillars: new Map(),
+  rooms: [],
+  doors: new Map(),
+  manholes: new Map(), // 现在存储出口（井盖）
+  monsters: new Map(),
+  pipes: []
+};
+let activeObjects = new Map();
+let activeMonsters = new Map();
+let activeRooms = new Set();
+let staticPipes = new Map();
+let borderWalls = [];
+let sharedPillarGeo = null;
+let sharedPillarMat = null;
+let sharedWallMat = null;
+let sharedDoorGeo = null;
+let sharedDoorMat = null;
+let sharedPipeMat = null;
+let sharedFloorGeo = null;
+let sharedFloorMat = null;
+let sharedCeilGeo = null;
+let sharedCeilMat = null;
+let manholeGeo = null;
+let manholeMat = null;
+let floorMesh = null;
+let ceilMesh = null;
+let texturesLoaded = false;
+let wasMoving = false;
+let audioContext = null;
+let moveAudioGain = null;
+
+// ==================== 纹理加载 ====================
+const textures = {};
+const textureLoader = new THREE.TextureLoader();
+textureLoader.setCrossOrigin('anonymous');
+
+function loadTexture(name, url) {
+  return new Promise((resolve) => {
+    textureLoader.load(url, (tex) => {
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearFilter;
+      textures[name] = tex;
+      resolve();
+    }, undefined, () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64; canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#888';
+      ctx.fillRect(0,0,64,64);
+      const fallback = new THREE.CanvasTexture(canvas);
+      fallback.wrapS = THREE.RepeatWrapping;
+      fallback.wrapT = THREE.RepeatWrapping;
+      textures[name] = fallback;
+      resolve();
+    });
+  });
+}
+
+// ==================== 初始化 Three.js ====================
+function initThree() {
+  if (renderer) return;
+  scene = new THREE.Scene();
+  scene.background = null;
+
+  camera = new THREE.PerspectiveCamera(CONFIG.fov, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, CONFIG.cameraHeight, 0);
+  camera.rotation.order = 'YXZ';
+
+  rearCamera = new THREE.PerspectiveCamera(70, 4/3, 0.1, 80);
+  rearCamera.rotation.order = 'YXZ';
+
+  renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "high-performance" });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    rearCamera.aspect = 4/3;
+    rearCamera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+}
+
+// ==================== 共享资源 ====================
+function initSharedResources() {
+  const cs = CONFIG.cellSize;
+  const wh = CONFIG.wallHeight;
+  const ms = CONFIG.mazeSize;
+  const dim = CONFIG.dimColor;
+  const pillarW = cs * 0.35;
+
+  sharedPillarGeo = new THREE.BoxGeometry(pillarW, wh, pillarW);
+  const pillarTex = textures.wall.clone();
+  pillarTex.needsUpdate = true;
+  pillarTex.repeat.set(1, 1);
+  sharedPillarMat = new THREE.MeshBasicMaterial({ map: pillarTex, color: dim });
+
+  textures.wall.repeat.set(1, wh / cs);
+  sharedWallMat = new THREE.MeshBasicMaterial({ map: textures.wall, color: dim });
+
+  sharedDoorGeo = new THREE.BoxGeometry(cs, wh, 0.12);
+  textures.door.repeat.set(1, 1);
+  sharedDoorMat = new THREE.MeshBasicMaterial({ map: textures.door, color: dim });
+
+  sharedPipeMat = new THREE.MeshBasicMaterial({ map: textures.pipeline, color: dim });
+
+  sharedFloorGeo = new THREE.PlaneGeometry(ms * cs, ms * cs);
+  textures.floor.repeat.set(ms, ms);
+  sharedFloorMat = new THREE.MeshBasicMaterial({ map: textures.floor, color: dim });
+
+  sharedCeilGeo = new THREE.PlaneGeometry(ms * cs, ms * cs);
+  textures.ceil.repeat.set(ms, ms);
+  sharedCeilMat = new THREE.MeshBasicMaterial({ map: textures.ceil, color: dim });
+
+  const manholeCanvas = document.createElement('canvas');
+  manholeCanvas.width = 128; manholeCanvas.height = 128;
+  const mctx = manholeCanvas.getContext('2d');
+  mctx.fillStyle = '#2a2a2a';
+  mctx.fillRect(0,0,128,128);
+  mctx.beginPath();
+  mctx.arc(64,64,58,0,Math.PI*2);
+  mctx.fillStyle = '#4a4a4a';
+  mctx.fill();
+  mctx.strokeStyle = '#1a1a1a';
+  mctx.lineWidth = 6;
+  mctx.stroke();
+  mctx.beginPath();
+  mctx.arc(64,64,44,0,Math.PI*2);
+  mctx.strokeStyle = '#333';
+  mctx.lineWidth = 3;
+  mctx.stroke();
+  for (let i=0; i<12; i++) {
+    const a = (i/12)*Math.PI*2;
+    mctx.beginPath();
+    mctx.moveTo(64+Math.cos(a)*22, 64+Math.sin(a)*22);
+    mctx.lineTo(64+Math.cos(a)*52, 64+Math.sin(a)*52);
+    mctx.strokeStyle = '#3a3a3a';
+    mctx.lineWidth = 2;
+    mctx.stroke();
+  }
+  const manholeTex = new THREE.CanvasTexture(manholeCanvas);
+  manholeGeo = new THREE.CircleGeometry(cs * 0.35, 32);
+  manholeMat = new THREE.MeshBasicMaterial({ map: manholeTex, side: THREE.DoubleSide, color: dim });
+}
+
+// ==================== 地图生成 ====================
+function generateMapData() {
+  mapData.pillars.clear();
+  mapData.rooms = [];
+  mapData.doors.clear();
+  mapData.manholes.clear();
+  mapData.monsters.clear();
+  mapData.pipes = [];
+  activeObjects.clear();
+  activeMonsters.clear();
+  activeRooms.clear();
+  staticPipes.clear();
+  borderWalls = [];
+  spawnIdCounter = 0;
+  monsterSpawnTimer = 0;
+
+  const roomCells = new Set();
+  const cs = CONFIG.cellSize;
+  const spawnX = Math.floor(CONFIG.mazeSize / 2);
+  const spawnZ = Math.floor(CONFIG.mazeSize / 2);
+
+  // 生成房间（2x2），概率25%
+  const roomSpacing = 4;
+  for (let z = 1; z < CONFIG.mazeSize - 2; z += roomSpacing) {
+    for (let x = 1; x < CONFIG.mazeSize - 2; x += roomSpacing) {
+      if (Math.random() < 0.25) {
+        let canPlace = true;
+        for (let dz = -1; dz < 3; dz++) {
+          for (let dx = -1; dx < 3; dx++) {
+            const nx = x + dx, nz = z + dz;
+            if (nx < 0 || nx >= CONFIG.mazeSize || nz < 0 || nz >= CONFIG.mazeSize) {
+              canPlace = false; break;
+            }
+            if (roomCells.has(`${nx},${nz}`)) {
+              canPlace = false; break;
+            }
+          }
+          if (!canPlace) break;
+        }
+
+        if (canPlace) {
+          const room = {
+            x, z,
+            cells: [],
+            walls: [],
+            doors: [],
+            hasMonster: false
+          };
+
+          for (let dz = 0; dz < 2; dz++) {
+            for (let dx = 0; dx < 2; dx++) {
+              const cx = x + dx, cz = z + dz;
+              room.cells.push({x: cx, z: cz});
+              roomCells.add(`${cx},${cz}`);
+            }
+          }
+
+          const sideDefs = [
+            {side: 'north', x: x + 0.5, z: z - 0.5, rot: 0},
+            {side: 'south', x: x + 0.5, z: z + 1.5, rot: 0},
+            {side: 'west', x: x - 0.5, z: z + 0.5, rot: Math.PI/2},
+            {side: 'east', x: x + 1.5, z: z + 0.5, rot: Math.PI/2}
+          ];
+          const doorCount = 1 + Math.floor(Math.random() * 2);
+          const shuffled = sideDefs.sort(() => Math.random() - 0.5);
+          for (let i = 0; i < doorCount; i++) {
+            const s = shuffled[i];
+            const doorKey = `${x},${z}_${s.side}`;
+            const door = {
+              x: s.x * cs,
+              z: s.z * cs,
+              rot: s.rot,
+              open: false,
+              side: s.side,
+              roomIndex: mapData.rooms.length,
+              mesh: null
+            };
+            room.doors.push(door);
+            mapData.doors.set(doorKey, door);
+          }
+
+          generateRoomWalls(room);
+          mapData.rooms.push(room);
+        }
+      }
+    }
+  }
+
+  // 生成柱子（非房间格子，且排除出生点3x3），0.5%概率变为出口（井盖）
+  for (let z = 0; z < CONFIG.mazeSize; z++) {
+    for (let x = 0; x < CONFIG.mazeSize; x++) {
+      if (!roomCells.has(`${x},${z}`)) {
+        if (Math.abs(x - spawnX) <= 1 && Math.abs(z - spawnZ) <= 1) continue;
+        if (Math.random() < 0.005) {
+          mapData.manholes.set(`exit_${x}_${z}`, {x: x * cs, z: z * cs});
+        } else {
+          mapData.pillars.set(`${x},${z}`, {x, z});
+        }
+      }
+    }
+  }
+
+  generatePipes();
+}
+
+function generateRoomWalls(room) {
+  const cs = CONFIG.cellSize;
+  const x = room.x, z = room.z;
+  const wallThick = cs * 0.12;
+
+  const sides = [
+    {name: 'north', x1: x-0.5, z1: z-0.5, x2: x+1.5, z2: z-0.5},
+    {name: 'south', x1: x-0.5, z1: z+1.5, x2: x+1.5, z2: z+1.5},
+    {name: 'west', x1: x-0.5, z1: z-0.5, x2: x-0.5, z2: z+1.5},
+    {name: 'east', x1: x+1.5, z1: z-0.5, x2: x+1.5, z2: z+1.5}
+  ];
+
+  sides.forEach(side => {
+    const hasDoor = room.doors.some(d => d.side === side.name);
+    if (hasDoor) {
+      if (side.name === 'north' || side.name === 'south') {
+        room.walls.push({
+          x: (x - 0.25) * cs, z: side.z1 * cs,
+          w: cs * 0.5, h: CONFIG.wallHeight, d: wallThick
+        });
+        room.walls.push({
+          x: (x + 1.25) * cs, z: side.z1 * cs,
+          w: cs * 0.5, h: CONFIG.wallHeight, d: wallThick
+        });
+      } else {
+        room.walls.push({
+          x: side.x1 * cs, z: (z - 0.25) * cs,
+          w: wallThick, h: CONFIG.wallHeight, d: cs * 0.5
+        });
+        room.walls.push({
+          x: side.x1 * cs, z: (z + 1.25) * cs,
+          w: wallThick, h: CONFIG.wallHeight, d: cs * 0.5
+        });
+      }
+    } else {
+      if (side.name === 'north' || side.name === 'south') {
+        room.walls.push({
+          x: (x + 0.5) * cs, z: side.z1 * cs,
+          w: cs * 2, h: CONFIG.wallHeight, d: wallThick
+        });
+      } else {
+        room.walls.push({
+          x: side.x1 * cs, z: (z + 0.5) * cs,
+          w: wallThick, h: CONFIG.wallHeight, d: cs * 2
+        });
+      }
+    }
+  });
+}
+
+function generatePipes() {
+  const cs = CONFIG.cellSize;
+  const ms = CONFIG.mazeSize;
+  const totalLen = ms * cs;
+  for (let z = 0; z < CONFIG.mazeSize; z++) {
+    for (let x = 0; x < CONFIG.mazeSize; x++) {
+      if (Math.random() < 0.04) {
+        const isXDir = Math.random() < 0.5;
+        mapData.pipes.push({
+          x: (x + 0.5) * cs,
+          y: CONFIG.wallHeight - 0.2,
+          z: (z + 0.5) * cs,
+          rotX: isXDir ? 0 : Math.PI/2,
+          rotZ: isXDir ? Math.PI/2 : 0,
+          scale: {r: 0.1, h: totalLen},
+          type: 'horizontal'
+        });
+      }
+    }
+  }
+  for (const [key, pillar] of mapData.pillars) {
+    if (Math.random() < 0.06) {
+      mapData.pipes.push({
+        x: pillar.x * cs,
+        y: CONFIG.wallHeight / 2,
+        z: pillar.z * cs,
+        rotX: 0,
+        rotZ: 0,
+        scale: {r: 0.08, h: CONFIG.wallHeight},
+        type: 'vertical'
+      });
+    }
+  }
+}
+
+// ==================== 动态世界加载 ====================
+function updateWorld() {
+  if (!texturesLoaded || !sharedPillarGeo) return;
+
+  const px = camera.position.x;
+  const pz = camera.position.z;
+  const cs = CONFIG.cellSize;
+  const R = CONFIG.viewRadius * cs;
+  const RSq = R * R;
+
+  const pMinX = Math.max(0, Math.floor((px - R) / cs));
+  const pMaxX = Math.min(CONFIG.mazeSize - 1, Math.floor((px + R) / cs));
+  const pMinZ = Math.max(0, Math.floor((pz - R) / cs));
+  const pMaxZ = Math.min(CONFIG.mazeSize - 1, Math.floor((pz + R) / cs));
+
+  const neededPillars = new Set();
+
+  for (let gz = pMinZ; gz <= pMaxZ; gz++) {
+    for (let gx = pMinX; gx <= pMaxX; gx++) {
+      const cx = gx * cs;
+      const cz = gz * cs;
+      const dx = cx - px;
+      const dz = cz - pz;
+      if (dx*dx + dz*dz >= RSq) continue;
+      const key = `${gx},${gz}`;
+      if (mapData.pillars.has(key)) {
+        neededPillars.add(key);
+        const objKey = `pillar_${key}`;
+        if (!activeObjects.has(objKey)) {
+          const mesh = new THREE.Mesh(sharedPillarGeo, sharedPillarMat);
+          mesh.position.set(cx, CONFIG.wallHeight / 2, cz);
+          scene.add(mesh);
+          activeObjects.set(objKey, {type: 'pillar', mesh});
+        }
+      }
+    }
+  }
+
+  const toRemove = [];
+  for (const [key, obj] of activeObjects) {
+    if (obj.type === 'pillar') {
+      const pKey = key.replace('pillar_', '');
+      if (!neededPillars.has(pKey)) toRemove.push(key);
+    } else if (obj.type === 'exit') {
+      const exitKey = key.replace('exit_', '');
+      const exit = mapData.manholes.get(exitKey);
+      if (exit) {
+        const edx = exit.x - px;
+        const edz = exit.z - pz;
+        if (edx*edx + edz*edz >= RSq) toRemove.push(key);
+      } else {
+        toRemove.push(key);
+      }
+    }
+  }
+  for (const key of toRemove) {
+    scene.remove(activeObjects.get(key).mesh);
+    activeObjects.delete(key);
+  }
+
+  for (let i = 0; i < mapData.rooms.length; i++) {
+    const room = mapData.rooms[i];
+    const rcx = (room.x + 0.5) * cs;
+    const rcz = (room.z + 0.5) * cs;
+    const dx = rcx - px;
+    const dz = rcz - pz;
+    const distSq = dx*dx + dz*dz;
+
+    if (distSq < RSq + cs * cs * 4) {
+      if (!activeRooms.has(i)) {
+        loadRoom(i);
+        activeRooms.add(i);
+      }
+    } else {
+      if (activeRooms.has(i)) {
+        unloadRoom(i);
+        activeRooms.delete(i);
+      }
+    }
+  }
+
+  for (const [key, exit] of mapData.manholes) {
+    const dx = exit.x - px;
+    const dz = exit.z - pz;
+    if (dx*dx + dz*dz < RSq) {
+      const objKey = `exit_${key}`;
+      if (!activeObjects.has(objKey)) {
+        const mesh = new THREE.Mesh(manholeGeo, manholeMat);
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(exit.x, 0.02, exit.z);
+        scene.add(mesh);
+        activeObjects.set(objKey, {type: 'exit', mesh});
+      }
+    }
+  }
+
+  for (let i = 0; i < mapData.pipes.length; i++) {
+    const pipe = mapData.pipes[i];
+    const key = `pipe_${i}`;
+    if (staticPipes.has(key)) continue;
+    const dx = pipe.x - px;
+    const dz = pipe.z - pz;
+    if (dx*dx + dz*dz < RSq) {
+      const geo = new THREE.CylinderGeometry(pipe.scale.r, pipe.scale.r, pipe.scale.h, 8);
+      const mesh = new THREE.Mesh(geo, sharedPipeMat);
+      mesh.position.set(pipe.x, pipe.y, pipe.z);
+      mesh.rotation.x = pipe.rotX;
+      mesh.rotation.z = pipe.rotZ;
+      scene.add(mesh);
+      staticPipes.set(key, mesh);
+    }
+  }
+}
+
+function loadRoom(idx) {
+  const room = mapData.rooms[idx];
+  const cs = CONFIG.cellSize;
+
+  room.walls.forEach((wall, widx) => {
+    const geo = new THREE.BoxGeometry(wall.w, wall.h, wall.d);
+    const mesh = new THREE.Mesh(geo, sharedWallMat);
+    mesh.position.set(wall.x, wall.h / 2, wall.z);
+    scene.add(mesh);
+    activeObjects.set(`room${idx}_wall${widx}`, {type: 'wall', mesh, room: idx});
+  });
+
+  room.doors.forEach((door, didx) => {
+    const doorGroup = new THREE.Group();
+    let pivotX = door.x;
+    let pivotZ = door.z;
+    if (door.side === 'north' || door.side === 'south') {
+      pivotX = door.x - cs / 2;
+      pivotZ = door.z;
+    } else {
+      pivotX = door.x;
+      pivotZ = door.z - cs / 2;
+    }
+    doorGroup.position.set(pivotX, CONFIG.wallHeight / 2, pivotZ);
+    doorGroup.rotation.y = door.rot;
+
+    const doorMesh = new THREE.Mesh(sharedDoorGeo, sharedDoorMat);
+    if (door.side === 'north' || door.side === 'south') {
+      doorMesh.position.set(cs / 2, 0, 0);
+    } else {
+      doorMesh.position.set(0, 0, cs / 2);
+    }
+    doorGroup.add(doorMesh);
+
+    if (door.open) {
+      doorGroup.rotation.y += Math.PI / 2;
+    }
+
+    scene.add(doorGroup);
+    door.mesh = doorGroup;
+    activeObjects.set(`room${idx}_door${didx}`, {type: 'door', mesh: doorGroup, room: idx, door: door});
+  });
+}
+
+function unloadRoom(idx) {
+  const toRemove = [];
+  for (const [key, obj] of activeObjects) {
+    if (obj.room === idx) {
+      if (obj.type === 'door' && obj.door) obj.door.mesh = null;
+      toRemove.push(key);
+    }
+  }
+  for (const key of toRemove) {
+    scene.remove(activeObjects.get(key).mesh);
+    activeObjects.delete(key);
+  }
+  const monKey = `mon_${idx}`;
+  if (activeMonsters.has(monKey)) {
+    scene.remove(activeMonsters.get(monKey).mesh);
+    activeMonsters.delete(monKey);
+  }
+}
+
+function buildBaseScene() {
+  const cs = CONFIG.cellSize;
+  const ms = CONFIG.mazeSize;
+
+  if (floorMesh) scene.remove(floorMesh);
+  if (ceilMesh) scene.remove(ceilMesh);
+  for (const w of borderWalls) scene.remove(w);
+  borderWalls = [];
+
+  floorMesh = new THREE.Mesh(sharedFloorGeo, sharedFloorMat);
+  floorMesh.rotation.x = -Math.PI / 2;
+  floorMesh.position.set((ms - 1) * cs / 2, 0, (ms - 1) * cs / 2);
+  scene.add(floorMesh);
+
+  ceilMesh = new THREE.Mesh(sharedCeilGeo, sharedCeilMat);
+  ceilMesh.rotation.x = Math.PI / 2;
+  ceilMesh.position.set((ms - 1) * cs / 2, CONFIG.wallHeight - 0.02, (ms - 1) * cs / 2);
+  scene.add(ceilMesh);
+
+  const wallThick = cs * 0.2;
+  const totalW = ms * cs;
+  const northWall = new THREE.Mesh(new THREE.BoxGeometry(totalW, CONFIG.wallHeight, wallThick), sharedWallMat);
+  northWall.position.set((ms - 1) * cs / 2, CONFIG.wallHeight / 2, -cs / 2);
+  scene.add(northWall);
+  borderWalls.push(northWall);
+
+  const southWall = new THREE.Mesh(new THREE.BoxGeometry(totalW, CONFIG.wallHeight, wallThick), sharedWallMat);
+  southWall.position.set((ms - 1) * cs / 2, CONFIG.wallHeight / 2, (ms - 1) * cs + cs / 2);
+  scene.add(southWall);
+  borderWalls.push(southWall);
+
+  const westWall = new THREE.Mesh(new THREE.BoxGeometry(wallThick, CONFIG.wallHeight, totalW), sharedWallMat);
+  westWall.position.set(-cs / 2, CONFIG.wallHeight / 2, (ms - 1) * cs / 2);
+  scene.add(westWall);
+  borderWalls.push(westWall);
+
+  const eastWall = new THREE.Mesh(new THREE.BoxGeometry(wallThick, CONFIG.wallHeight, totalW), sharedWallMat);
+  eastWall.position.set((ms - 1) * cs + cs / 2, CONFIG.wallHeight / 2, (ms - 1) * cs / 2);
+  scene.add(eastWall);
+  borderWalls.push(eastWall);
+
+  const spawnX = Math.floor(ms / 2) * cs;
+  const spawnZ = Math.floor(ms / 2) * cs;
+  camera.position.set(spawnX, CONFIG.cameraHeight, spawnZ);
+  camera.rotation.set(0, 0, 0);
+}
+
+function clearWorld() {
+  const toRemove = [];
+  for (const [key, obj] of activeObjects) {
+    toRemove.push(key);
+  }
+  for (const key of toRemove) {
+    scene.remove(activeObjects.get(key).mesh);
+    activeObjects.delete(key);
+  }
+  for (const [id, monster] of activeMonsters) {
+    scene.remove(monster.mesh);
+  }
+  activeMonsters.clear();
+  activeRooms.clear();
+  for (const [key, mesh] of staticPipes) {
+    scene.remove(mesh);
+  }
+  staticPipes.clear();
+  if (floorMesh) { scene.remove(floorMesh); floorMesh = null; }
+  if (ceilMesh) { scene.remove(ceilMesh); ceilMesh = null; }
+  for (const w of borderWalls) scene.remove(w);
+  borderWalls = [];
+}
+
+// ==================== 碰撞检测 ====================
+function canMoveTo(x, z, radius, ignorePillars) {
+  const r = radius || 0.35;
+  const cs = CONFIG.cellSize;
+  const viewR = CONFIG.viewRadius * cs;
+
+  const boundMargin = cs * 0.2 + r;
+  if (x < boundMargin || x >= CONFIG.mazeSize * cs - boundMargin || 
+      z < boundMargin || z >= CONFIG.mazeSize * cs - boundMargin) return false;
+
+  if (!ignorePillars) {
+    const minX = Math.floor((x - r - cs*0.2) / cs);
+    const maxX = Math.floor((x + r + cs*0.2) / cs);
+    const minZ = Math.floor((z - r - cs*0.2) / cs);
+    const maxZ = Math.floor((z + r + cs*0.2) / cs);
+
+    for (let gz = minZ; gz <= maxZ; gz++) {
+      for (let gx = minX; gx <= maxX; gx++) {
+        if (gx < 0 || gx >= CONFIG.mazeSize || gz < 0 || gz >= CONFIG.mazeSize) continue;
+        if (mapData.pillars.has(`${gx},${gz}`)) {
+          const px = gx * cs;
+          const pz = gz * cs;
+          const halfW = cs * 0.35 / 2 + r;
+          if (Math.abs(x - px) < halfW && Math.abs(z - pz) < halfW) return false;
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < mapData.rooms.length; i++) {
+    const room = mapData.rooms[i];
+    const rcx = (room.x + 0.5) * cs;
+    const rcz = (room.z + 0.5) * cs;
+    const rdx = x - rcx;
+    const rdz = z - rcz;
+    if (rdx*rdx + rdz*rdz > (viewR + cs*2) * (viewR + cs*2)) continue;
+
+    for (const wall of room.walls) {
+      const wMinX = wall.x - wall.w/2 - r;
+      const wMaxX = wall.x + wall.w/2 + r;
+      const wMinZ = wall.z - wall.d/2 - r;
+      const wMaxZ = wall.z + wall.d/2 + r;
+      if (x >= wMinX && x <= wMaxX && z >= wMinZ && z <= wMaxZ) return false;
+    }
+  }
+
+  for (const [key, door] of mapData.doors) {
+    const ddx = door.x - x;
+    const ddz = door.z - z;
+    if (ddx*ddx + ddz*ddz > viewR * viewR) continue;
+    if (!door.open) {
+      if (door.rot === 0) {
+        const dMinX = door.x - cs/2 - r;
+        const dMaxX = door.x + cs/2 + r;
+        const dMinZ = door.z - 0.1 - r;
+        const dMaxZ = door.z + 0.1 + r;
+        if (x >= dMinX && x <= dMaxX && z >= dMinZ && z <= dMaxZ) return false;
+      } else {
+        const dMinX = door.x - 0.1 - r;
+        const dMaxX = door.x + 0.1 + r;
+        const dMinZ = door.z - cs/2 - r;
+        const dMaxZ = door.z + cs/2 + r;
+        if (x >= dMinX && x <= dMaxX && z >= dMinZ && z <= dMaxZ) return false;
+      }
+    }
+  }
+
+  for (const pipe of mapData.pipes) {
+    if (pipe.type !== 'vertical') continue;
+    const pdx = x - pipe.x;
+    const pdz = z - pipe.z;
+    if (pdx*pdx + pdz*pdz > 4) continue;
+    if (Math.abs(pdx) < 0.18 + r && Math.abs(pdz) < 0.18 + r) return false;
+  }
+
+  return true;
+}
+
+// ==================== 驱笑剂逻辑 ====================
+function useRepellent() {
+  if (repellent.state !== 'ready') return;
+  const now = performance.now() / 1000;
+
+  let found = false;
+  for (const [id, monster] of activeMonsters) {
+    const dx = camera.position.x - monster.x;
+    const dz = camera.position.z - monster.z;
+    if (dx*dx + dz*dz <= 100) {
+      repellent.frozenId = id;
+      repellent.freezeEnd = now + 10;
+      repellent.cooldownEnd = now + 40;
+      repellent.state = 'freezing';
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    hintText.textContent = '范围内没有怪物';
+    hintText.style.display = 'block';
+    setTimeout(() => {
+      if (hintText.textContent === '范围内没有怪物') hintText.style.display = 'none';
+    }, 1500);
+  }
+  updateRepellentUI();
+}
+
+function updateRepellentUI() {
+  const now = performance.now() / 1000;
+  if (repellent.state === 'freezing') {
+    if (now >= repellent.freezeEnd) {
+      repellent.state = 'cooldown';
+    } else {
+      const remain = Math.ceil(repellent.freezeEnd - now);
+      repellentBtn.textContent = `生效中 ${remain}s`;
+      repellentBtn.style.opacity = '0.6';
+      return;
+    }
+  }
+  if (repellent.state === 'cooldown') {
+    if (now >= repellent.cooldownEnd) {
+      repellent.state = 'ready';
+      repellent.frozenId = null;
+      repellentBtn.textContent = '使用环境驱笑剂';
+      repellentBtn.style.opacity = '1';
+    } else {
+      const remain = Math.ceil(repellent.cooldownEnd - now);
+      repellentBtn.textContent = `冷却中 ${remain}s`;
+      repellentBtn.style.opacity = '0.4';
+    }
+  }
+}
+
+// ==================== 怪物与获胜逻辑 ====================
+function updateMonsters(dt) {
+  const now = performance.now() / 1000;
+  const playerPos = camera.position;
+  // 怪物速度改为玩家70%
+  const monsterSpeed = 3.2 * CONFIG.speed * 0.7 * dt;
+
+  for (const [id, monster] of activeMonsters) {
+    if (repellent.frozenId === id && now < repellent.freezeEnd) {
+      continue;
+    }
+
+    const dx = playerPos.x - monster.x;
+    const dz = playerPos.z - monster.z;
+
+    const pHalf = 0.35;
+    const mHalf = 0.4;
+    if (Math.abs(playerPos.x - monster.x) < pHalf + mHalf && 
+        Math.abs(playerPos.z - monster.z) < pHalf + mHalf) {
+      gameOver(false);
+      return;
+    }
+
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (dist > 0.1) {
+      const mx = (dx / dist) * monsterSpeed;
+      const mz = (dz / dist) * monsterSpeed;
+      const newX = monster.x + mx;
+      const newZ = monster.z + mz;
+
+      if (canMoveTo(newX, newZ, 0.25, true)) {
+        monster.x = newX;
+        monster.z = newZ;
+        monster.mesh.position.set(newX, CONFIG.cameraHeight, newZ);
+        const monData = mapData.monsters.get(id);
+        if (monData) { monData.x = newX; monData.z = newZ; }
+      }
+    }
+  }
+}
+
+function spawnMonsterNearPlayer() {
+  // 如果已有3个或更多，删除最旧的一个，保持场上最多3个
+  while (activeMonsters.size >= 3) {
+    const firstKey = activeMonsters.keys().next().value;
+    const mon = activeMonsters.get(firstKey);
+    scene.remove(mon.mesh);
+    activeMonsters.delete(firstKey);
+  }
+
+  const cs = CONFIG.cellSize;
+  let attempts = 0;
+  while (attempts < 30) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 15 + Math.random() * 20;
+    const mx = camera.position.x + Math.cos(angle) * dist;
+    const mz = camera.position.z + Math.sin(angle) * dist;
+
+    if (mx < cs || mx >= (CONFIG.mazeSize - 1) * cs || mz < cs || mz >= (CONFIG.mazeSize - 1) * cs) {
+      attempts++; continue;
+    }
+
+    if (canMoveTo(mx, mz, 0.5)) {
+      const spriteMat = new THREE.SpriteMaterial({map: textures.smiler});
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.position.set(mx, CONFIG.cameraHeight, mz);
+      sprite.scale.set(1.6, 1.6, 1.6);
+      scene.add(sprite);
+      const id = `spawn_${spawnIdCounter++}`;
+      activeMonsters.set(id, {
+        mesh: sprite,
+        x: mx,
+        z: mz,
+        roomIndex: -1
+      });
+      break;
+    }
+    attempts++;
+  }
+}
+
+function checkWin() {
+  for (const [key, manhole] of mapData.manholes) {
+    const dx = camera.position.x - manhole.x;
+    const dz = camera.position.z - manhole.z;
+    if (dx * dx + dz * dz < 0.6 * 0.6) {
+      gameOver(true);
+      return;
+    }
+  }
+}
+
+function gameOver(win) {
+  appState = 'result';
+  moveAudioEl.pause();
+  wasMoving = false;
+  bgmVideo.pause();
+  resultText.textContent = win ? '你成功逃脱了地下停车场！' : '你被怪物抓住了...';
+  resultText.style.color = win ? '#0f0' : '#f00';
+  resultScreen.style.display = 'flex';
+  repellentBtn.style.display = 'none';
+  rearCamFrame.style.display = 'none';
+}
+
+// ==================== 门互动 ====================
+function getFacingDoor() {
+  const px = camera.position.x;
+  const pz = camera.position.z;
+  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  forward.y = 0;
+  forward.normalize();
+
+  let bestDoor = null;
+  let bestScore = -Infinity;
+
+  for (const [key, door] of mapData.doors) {
+    const dx = door.x - px;
+    const dz = door.z - pz;
+    const dist = Math.sqrt(dx*dx + dz*dz);
+
+    if (dist < 2.8) {
+      const dirToDoor = new THREE.Vector3(dx, 0, dz).normalize();
+      const dot = forward.dot(dirToDoor);
+      if (dot > 0.5 && dot > bestScore) {
+        bestDoor = door;
+        bestScore = dot;
+      }
+    }
+  }
+
+  return bestDoor;
+}
+
+function toggleDoor() {
+  const door = getFacingDoor();
+  if (door) {
+    door.open = !door.open;
+    if (door.mesh) {
+      const baseRot = door.rot;
+      door.mesh.rotation.y = door.open ? baseRot + Math.PI / 2 : baseRot;
+    }
+    updateInteractHint();
+  }
+}
+
+function updateInteractHint() {
+  const door = getFacingDoor();
+  if (door) {
+    interactBtn.style.display = 'flex';
+    interactBtn.textContent = door.open ? '关门(F)' : '开门(F)';
+    hintText.style.display = 'block';
+    hintText.textContent = door.open ? '按F关门' : '按F开门';
+  } else {
+    interactBtn.style.display = 'none';
+    hintText.style.display = 'none';
+  }
+}
+
+// ==================== 输入控制 ====================
+let joystickTouchId = null;
+
+joystickEl.addEventListener('touchstart', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  const touch = e.changedTouches[0];
+  joystickTouchId = touch.identifier;
+  const rect = joystickEl.getBoundingClientRect();
+  joystick.active = true;
+  joystick.originX = rect.left + rect.width / 2;
+  joystick.originY = rect.top + rect.height / 2;
+  updateJoystick(touch.clientX, touch.clientY);
+}, {passive: false});
+
+joystickEl.addEventListener('touchmove', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  for (let t of e.changedTouches) {
+    if (t.identifier === joystickTouchId) {
+      updateJoystick(t.clientX, t.clientY);
+      break;
+    }
+  }
+}, {passive: false});
+
+joystickEl.addEventListener('touchend', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  for (let t of e.changedTouches) {
+    if (t.identifier === joystickTouchId) {
+      joystick.active = false; joystickTouchId = null;
+      joystick.dx = 0; joystick.dy = 0;
+      knobEl.style.transform = 'translate(0px, 0px)';
+      break;
+    }
+  }
+}, {passive: false});
+
+function updateJoystick(x, y) {
+  let dx = x - joystick.originX;
+  let dy = y - joystick.originY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist > joystick.maxR) { const s = joystick.maxR / dist; dx *= s; dy *= s; }
+  joystick.dx = dx / joystick.maxR;
+  joystick.dy = dy / joystick.maxR;
+  knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+}
+
+backBtn.addEventListener('touchstart', (e) => { e.preventDefault(); stopGame(); }, {passive: false});
+backBtn.addEventListener('mousedown', (e) => { if (e.button === 0) stopGame(); });
+
+interactBtn.addEventListener('touchstart', (e) => { e.preventDefault(); toggleDoor(); }, {passive: false});
+interactBtn.addEventListener('mousedown', (e) => { if (e.button === 0) toggleDoor(); });
+
+repellentBtn.addEventListener('click', useRepellent);
+repellentBtn.addEventListener('touchstart', (e) => { e.preventDefault(); useRepellent(); }, {passive: false});
+
+let lookTouchId = null;
+document.addEventListener('touchstart', (e) => {
+  if (appState !== 'game') return;
+  for (let t of e.changedTouches) {
+    if (t.clientX > window.innerWidth * 0.5 && lookTouchId === null) {
+      lookTouchId = t.identifier;
+      lookInput.active = true;
+      lookInput.lastX = t.clientX;
+      lookInput.lastY = t.clientY;
+    }
+  }
+}, {passive: false});
+
+document.addEventListener('touchmove', (e) => {
+  if (appState !== 'game' || !lookInput.active) return;
+  for (let t of e.changedTouches) {
+    if (t.identifier === lookTouchId) {
+      e.preventDefault();
+      const dx = t.clientX - lookInput.lastX;
+      const dy = t.clientY - lookInput.lastY;
+      // 灵敏度改为225%
+      const sens = CONFIG.sens * 0.0025 * 2.25;
+      camera.rotation.y -= dx * sens;
+      camera.rotation.x -= dy * sens;
+      camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+      lookInput.lastX = t.clientX;
+      lookInput.lastY = t.clientY;
+      break;
+    }
+  }
+}, {passive: false});
+
+document.addEventListener('touchend', (e) => {
+  for (let t of e.changedTouches) {
+    if (t.identifier === lookTouchId) { lookInput.active = false; lookTouchId = null; break; }
+  }
+});
+
+let mouseLook = false;
+document.addEventListener('mousedown', (e) => {
+  if (appState !== 'game') return;
+  if (e.clientX > window.innerWidth * 0.5 && e.button === 0) {
+    mouseLook = true;
+    lookInput.lastX = e.clientX;
+    lookInput.lastY = e.clientY;
+  }
+});
+document.addEventListener('mousemove', (e) => {
+  if (appState !== 'game' || !mouseLook) return;
+  const dx = e.clientX - lookInput.lastX;
+  const dy = e.clientY - lookInput.lastY;
+  // 灵敏度改为225%
+  const sens = CONFIG.sens * 0.0025 * 2.25;
+  camera.rotation.y -= dx * sens;
+  camera.rotation.x -= dy * sens;
+  camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+  lookInput.lastX = e.clientX;
+  lookInput.lastY = e.clientY;
+});
+document.addEventListener('mouseup', () => { mouseLook = false; });
+
+document.addEventListener('keydown', (e) => {
+  if (appState === 'game') {
+    pressedKeys.add(e.code);
+    if (e.code === 'KeyF') toggleDoor();
+  }
+});
+document.addEventListener('keyup', (e) => { pressedKeys.delete(e.code); });
+
+function updateKeyboardMovement(dt) {
+  if (appState !== 'game') return;
+  const speed = 3.2 * CONFIG.speed * dt;
+  const forward = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+  forward.y = 0; forward.normalize();
+  const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+  right.y = 0; right.normalize();
+
+  let mx = 0, mz = 0;
+  if (pressedKeys.has('KeyW')) { mx += forward.x; mz += forward.z; }
+  if (pressedKeys.has('KeyS')) { mx -= forward.x; mz -= forward.z; }
+  if (pressedKeys.has('KeyD')) { mx += right.x; mz += right.z; }
+  if (pressedKeys.has('KeyA')) { mx -= right.x; mz -= right.z; }
+
+  if (mx !== 0 || mz !== 0) {
+    const len = Math.sqrt(mx*mx + mz*mz);
+    mx /= len; mz /= len;
+    const newX = camera.position.x + mx * speed;
+    const newZ = camera.position.z + mz * speed;
+    if (canMoveTo(newX, camera.position.z)) camera.position.x = newX;
+    if (canMoveTo(camera.position.x, newZ)) camera.position.z = newZ;
+  }
+}
+
+// ==================== 游戏循环 ====================
+function updateFPS() {
+  if (!CONFIG.showFps) { fpsDisplay.style.display = 'none'; return; }
+  fpsDisplay.style.display = 'block';
+  fpsFrameCount++;
+  const now = performance.now();
+  if (now - fpsLastTime >= 1000) {
+    fpsDisplay.textContent = Math.round(fpsFrameCount * 1000 / (now - fpsLastTime)) + ' FPS';
+    fpsFrameCount = 0; fpsLastTime = now;
+  }
+}
+
+function update(dt) {
+  updateKeyboardMovement(dt);
+  let isMoving = false;
+
+  if (joystick.active && (joystick.dx !== 0 || joystick.dy !== 0)) {
+    isMoving = true;
+    const speed = 3.2 * CONFIG.speed * dt;
+    const forward = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+    forward.y = 0; forward.normalize();
+    const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+    right.y = 0; right.normalize();
+    const moveX = (forward.x * -joystick.dy + right.x * joystick.dx) * speed;
+    const moveZ = (forward.z * -joystick.dy + right.z * joystick.dx) * speed;
+    const newX = camera.position.x + moveX;
+    const newZ = camera.position.z + moveZ;
+    if (canMoveTo(newX, camera.position.z)) camera.position.x = newX;
+    if (canMoveTo(camera.position.x, newZ)) camera.position.z = newZ;
+  }
+
+  if (pressedKeys.has('KeyW') || pressedKeys.has('KeyS') || pressedKeys.has('KeyA') || pressedKeys.has('KeyD')) {
+    isMoving = true;
+  }
+
+  if (isMoving && appState === 'game') {
+    if (!wasMoving) {
+      moveAudioEl.play().catch(() => {});
+      wasMoving = true;
+    }
+  } else {
+    if (wasMoving) {
+      moveAudioEl.pause();
+      wasMoving = false;
+    }
+  }
+
+  if (appState === 'game') {
+    monsterSpawnTimer += dt;
+    if (monsterSpawnTimer >= 10) {
+      monsterSpawnTimer = 0;
+      spawnMonsterNearPlayer();
+    }
+    updateWorld();
+    updateMonsters(dt);
+    checkWin();
+    updateInteractHint();
+    updateRepellentUI();
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.15);
+
+  if (appState === 'game') {
+    update(dt);
+    updateFPS();
+
+    rearCamera.position.copy(camera.position);
+    rearCamera.rotation.copy(camera.rotation);
+    rearCamera.rotation.y += Math.PI;
+
+    renderer.autoClear = false;
+    renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+    renderer.setScissorTest(false);
+    renderer.clear();
+    renderer.render(scene, camera);
+
+    const rw = Math.min(240, window.innerWidth * 0.28);
+    const rh = rw * 0.75;
+    const rx = window.innerWidth - rw - 12;
+    const ry = window.innerHeight - rh - 12;
+
+    rearCamFrame.style.width = rw + 'px';
+    rearCamFrame.style.height = rh + 'px';
+
+    renderer.setViewport(rx, ry, rw, rh);
+    renderer.setScissor(rx, ry, rw, rh);
+    renderer.setScissorTest(true);
+    renderer.clearDepth();
+    renderer.render(scene, rearCamera);
+    renderer.setScissorTest(false);
+
+  } else {
+    if (appState === 'menu' && camera) {
+      camera.rotation.y += 0.12 * dt;
+    }
+    renderer.autoClear = true;
+    renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+    renderer.setScissorTest(false);
+    if (camera) renderer.render(scene, camera);
+  }
+}
+
+// ==================== 游戏状态 ====================
+function startGame() {
+  if (!texturesLoaded) return;
+
+  if (!audioContext) {
+    try {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioContext.createMediaElementSource(moveAudioEl);
+      moveAudioGain = audioContext.createGain();
+      moveAudioGain.gain.value = 2.0;
+      source.connect(moveAudioGain);
+      moveAudioGain.connect(audioContext.destination);
+    } catch(e) {}
+  }
+  if (audioContext && audioContext.state === 'suspended') {
+    audioContext.resume();
+  }
+
+  menu.style.display = 'none';
+  gameUI.style.display = 'block';
+  joystickEl.style.display = 'block';
+  backBtn.style.display = 'flex';
+  repellentBtn.style.display = 'flex';
+  rearCamFrame.style.display = 'block';
+  resultScreen.style.display = 'none';
+  appState = 'game';
+
+  repellent.state = 'ready';
+  repellent.frozenId = null;
+
+  clearWorld();
+  generateMapData();
+  buildBaseScene();
+  updateWorld();
+
+  // 初始生成3个怪物
+  for (let i = 0; i < 3; i++) {
+    spawnMonsterNearPlayer();
+  }
+
+  scene.background = new THREE.Color(0x000000);
+  scene.fog = new THREE.FogExp2(0x000000, 0.05);
+
+  moveAudioEl.muted = false;
+  moveAudioEl.play().then(() => {
+    moveAudioEl.pause();
+    moveAudioEl.currentTime = 0;
+  }).catch(() => {});
+
+  bgmVideo.muted = false;
+  bgmVideo.currentTime = 0;
+  bgmVideo.volume = 1.0;
+  bgmVideo.play().catch(() => {});
+}
+
+function stopGame() {
+  appState = 'menu';
+  menu.style.display = 'flex';
+  gameUI.style.display = 'none';
+  joystickEl.style.display = 'none';
+  backBtn.style.display = 'none';
+  interactBtn.style.display = 'none';
+  hintText.style.display = 'none';
+  fpsDisplay.style.display = 'none';
+  resultScreen.style.display = 'none';
+  repellentBtn.style.display = 'none';
+  rearCamFrame.style.display = 'none';
+  bgmVideo.pause();
+  moveAudioEl.pause();
+  wasMoving = false;
+
+  clearWorld();
+
+  scene.background = null;
+  scene.fog = null;
+
+  const cs = CONFIG.cellSize;
+  const ms = CONFIG.mazeSize;
+  camera.position.set(Math.floor(ms / 2) * cs, CONFIG.cameraHeight, Math.floor(ms / 2) * cs);
+  camera.rotation.set(0, 0, 0);
+
+  buildBaseScene();
+  updateWorld();
+}
+
+document.getElementById('btnStart').addEventListener('click', startGame);
+document.getElementById('btnStart').addEventListener('touchstart', (e) => { e.preventDefault(); startGame(); }, {passive: false});
+
+btnResultBack.addEventListener('click', stopGame);
+btnResultBack.addEventListener('touchstart', (e) => { e.preventDefault(); stopGame(); }, {passive: false});
+
+// ==================== 启动 ====================
+window.addEventListener('load', () => {
+  initThree();
+  Promise.all([
+    loadTexture('wall', 'https://smallkun0.github.io/Grass/Level%201/Wall.jpg'),
+    loadTexture('floor', 'https://smallkun0.github.io/Grass/Level%201/Floor.jpg'),
+    loadTexture('ceil', 'https://smallkun0.github.io/Grass/Level%201/TopFloor.jpg'),
+    loadTexture('door', 'https://smallkun0.github.io/Grass/Level%201/Door.jpg'),
+    loadTexture('pipeline', 'https://smallkun0.github.io/Grass/Level%201/Pipeline.jpg'),
+    loadTexture('smiler', 'https://smallkun0.github.io/Grass/Backrooms/Smiler.png')
+  ]).then(() => {
+    texturesLoaded = true;
+    initSharedResources();
+    const cs = CONFIG.cellSize;
+    const ms = CONFIG.mazeSize;
+    camera.position.set(Math.floor(ms / 2) * cs, CONFIG.cameraHeight, Math.floor(ms / 2) * cs);
+    camera.rotation.set(0, 0, 0);
+    generateMapData();
+    buildBaseScene();
+    updateWorld();
+    clock.start();
+    animate();
+    document.getElementById('loadingText').style.display = 'none';
+  });
+});
+</script>
+</body>
+</html>

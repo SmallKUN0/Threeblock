@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>氛围后室 - 1.1</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-touch-callout: none; user-select: none; }
+html, body { width: 100%; height: 100%; overflow: hidden; font-family: "Microsoft YaHei", Arial, sans-serif; touch-action: none; background: #000; }
+
+#menu {
+  width: 100%; height: 100%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 40px; position: absolute; z-index: 100;
+  pointer-events: none;
+}
+.menu-btn {
+  width: 260px; height: 80px; border: 5px solid rgba(255,255,255,0.9); background: rgba(0,0,0,0.45);
+  color: #fff; font-size: 28px; font-weight: bold; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; transition: all 0.15s; letter-spacing: 4px;
+  pointer-events: auto; text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+}
+.menu-btn:active { background: rgba(0,0,0,0.7); transform: scale(0.96); }
+
+#gameUI { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 50; pointer-events: none; }
+#gameUI > * { pointer-events: auto; }
+
+#joystick {
+  position: absolute; border: 3px solid rgba(255,255,255,0.4); border-radius: 50%;
+  background: rgba(255,255,255,0.1); display: none; touch-action: none;
+  left: 5%; top: 82%; width: 130px; height: 130px;
+}
+#joystick-knob {
+  position: absolute; width: 42%; height: 42%; background: rgba(255,255,255,0.65);
+  border-radius: 50%; left: 29%; top: 29%; pointer-events: none;
+}
+
+#backBtn {
+  position: absolute; left: 5%; top: 5%; width: 110px; height: 68px;
+  border: 2px solid rgba(255,255,255,0.8); background: rgba(0,0,0,0.55); color: #fff;
+  font-size: 14px; cursor: pointer; display: none; align-items: center; justify-content: center;
+  font-weight: bold; letter-spacing: 1px; border-radius: 4px; z-index: 52;
+}
+
+#crosshair {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 24px; height: 24px; pointer-events: none; z-index: 55; opacity: 0.85;
+}
+#crosshair-v { position: absolute; top: 0; left: 11px; width: 2px; height: 24px; background: #fff; }
+#crosshair-h { position: absolute; top: 11px; left: 0; width: 24px; height: 2px; background: #fff; }
+#crosshair-c { position: absolute; top: 11px; left: 11px; width: 2px; height: 2px; background: #fff; }
+
+#fpsDisplay {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  color: #0f0; font-size: 16px; font-weight: bold; font-family: monospace;
+  text-shadow: 0 0 4px #000; display: none; pointer-events: none; z-index: 60;
+}
+
+#resultScreen {
+  display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.9); z-index: 200; flex-direction: column;
+  align-items: center; justify-content: center; gap: 30px; pointer-events: none;
+}
+#resultText {
+  font-size: 46px; font-weight: bold; color: #fff; letter-spacing: 8px;
+  text-shadow: 0 2px 16px rgba(0,0,0,0.9);
+}
+
+#canvas-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1; }
+canvas { display: block; width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+
+<div id="menu">
+  <div style="position:absolute;top:40px;left:50%;transform:translateX(-50%);font-size:48px;font-weight:bold;color:#fff;letter-spacing:12px;text-shadow:0 2px 12px rgba(0,0,0,0.9);">氛围后室</div>
+  <div class="menu-btn" id="btnStart">开始游戏</div>
+  <div id="loadingText" style="font-size:18px;color:#fff;opacity:0.85;text-shadow:0 1px 4px rgba(0,0,0,0.8);letter-spacing:2px;margin-top:-24px;">正在生成中，可能需要等待十几秒时间</div>
+  <div style="position:absolute;bottom:16px;right:20px;font-size:13px;color:#fff;font-weight:bold;letter-spacing:1px;opacity:0.7;text-shadow:0 1px 4px rgba(0,0,0,0.8);">小坤坤&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;版本号：1.1</div>
+</div>
+
+<video id="bgmVideo" loop playsinline webkit-playsinline muted crossorigin="anonymous" style="display:none;">
+  <source src="https://hwmov.a.yximgs.com/upic/2025/03/07/23/BMjAyNTAzMDcyMzI0MTVfMTk0MzEwNzIxOF8xNTg2NjkwNzM1ODBfMl8z_b_B0da76bdc62b9f5a1f435aefcb3b57455.mp4?clientCacheKey=3x5kehd48a36un4_b.mp4&tt=b&di=276b8ff3&bp=10000" type="video/mp4">
+</video>
+
+<video id="moveAudio" loop playsinline webkit-playsinline muted crossorigin="anonymous" style="display:none;">
+  <source src="https://tymov2.a.kwimgs.com/upic/2024/03/23/14/BMjAyNDAzMjMxNDU0MjhfMjQxMzUzMzU3N18xMjc5ODk1NDA5MjlfMV8z_b_B928566b45cd64ed2e4fc9ac2d03d0896.mp4?clientCacheKey=3xnkkadzdbfu6pa_b.mp4&tt=b&di=7b39f346&bp=10000" type="video/mp4">
+</video>
+
+<div id="gameUI">
+  <div id="joystick"><div id="joystick-knob"></div></div>
+  <div id="backBtn">返回主菜单</div>
+  <div id="crosshair"><div id="crosshair-v"></div><div id="crosshair-h"></div><div id="crosshair-c"></div></div>
+  <div id="fpsDisplay">0 FPS</div>
+</div>
+
+<div id="resultScreen">
+  <div id="resultText"></div>
+  <div class="menu-btn" id="btnResultBack" style="pointer-events:auto; width:220px; height:70px; font-size:24px;">返回主菜单</div>
+</div>
+
+<div id="canvas-container"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ==================== 硬编码配置 ====================
+const CONFIG = {
+  mazeSize: 100,
+  cellSize: 2.2,
+  wallHeight: 2.56,
+  cameraHeight: 1.6,
+  fov: 75,
+  sens: 1.3,
+  speed: 2.0,
+  viewRadius: 14,
+  showFps: false
+};
+
+// ==================== 核心变量 ====================
+let scene, camera, renderer;
+let appState = 'menu';
+let clock = new THREE.Clock();
+let fpsFrameCount = 0, fpsLastTime = 0;
+let joystick = { active: false, dx: 0, dy: 0, originX: 0, originY: 0, maxR: 43 };
+let lookInput = { active: false, lastX: 0, lastY: 0 };
+let pressedKeys = new Set();
+
+const menu = document.getElementById('menu');
+const gameUI = document.getElementById('gameUI');
+const fpsDisplay = document.getElementById('fpsDisplay');
+const joystickEl = document.getElementById('joystick');
+const knobEl = document.getElementById('joystick-knob');
+const backBtn = document.getElementById('backBtn');
+const bgmVideo = document.getElementById('bgmVideo');
+const resultScreen = document.getElementById('resultScreen');
+const resultText = document.getElementById('resultText');
+const btnResultBack = document.getElementById('btnResultBack');
+const moveAudioEl = document.getElementById('moveAudio');
+
+// ==================== 动态迷宫数据（不长期保存） ====================
+const activeCells = new Map();
+let monsters = new Map();
+let sharedWallGeo = null;
+let sharedWallMat = null;
+let sharedArrowMat = null;
+let sharedFloorGeo = null;
+let sharedFloorMat = null;
+let sharedCeilGeo = null;
+let sharedCeilMat = null;
+let manholeGeo = null;
+let manholeMat = null;
+let floorMesh = null;
+let ceilMesh = null;
+let texturesLoaded = false;
+let wasMoving = false;
+let audioContext = null;
+let moveAudioGain = null;
+
+// ==================== 纹理加载 ====================
+const textures = {};
+const textureLoader = new THREE.TextureLoader();
+textureLoader.setCrossOrigin('anonymous');
+
+function loadTexture(name, url) {
+  return new Promise((resolve) => {
+      textureLoader.load(url, (tex) => {
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          tex.magFilter = THREE.LinearFilter;
+          tex.minFilter = THREE.LinearFilter;
+          textures[name] = tex;
+          resolve();
+      }, undefined, () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 64; canvas.height = 64;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#e6c840';
+          ctx.fillRect(0,0,64,64);
+          const fallback = new THREE.CanvasTexture(canvas);
+          fallback.wrapS = THREE.RepeatWrapping;
+          fallback.wrapT = THREE.RepeatWrapping;
+          textures[name] = fallback;
+          resolve();
+      });
+  });
+}
+
+// ==================== 初始化 Three.js ====================
+function initThree() {
+  if (renderer) return;
+  scene = new THREE.Scene();
+  scene.background = null;
+
+  camera = new THREE.PerspectiveCamera(CONFIG.fov, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, CONFIG.cameraHeight, 0);
+  camera.rotation.order = 'YXZ';
+
+  renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "high-performance" });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+  window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+}
+
+// ==================== 集体克隆材质与几何体 ====================
+function initSharedResources() {
+  const cs = CONFIG.cellSize;
+  const wh = CONFIG.wallHeight;
+  const ms = CONFIG.mazeSize;
+  const yellow = 0xffd700;
+
+  sharedWallGeo = new THREE.BoxGeometry(cs, wh, cs);
+  sharedWallMat = new THREE.MeshBasicMaterial({ map: textures.wall, color: yellow });
+  textures.wall.repeat.set(1, wh / cs);
+
+  sharedArrowMat = new THREE.MeshBasicMaterial({ map: textures.arrow, color: yellow });
+  textures.arrow.repeat.set(1, wh / cs);
+
+  sharedFloorGeo = new THREE.PlaneGeometry(ms * cs, ms * cs);
+  sharedFloorMat = new THREE.MeshBasicMaterial({ map: textures.floor, color: yellow });
+  textures.floor.repeat.set(ms, ms);
+
+  sharedCeilGeo = new THREE.PlaneGeometry(ms * cs, ms * cs);
+  sharedCeilMat = new THREE.MeshBasicMaterial({ map: textures.ceil, color: yellow });
+  textures.ceil.repeat.set(ms, ms);
+
+  // 井盖程序化纹理
+  const manholeCanvas = document.createElement('canvas');
+  manholeCanvas.width = 128; manholeCanvas.height = 128;
+  const mctx = manholeCanvas.getContext('2d');
+  mctx.fillStyle = '#2a2a2a';
+  mctx.fillRect(0,0,128,128);
+  mctx.beginPath();
+  mctx.arc(64,64,58,0,Math.PI*2);
+  mctx.fillStyle = '#4a4a4a';
+  mctx.fill();
+  mctx.strokeStyle = '#1a1a1a';
+  mctx.lineWidth = 6;
+  mctx.stroke();
+  mctx.beginPath();
+  mctx.arc(64,64,44,0,Math.PI*2);
+  mctx.strokeStyle = '#333';
+  mctx.lineWidth = 3;
+  mctx.stroke();
+  for (let i=0; i<12; i++) {
+      const a = (i/12)*Math.PI*2;
+      mctx.beginPath();
+      mctx.moveTo(64+Math.cos(a)*22, 64+Math.sin(a)*22);
+      mctx.lineTo(64+Math.cos(a)*52, 64+Math.sin(a)*52);
+      mctx.strokeStyle = '#3a3a3a';
+      mctx.lineWidth = 2;
+      mctx.stroke();
+  }
+  const manholeTex = new THREE.CanvasTexture(manholeCanvas);
+  manholeGeo = new THREE.CircleGeometry(cs * 0.35, 32);
+  manholeMat = new THREE.MeshBasicMaterial({ map: manholeTex, side: THREE.DoubleSide });
+}
+
+// ==================== 动态世界生成 ====================
+function updateWorld() {
+  if (!texturesLoaded || !sharedWallGeo) return;
+
+  const cs = CONFIG.cellSize;
+  const pgx = Math.floor(camera.position.x / cs + 0.5);
+  const pgz = Math.floor(camera.position.z / cs + 0.5);
+  const R = CONFIG.viewRadius;
+  const needed = new Set();
+
+  for (let dz = -R; dz <= R; dz++) {
+      for (let dx = -R; dx <= R; dx++) {
+          if (dx * dx + dz * dz > R * R) continue;
+          const gx = pgx + dx, gz = pgz + dz;
+          if (gx < 0 || gx >= CONFIG.mazeSize || gz < 0 || gz >= CONFIG.mazeSize) continue;
+          needed.add(`${gx},${gz}`);
+      }
+  }
+
+  for (const [key, cell] of activeCells) {
+      if (!needed.has(key)) {
+          if (cell.mesh) scene.remove(cell.mesh);
+          activeCells.delete(key);
+      }
+  }
+
+  // 清理距离过远的怪物
+  const monsterMaxDist = R * cs;
+  for (const [id, monster] of monsters) {
+      const mdx = monster.x - camera.position.x;
+      const mdz = monster.z - camera.position.z;
+      if (mdx*mdx + mdz*mdz > monsterMaxDist * monsterMaxDist) {
+          scene.remove(monster.mesh);
+          monsters.delete(id);
+      }
+  }
+
+  for (const key of needed) {
+      if (activeCells.has(key)) continue;
+      const [gx, gz] = key.split(',').map(Number);
+      let isWall = false;
+      let isArrow = false;
+      let hasManhole = false;
+      let hasMonster = false;
+
+      if (gx === 0 || gx === CONFIG.mazeSize - 1 || gz === 0 || gz === CONFIG.mazeSize - 1) {
+          isWall = true;
+      } else if (Math.abs(gx - pgx) <= 1 && Math.abs(gz - pgz) <= 1) {
+          isWall = false;
+      } else {
+          isWall = Math.random() < 0.38;
+      }
+
+      if (isWall && Math.random() < 0.005) {
+          isArrow = true;
+      }
+
+      let mesh = null;
+      if (isWall) {
+          const mat = isArrow ? sharedArrowMat : sharedWallMat;
+          mesh = new THREE.Mesh(sharedWallGeo, mat);
+          mesh.position.set(gx * cs, CONFIG.wallHeight / 2, gz * cs);
+          scene.add(mesh);
+      } else {
+          const roll = Math.random();
+          if (roll < 0.002) {
+              hasManhole = true;
+              mesh = new THREE.Mesh(manholeGeo, manholeMat);
+              mesh.rotation.x = -Math.PI / 2;
+              mesh.position.set(gx * cs, 0.02, gz * cs);
+              scene.add(mesh);
+          } else if (roll < 0.006) {
+              hasMonster = true;
+              const spriteMat = new THREE.SpriteMaterial({ map: textures.smiler });
+              const sprite = new THREE.Sprite(spriteMat);
+              sprite.position.set(gx * cs, CONFIG.cameraHeight, gz * cs);
+              sprite.scale.set(1.6, 1.6, 1.6);
+              scene.add(sprite);
+              monsters.set(`m_${gx}_${gz}_${Date.now()}_${Math.floor(Math.random()*10000)}`, {
+                  mesh: sprite,
+                  x: gx * cs,
+                  z: gz * cs
+              });
+          }
+      }
+
+      activeCells.set(key, { isWall, isArrow, hasManhole, hasMonster, mesh });
+  }
+}
+
+function buildBaseScene() {
+  const cs = CONFIG.cellSize;
+  const ms = CONFIG.mazeSize;
+
+  if (floorMesh) scene.remove(floorMesh);
+  if (ceilMesh) scene.remove(ceilMesh);
+
+  floorMesh = new THREE.Mesh(sharedFloorGeo, sharedFloorMat);
+  floorMesh.rotation.x = -Math.PI / 2;
+  floorMesh.position.set((ms - 1) * cs / 2, 0, (ms - 1) * cs / 2);
+  scene.add(floorMesh);
+
+  ceilMesh = new THREE.Mesh(sharedCeilGeo, sharedCeilMat);
+  ceilMesh.rotation.x = Math.PI / 2;
+  ceilMesh.position.set((ms - 1) * cs / 2, CONFIG.wallHeight - 0.02, (ms - 1) * cs / 2);
+  scene.add(ceilMesh);
+
+  const spawnX = Math.floor(ms / 2) * cs;
+  const spawnZ = Math.floor(ms / 2) * cs;
+  camera.position.set(spawnX, CONFIG.cameraHeight, spawnZ);
+  camera.rotation.set(0, 0, 0);
+}
+
+function clearWorld() {
+  for (const [key, cell] of activeCells) {
+      if (cell.mesh) scene.remove(cell.mesh);
+  }
+  activeCells.clear();
+  for (const [id, monster] of monsters) {
+      scene.remove(monster.mesh);
+  }
+  monsters.clear();
+  if (floorMesh) { scene.remove(floorMesh); floorMesh = null; }
+  if (ceilMesh) { scene.remove(ceilMesh); ceilMesh = null; }
+}
+
+// ==================== 碰撞检测 ====================
+function canMoveTo(x, z, radius) {
+  const r = radius || 0.35;
+  const cs = CONFIG.cellSize;
+  const minX = Math.floor((x - r) / cs + 0.5);
+  const maxX = Math.floor((x + r) / cs + 0.5);
+  const minZ = Math.floor((z - r) / cs + 0.5);
+  const maxZ = Math.floor((z + r) / cs + 0.5);
+
+  for (let gz = minZ; gz <= maxZ; gz++) {
+      for (let gx = minX; gx <= maxX; gx++) {
+          if (gz < 0 || gz >= CONFIG.mazeSize || gx < 0 || gx >= CONFIG.mazeSize) return false;
+
+          const key = `${gx},${gz}`;
+          let isWall;
+          if (activeCells.has(key)) {
+              isWall = activeCells.get(key).isWall;
+          } else {
+              if (gx === 0 || gx === CONFIG.mazeSize - 1 || gz === 0 || gz === CONFIG.mazeSize - 1) isWall = true;
+              else isWall = Math.random() < 0.38;
+          }
+
+          if (isWall) {
+              const wMinX = gx * cs - cs / 2;
+              const wMaxX = gx * cs + cs / 2;
+              const wMinZ = gz * cs - cs / 2;
+              const wMaxZ = gz * cs + cs / 2;
+              const cx = Math.max(wMinX, Math.min(x, wMaxX));
+              const cz = Math.max(wMinZ, Math.min(z, wMaxZ));
+              const dx = x - cx, dz = z - cz;
+              if (dx * dx + dz * dz < r * r) return false;
+          }
+      }
+  }
+  return true;
+}
+
+// ==================== 怪物与获胜逻辑 ====================
+function updateMonsters(dt) {
+  const playerPos = camera.position;
+  const monsterSpeed = 3.2 * CONFIG.speed * 0.5 * dt;
+
+  for (const [id, monster] of monsters) {
+      const dx = playerPos.x - monster.x;
+      const dz = playerPos.z - monster.z;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+
+      if (dist < 0.7) {
+          gameOver(false);
+          return;
+      }
+
+      if (dist > 0.1) {
+          const mx = (dx / dist) * monsterSpeed;
+          const mz = (dz / dist) * monsterSpeed;
+          const newX = monster.x + mx;
+          const newZ = monster.z + mz;
+
+          if (canMoveTo(newX, newZ, 0.25)) {
+              monster.x = newX;
+              monster.z = newZ;
+              monster.mesh.position.set(newX, CONFIG.cameraHeight, newZ);
+          }
+      }
+  }
+}
+
+function checkWin() {
+  const cs = CONFIG.cellSize;
+  for (const [key, cell] of activeCells) {
+      if (cell.hasManhole && cell.mesh) {
+          const [gx, gz] = key.split(',').map(Number);
+          const mx = gx * cs;
+          const mz = gz * cs;
+          const dx = camera.position.x - mx;
+          const dz = camera.position.z - mz;
+          if (dx * dx + dz * dz < 0.6 * 0.6) {
+              gameOver(true);
+              return;
+          }
+      }
+  }
+}
+
+function gameOver(win) {
+  appState = 'result';
+  moveAudioEl.pause();
+  wasMoving = false;
+  bgmVideo.pause();
+  resultText.textContent = win ? '你成功逃脱了后室！' : '你被怪物抓住了...';
+  resultText.style.color = win ? '#0f0' : '#f00';
+  resultScreen.style.display = 'flex';
+}
+
+// ==================== 输入控制 ====================
+let joystickTouchId = null;
+
+joystickEl.addEventListener('touchstart', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  const touch = e.changedTouches[0];
+  joystickTouchId = touch.identifier;
+  const rect = joystickEl.getBoundingClientRect();
+  joystick.active = true;
+  joystick.originX = rect.left + rect.width / 2;
+  joystick.originY = rect.top + rect.height / 2;
+  updateJoystick(touch.clientX, touch.clientY);
+}, {passive: false});
+
+joystickEl.addEventListener('touchmove', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  for (let t of e.changedTouches) {
+      if (t.identifier === joystickTouchId) {
+          updateJoystick(t.clientX, t.clientY);
+          break;
+      }
+  }
+}, {passive: false});
+
+joystickEl.addEventListener('touchend', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  for (let t of e.changedTouches) {
+      if (t.identifier === joystickTouchId) {
+          joystick.active = false; joystickTouchId = null;
+          joystick.dx = 0; joystick.dy = 0;
+          knobEl.style.transform = 'translate(0px, 0px)';
+          break;
+      }
+  }
+}, {passive: false});
+
+function updateJoystick(x, y) {
+  let dx = x - joystick.originX;
+  let dy = y - joystick.originY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist > joystick.maxR) { const s = joystick.maxR / dist; dx *= s; dy *= s; }
+  joystick.dx = dx / joystick.maxR;
+  joystick.dy = dy / joystick.maxR;
+  knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+}
+
+backBtn.addEventListener('touchstart', (e) => { e.preventDefault(); stopGame(); }, {passive: false});
+backBtn.addEventListener('mousedown', (e) => { if (e.button === 0) stopGame(); });
+
+let lookTouchId = null;
+document.addEventListener('touchstart', (e) => {
+  if (appState !== 'game') return;
+  for (let t of e.changedTouches) {
+      if (t.clientX > window.innerWidth * 0.5 && lookTouchId === null) {
+          lookTouchId = t.identifier;
+          lookInput.active = true;
+          lookInput.lastX = t.clientX;
+          lookInput.lastY = t.clientY;
+      }
+  }
+}, {passive: false});
+
+document.addEventListener('touchmove', (e) => {
+  if (appState !== 'game' || !lookInput.active) return;
+  for (let t of e.changedTouches) {
+      if (t.identifier === lookTouchId) {
+          e.preventDefault();
+          const dx = t.clientX - lookInput.lastX;
+          const dy = t.clientY - lookInput.lastY;
+          const sens = CONFIG.sens * 0.0025;
+          camera.rotation.y -= dx * sens;
+          camera.rotation.x -= dy * sens;
+          camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+          lookInput.lastX = t.clientX;
+          lookInput.lastY = t.clientY;
+          break;
+      }
+  }
+}, {passive: false});
+
+document.addEventListener('touchend', (e) => {
+  for (let t of e.changedTouches) {
+      if (t.identifier === lookTouchId) { lookInput.active = false; lookTouchId = null; break; }
+  }
+});
+
+let mouseLook = false;
+document.addEventListener('mousedown', (e) => {
+  if (appState !== 'game') return;
+  if (e.clientX > window.innerWidth * 0.5 && e.button === 0) {
+      mouseLook = true;
+      lookInput.lastX = e.clientX;
+      lookInput.lastY = e.clientY;
+  }
+});
+document.addEventListener('mousemove', (e) => {
+  if (appState !== 'game' || !mouseLook) return;
+  const dx = e.clientX - lookInput.lastX;
+  const dy = e.clientY - lookInput.lastY;
+  const sens = CONFIG.sens * 0.0025;
+  camera.rotation.y -= dx * sens;
+  camera.rotation.x -= dy * sens;
+  camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+  lookInput.lastX = e.clientX;
+  lookInput.lastY = e.clientY;
+});
+document.addEventListener('mouseup', () => { mouseLook = false; });
+
+document.addEventListener('keydown', (e) => { if (appState === 'game') pressedKeys.add(e.code); });
+document.addEventListener('keyup', (e) => { pressedKeys.delete(e.code); });
+
+function updateKeyboardMovement(dt) {
+  if (appState !== 'game') return;
+  const speed = 3.2 * CONFIG.speed * dt;
+  const forward = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+  forward.y = 0; forward.normalize();
+  const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+  right.y = 0; right.normalize();
+
+  let mx = 0, mz = 0;
+  if (pressedKeys.has('KeyW')) { mx += forward.x; mz += forward.z; }
+  if (pressedKeys.has('KeyS')) { mx -= forward.x; mz -= forward.z; }
+  if (pressedKeys.has('KeyD')) { mx += right.x; mz += right.z; }
+  if (pressedKeys.has('KeyA')) { mx -= right.x; mz -= right.z; }
+
+  if (mx !== 0 || mz !== 0) {
+      const len = Math.sqrt(mx*mx + mz*mz);
+      mx /= len; mz /= len;
+      const newX = camera.position.x + mx * speed;
+      const newZ = camera.position.z + mz * speed;
+      if (canMoveTo(newX, camera.position.z)) camera.position.x = newX;
+      if (canMoveTo(camera.position.x, newZ)) camera.position.z = newZ;
+  }
+}
+
+// ==================== 游戏循环 ====================
+function updateFPS() {
+  if (!CONFIG.showFps) { fpsDisplay.style.display = 'none'; return; }
+  fpsDisplay.style.display = 'block';
+  fpsFrameCount++;
+  const now = performance.now();
+  if (now - fpsLastTime >= 1000) {
+      fpsDisplay.textContent = Math.round(fpsFrameCount * 1000 / (now - fpsLastTime)) + ' FPS';
+      fpsFrameCount = 0; fpsLastTime = now;
+  }
+}
+
+function update(dt) {
+  updateKeyboardMovement(dt);
+  let isMoving = false;
+  
+  if (joystick.active && (joystick.dx !== 0 || joystick.dy !== 0)) {
+      isMoving = true;
+      const speed = 3.2 * CONFIG.speed * dt;
+      const forward = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+      forward.y = 0; forward.normalize();
+      const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+      right.y = 0; right.normalize();
+      const moveX = (forward.x * -joystick.dy + right.x * joystick.dx) * speed;
+      const moveZ = (forward.z * -joystick.dy + right.z * joystick.dx) * speed;
+      const newX = camera.position.x + moveX;
+      const newZ = camera.position.z + moveZ;
+      if (canMoveTo(newX, camera.position.z)) camera.position.x = newX;
+      if (canMoveTo(camera.position.x, newZ)) camera.position.z = newZ;
+  }
+  
+  if (pressedKeys.has('KeyW') || pressedKeys.has('KeyS') || pressedKeys.has('KeyA') || pressedKeys.has('KeyD')) {
+      isMoving = true;
+  }
+  
+  if (isMoving && appState === 'game') {
+      if (!wasMoving) {
+          moveAudioEl.play().catch(() => {});
+          wasMoving = true;
+      }
+  } else {
+      if (wasMoving) {
+          moveAudioEl.pause();
+          wasMoving = false;
+      }
+  }
+  
+  if (appState === 'game') {
+      updateWorld();
+      updateMonsters(dt);
+      checkWin();
+  }
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.15);
+
+  if (appState === 'menu') {
+      if (camera) {
+          camera.rotation.y += 0.12 * dt;
+          renderer.render(scene, camera);
+      }
+  } else if (appState === 'game') {
+      update(dt);
+      updateFPS();
+      renderer.render(scene, camera);
+  } else if (appState === 'result') {
+      if (camera) renderer.render(scene, camera);
+  }
+}
+
+// ==================== 游戏状态 ====================
+function startGame() {
+  if (!texturesLoaded) return;
+  
+  if (!audioContext) {
+      try {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioContext.createMediaElementSource(moveAudioEl);
+          moveAudioGain = audioContext.createGain();
+          moveAudioGain.gain.value = 2.0;
+          source.connect(moveAudioGain);
+          moveAudioGain.connect(audioContext.destination);
+      } catch(e) {}
+  }
+  if (audioContext && audioContext.state === 'suspended') {
+      audioContext.resume();
+  }
+  
+  menu.style.display = 'none';
+  gameUI.style.display = 'block';
+  joystickEl.style.display = 'block';
+  backBtn.style.display = 'flex';
+  resultScreen.style.display = 'none';
+  appState = 'game';
+
+  clearWorld();
+  buildBaseScene();
+  updateWorld();
+  
+  scene.background = new THREE.Color(0x000000);
+  scene.fog = new THREE.FogExp2(0x000000, 0.05);
+
+  // iOS 要求：在用户交互内解锁视频元素，取消静音并预播放一次，后续动画循环中才能正常控制
+  moveAudioEl.muted = false;
+  moveAudioEl.play().then(() => {
+      moveAudioEl.pause();
+      moveAudioEl.currentTime = 0;
+  }).catch(() => {});
+  
+  bgmVideo.muted = false;
+  bgmVideo.currentTime = 0;
+  bgmVideo.volume = 1.0;
+  bgmVideo.play().catch(() => {});
+}
+
+function stopGame() {
+  appState = 'menu';
+  menu.style.display = 'flex';
+  gameUI.style.display = 'none';
+  joystickEl.style.display = 'none';
+  backBtn.style.display = 'none';
+  fpsDisplay.style.display = 'none';
+  resultScreen.style.display = 'none';
+  bgmVideo.pause();
+  moveAudioEl.pause();
+  wasMoving = false;
+  
+  clearWorld();
+  
+  scene.background = null;
+  scene.fog = null;
+
+  const cs = CONFIG.cellSize;
+  const ms = CONFIG.mazeSize;
+  camera.position.set(Math.floor(ms / 2) * cs, CONFIG.cameraHeight, Math.floor(ms / 2) * cs);
+  camera.rotation.set(0, 0, 0);
+  
+  buildBaseScene();
+  updateWorld();
+}
+
+document.getElementById('btnStart').addEventListener('click', startGame);
+document.getElementById('btnStart').addEventListener('touchstart', (e) => { e.preventDefault(); startGame(); }, {passive: false});
+
+btnResultBack.addEventListener('click', stopGame);
+btnResultBack.addEventListener('touchstart', (e) => { e.preventDefault(); stopGame(); }, {passive: false});
+
+// ==================== 启动 ====================
+window.addEventListener('load', () => {
+  initThree();
+  Promise.all([
+      loadTexture('wall', 'https://smallkun0.github.io/Grass/Backrooms/Wall.jpg'),
+      loadTexture('floor', 'https://smallkun0.github.io/Grass/Backrooms/Floor.jpg'),
+      loadTexture('ceil', 'https://smallkun0.github.io/Grass/Backrooms/TopFloor.jpg'),
+      loadTexture('arrow', 'https://smallkun0.github.io/Grass/Backrooms/Arrow.jpg'),
+      loadTexture('smiler', 'https://smallkun0.github.io/Grass/Backrooms/Smiler.png')
+  ]).then(() => {
+      texturesLoaded = true;
+      initSharedResources();
+      const cs = CONFIG.cellSize;
+      const ms = CONFIG.mazeSize;
+      camera.position.set(Math.floor(ms / 2) * cs, CONFIG.cameraHeight, Math.floor(ms / 2) * cs);
+      camera.rotation.set(0, 0, 0);
+      buildBaseScene();
+      updateWorld();
+      clock.start();
+      animate();
+      document.getElementById('loadingText').style.display = 'none';
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+ <title>管道噩梦</title>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+ <style>
+   * { margin: 0; padding: 0; box-sizing: border-box; }
+   html, body { width: 100%; height: 100%; overflow: hidden; background: #000; font-family: 'Microsoft YaHei', sans-serif; }
+   #game-container { width: 100%; height: 100%; position: relative; }
+
+   #main-menu { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10; }
+   #main-menu h1 { font-size: 64px; color: #cc0000; text-shadow: 0 0 20px #ff0000; margin-bottom: 40px; letter-spacing: 8px; }
+   #start-btn { padding: 16px 48px; font-size: 24px; background: #cc0000; color: #fff; border: none; border-radius: 4px; cursor: pointer; transition: transform 0.2s; }
+   #start-btn:hover { transform: scale(1.05); background: #ff0000; }
+   #studio-text { position: absolute; bottom: 24px; right: 24px; font-size: 18px; color: #888; }
+
+   #hud { position: absolute; inset: 0; pointer-events: none; display: none; z-index: 5; }
+   #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 24px; color: rgba(255,255,255,0.6); }
+
+   #mobile-controls { display: none; position: absolute; bottom: 0; left: 0; width: 100%; height: 250px; pointer-events: none; z-index: 6; }
+   .joystick-area { position: absolute; width: 140px; height: 140px; border-radius: 50%; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.3); pointer-events: auto; }
+   #move-joystick { left: 30px; bottom: 30px; }
+   .joystick-knob { position: absolute; top: 50%; left: 50%; width: 50px; height: 50px; border-radius: 50%; background: rgba(200,200,200,0.4); transform: translate(-50%,-50%); pointer-events: none; }
+
+   #studio-logo {
+     position: absolute;
+     top: 20px;
+     left: 20px;
+     font-size: 22px;
+     font-weight: bold;
+     pointer-events: none;
+     background: linear-gradient(90deg, #ff0000, #ff8800, #ffff00, #00ff00, #0088ff, #8800ff, #ff0000);
+     background-size: 200% auto;
+     -webkit-background-clip: text;
+     -webkit-text-fill-color: transparent;
+     background-clip: text;
+     animation: gradientShift 3s linear infinite;
+     filter: drop-shadow(0 0 4px rgba(255,100,100,0.3));
+   }
+   @keyframes gradientShift {
+     0% { background-position: 0% center; }
+     100% { background-position: 200% center; }
+   }
+
+   #controls-hint {
+     position: absolute;
+     top: 20px;
+     right: 20px;
+     color: rgba(255,255,255,0.85);
+     font-size: 13px;
+     text-align: right;
+     line-height: 1.9;
+     pointer-events: none;
+     background: rgba(0,0,0,0.4);
+     padding: 10px 14px;
+     border-radius: 8px;
+     border: 1px solid rgba(255,255,255,0.1);
+   }
+   #controls-hint span { display: block; }
+   #controls-hint .key { color: #ffcc66; font-weight: bold; }
+
+   #crouch-btn {
+     position: absolute;
+     right: 40px;
+     bottom: 40px;
+     width: 80px;
+     height: 80px;
+     border-radius: 50%;
+     background: rgba(255,255,255,0.15);
+     border: 2px solid rgba(255,255,255,0.3);
+     display: none;
+     align-items: center;
+     justify-content: center;
+     color: rgba(255,255,255,0.9);
+     font-size: 14px;
+     pointer-events: auto;
+     user-select: none;
+     -webkit-user-select: none;
+     transition: background 0.15s;
+   }
+   #crouch-btn:active { background: rgba(255,255,255,0.35); }
+
+   #run-btn {
+     position: absolute;
+     right: 40px;
+     bottom: 140px;
+     width: 80px;
+     height: 80px;
+     border-radius: 50%;
+     background: rgba(255,200,50,0.15);
+     border: 2px solid rgba(255,200,50,0.3);
+     display: none;
+     align-items: center;
+     justify-content: center;
+     color: rgba(255,255,255,0.9);
+     font-size: 14px;
+     pointer-events: auto;
+     user-select: none;
+     -webkit-user-select: none;
+     transition: background 0.15s;
+   }
+   #run-btn:active { background: rgba(255,200,50,0.4); }
+
+   #rear-view-border {
+     position: absolute;
+     top: 15px;
+     right: 15px;
+     width: 180px;
+     height: 180px;
+     border: 2px solid rgba(255,255,255,0.5);
+     border-radius: 8px;
+     pointer-events: none;
+     z-index: 7;
+     box-shadow: 0 0 12px rgba(0,0,0,0.6);
+     display: none;
+   }
+   #rear-label {
+     position: absolute;
+     top: 18px;
+     right: 18px;
+     color: rgba(255,255,255,0.7);
+     font-size: 11px;
+     pointer-events: none;
+     z-index: 8;
+     display: none;
+     background: rgba(0,0,0,0.5);
+     padding: 2px 6px;
+     border-radius: 4px;
+   }
+
+   .end-screen {
+     position: absolute; inset: 0; display: none; flex-direction: column;
+     align-items: center; justify-content: center; z-index: 20; background: rgba(0,0,0,0.92);
+     pointer-events: auto;
+   }
+   .end-screen h1 { font-size: 56px; margin-bottom: 30px; letter-spacing: 6px; }
+   .end-screen button {
+     padding: 14px 40px; font-size: 20px; background: #cc0000; color: #fff;
+     border: none; border-radius: 4px; cursor: pointer; transition: transform 0.2s;
+     pointer-events: auto; position: relative; z-index: 21;
+   }
+   .end-screen button:hover { transform: scale(1.05); background: #ff0000; }
+   #fail-screen h1 { color: #cc0000; text-shadow: 0 0 20px #ff0000; }
+   #escape-screen h1 { color: #00cc44; text-shadow: 0 0 20px #00ff44; }
+   #escape-screen button { background: #008822; }
+   #escape-screen button:hover { background: #00aa33; }
+ </style>
+</head>
+<body>
+ <div id="game-container">
+   <div id="main-menu">
+     <h1>管道噩梦</h1>
+     <button id="start-btn">开始游戏</button>
+     <div id="studio-text">🏀坤坤工作室</div>
+   </div>
+
+   <div id="hud">
+     <div id="crosshair">+</div>
+     <div id="studio-logo">🏀坤坤工作室</div>
+     <div id="controls-hint">
+       <span><span class="key">W A S D</span> — 移动</span>
+       <span><span class="key">鼠标</span> — 控制视角</span>
+       <span><span class="key">按住 Ctrl</span> — 蹲下</span>
+       <span><span class="key">按住 Shift</span> — 奔跑</span>
+       <span><span class="key">ESC</span> — 释放鼠标</span>
+     </div>
+   </div>
+
+   <div id="mobile-controls">
+     <div id="move-joystick" class="joystick-area">
+       <div class="joystick-knob"></div>
+     </div>
+     <div id="run-btn">奔跑</div>
+     <div id="crouch-btn">蹲下</div>
+   </div>
+
+   <div id="rear-view-border"></div>
+   <div id="rear-label">后视</div>
+
+   <div id="fail-screen" class="end-screen">
+     <h1>你失败了</h1>
+     <button id="restart-fail" onclick="window.location.reload()">重新开始</button>
+   </div>
+   <div id="escape-screen" class="end-screen">
+     <h1>逃离成功</h1>
+     <button id="restart-escape" onclick="window.location.reload()">再次挑战</button>
+   </div>
+ </div>
+
+ <script>
+   const CONFIG = { nodeSize: 4, renderDistance: 2, playerSpeed: 2 };
+   let scene, camera, renderer, rearCamera, gameState = 'menu', pipeWorld, chunkManager, pipelineManager, monsterManager, exitManager, player, clock = new THREE.Clock();
+   let isMobile = false;
+   let bgAudio, moveAudio;
+   let bgAudioPlayed = false;
+
+   function createHiddenVideo(src, loop) {
+     let v = document.createElement('video');
+     v.src = src;
+     v.setAttribute('playsinline', '');
+     v.setAttribute('webkit-playsinline', '');
+     v.setAttribute('preload', 'auto');
+     v.loop = !!loop;
+     v.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1;';
+     document.body.appendChild(v);
+     return v;
+   }
+
+   bgAudio = createHiddenVideo('https://tymov2.a.kwimgs.com/upic/2025/11/23/15/BMjAyNTExMjMxNTM4MDRfMjUxOTk0MTMxMV8xODA2MTY4MDk1ODZfMl8z_b_B5d63f7a76958f8bdad8e8719e02a5638.mp4?clientCacheKey=3xyikr2sgfz2mcs_b.mp4&tt=b&di=b65c5032&bp=10000', false);
+   moveAudio = createHiddenVideo('https://hwmov.a.yximgs.com/upic/2024/03/23/14/BMjAyNDAzMjMxNDU0MjhfMjQxMzUzMzU3N18xMjc5ODk1NDA5MjlfMV8z_b_B928566b45cd64ed2e4fc9ac2d03d0896.mp4?clientCacheKey=3xnkkadzdbfu6pa_b.mp4&tt=b&di=b65c40d2&bp=10000', true);
+
+   function tryPlayBg() {
+     if (bgAudioPlayed) return;
+     bgAudio.play().then(() => { bgAudioPlayed = true; }).catch(() => {});
+   }
+   setTimeout(tryPlayBg, 100);
+   document.addEventListener('click', tryPlayBg, { once: true });
+   document.addEventListener('touchstart', tryPlayBg, { once: true });
+
+   class PipeWorld {
+     constructor() {
+       this.nodes = new Map();
+       this.expanded = new Set();
+       this.generatePath(0, 0, 200);
+     }
+     hash(n) { let x = n; x = ((x>>16)^x)*0x45d9f3b; x = ((x>>16)^x)*0x45d9f3b; x = (x>>16)^x; return Math.abs(x); }
+     generatePath(sgx, sgz, len) {
+       let gx = sgx, gz = sgz, pd = null;
+       if (!this.nodes.has(`${gx},${gz}`)) this.nodes.set(`${gx},${gz}`, {gx, gz, connections: []});
+       for (let i = 0; i < len; i++) {
+         let dirs = ['N','S','E','W'];
+         if (pd) dirs = dirs.filter(d => d !== {N:'S',S:'N',E:'W',W:'E'}[pd]);
+         let dir = dirs[this.hash(gx*10000 + gz + i*12345) % dirs.length];
+         let ngx = gx, ngz = gz;
+         if (dir === 'N') ngz++; else if (dir === 'S') ngz--; else if (dir === 'E') ngx++; else if (dir === 'W') ngx--;
+         let k = `${ngx},${ngz}`;
+         if (!this.nodes.has(k)) this.nodes.set(k, {gx: ngx, gz: ngz, connections: []});
+         let c = this.nodes.get(`${gx},${gz}`), n = this.nodes.get(k);
+         if (!c.connections.includes(dir)) c.connections.push(dir);
+         let od = {N:'S',S:'N',E:'W',W:'E'}[dir];
+         if (!n.connections.includes(od)) n.connections.push(od);
+         gx = ngx; gz = ngz; pd = dir;
+       }
+     }
+     update(px, pz) {
+       let gx = Math.floor(px / CONFIG.nodeSize);
+       let gz = Math.floor(pz / CONFIG.nodeSize);
+       let key = `${gx},${gz}`;
+       if (this.nodes.has(key) && !this.expanded.has(key)) {
+         this.expanded.add(key);
+         this.extendFrom(gx, gz, 40);
+       }
+     }
+     extendFrom(sgx, sgz, steps) {
+       let gx = sgx, gz = sgz;
+       let node = this.nodes.get(`${gx},${gz}`);
+       let pd = null;
+       if (node && node.connections.length > 0) {
+         pd = {N:'S',S:'N',E:'W',W:'E'}[node.connections[0]];
+       }
+       for (let i = 0; i < steps; i++) {
+         let dirs = ['N','S','E','W'];
+         if (pd) dirs = dirs.filter(d => d !== pd);
+         let dir = dirs[this.hash(gx*10000 + gz + i*77777) % dirs.length];
+         let ngx = gx, ngz = gz;
+         if (dir === 'N') ngz++; else if (dir === 'S') ngz--; else if (dir === 'E') ngx++; else if (dir === 'W') ngx--;
+         let k = `${ngx},${ngz}`;
+         if (!this.nodes.has(k)) {
+           this.nodes.set(k, {gx: ngx, gz: ngz, connections: []});
+           let c = this.nodes.get(`${gx},${gz}`), n = this.nodes.get(k);
+           if (!c.connections.includes(dir)) c.connections.push(dir);
+           let od = {N:'S',S:'N',E:'W',W:'E'}[dir];
+           if (!n.connections.includes(od)) n.connections.push(od);
+         }
+         gx = ngx; gz = ngz; pd = {N:'S',S:'N',E:'W',W:'E'}[dir];
+       }
+     }
+     isWall(x, y, z) {
+       let gx = Math.floor(x/CONFIG.nodeSize), gz = Math.floor(z/CONFIG.nodeSize);
+       let node = this.nodes.get(`${gx},${gz}`);
+       if (!node) return true;
+       let lx = Math.floor(x) - gx*CONFIG.nodeSize, lz = Math.floor(z) - gz*CONFIG.nodeSize, ly = Math.floor(y);
+       if (ly < -1 || ly > 2) return false;
+       if (lx >= 1 && lx <= 2 && lz >= 1 && lz <= 2 && ly >= 0 && ly <= 1) return false;
+       if (lx === 0 && node.connections.includes('W') && lz >= 1 && lz <= 2 && ly >= 0 && ly <= 1) return false;
+       if (lx === 3 && node.connections.includes('E') && lz >= 1 && lz <= 2 && ly >= 0 && ly <= 1) return false;
+       if (lz === 0 && node.connections.includes('S') && lx >= 1 && lx <= 2 && ly >= 0 && ly <= 1) return false;
+       if (lz === 3 && node.connections.includes('N') && lx >= 1 && lx <= 2 && ly >= 0 && ly <= 1) return false;
+       return true;
+     }
+     getWallPositions(gx, gz) {
+       let res = [], node = this.nodes.get(`${gx},${gz}`);
+       if (!node) return res;
+       for (let x = 0; x < 4; x++) for (let z = 0; z < 4; z++) for (let y = -1; y <= 2; y++) {
+         let lx = x, lz = z, ly = y;
+         if (lx >= 1 && lx <= 2 && lz >= 1 && lz <= 2 && ly >= 0 && ly <= 1) continue;
+         if (lx === 0 && node.connections.includes('W') && lz >= 1 && lz <= 2 && ly >= 0 && ly <= 1) continue;
+         if (lx === 3 && node.connections.includes('E') && lz >= 1 && lz <= 2 && ly >= 0 && ly <= 1) continue;
+         if (lz === 0 && node.connections.includes('S') && lx >= 1 && lx <= 2 && ly >= 0 && ly <= 1) continue;
+         if (lz === 3 && node.connections.includes('N') && lx >= 1 && lx <= 2 && ly >= 0 && ly <= 1) continue;
+         res.push({x: gx*4+x, y, z: gz*4+z});
+       }
+       return res;
+     }
+   }
+
+   class PipelineManager {
+     constructor(world) {
+       this.world = world;
+       this.pipes = [];
+       let geo = new THREE.CylinderGeometry(0.12, 0.12, 1, 10);
+       let tex = new THREE.TextureLoader().load('https://smallkun0.github.io/Grass/Level%201/Pipeline.jpg');
+       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+       tex.repeat.set(1, 2);
+       let mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, metalness: 0.3 });
+       let pipeNodes = [];
+       for (let [key, node] of world.nodes) {
+         if (node.gx === 0 && node.gz === 0) continue;
+         if (world.hash(node.gx * 997 + node.gz * 1009) % 4 !== 0) pipeNodes.push(node);
+       }
+       let maxCount = pipeNodes.length;
+       this.mesh = new THREE.InstancedMesh(geo, mat, maxCount);
+       this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+       let dummy = new THREE.Object3D();
+       let up = new THREE.Vector3(0, 1, 0);
+       let idx = 0;
+       for (let node of pipeNodes) {
+         let cx = node.gx * 4 + 2;
+         let cz = node.gz * 4 + 2;
+         let start = new THREE.Vector3(cx + 1.05, 3.15, cz + 1.05);
+         let end = new THREE.Vector3(cx - 1.05, -0.3, cz - 1.05);
+         let mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+         let dir = new THREE.Vector3().subVectors(end, start).normalize();
+         let length = start.distanceTo(end);
+         dummy.position.copy(mid);
+         let axis = new THREE.Vector3().crossVectors(up, dir).normalize();
+         let angle = Math.acos(Math.max(-1, Math.min(1, up.dot(dir))));
+         dummy.quaternion.setFromAxisAngle(axis, angle);
+         dummy.scale.set(1, length, 1);
+         dummy.updateMatrix();
+         this.mesh.setMatrixAt(idx++, dummy.matrix);
+         this.pipes.push({ x: cx, z: cz });
+       }
+       this.mesh.count = idx;
+       scene.add(this.mesh);
+     }
+     checkCollision(x, y, z) {
+       if (y <= 0.85) return false;
+       for (let pipe of this.pipes) {
+         let dx = x - pipe.x, dz = z - pipe.z;
+         if (dx * dx + dz * dz < 0.35 * 0.35) return true;
+       }
+       return false;
+     }
+   }
+
+   class MonsterManager {
+     constructor(world) {
+       this.world = world;
+       this.monsters = [];
+       this.spawnTimer = 0;
+       this.maxMonsters = 3;
+       let tex = new THREE.TextureLoader().load('https://smallkun0.github.io/Grass/Backrooms/Smiler.png');
+       this.material = new THREE.SpriteMaterial({ map: tex, transparent: true });
+     }
+     update(dt, px, pz) {
+       this.spawnTimer += dt;
+       if (this.spawnTimer >= 10) {
+         this.spawnTimer = 0;
+         this.trySpawn(px, pz);
+       }
+       for (let i = this.monsters.length - 1; i >= 0; i--) {
+         let m = this.monsters[i];
+         let dx = px - m.x, dz = pz - m.z;
+         let dist = Math.sqrt(dx*dx + dz*dz);
+         if (dist < 8 && dist > 0.4) {
+           let speed = 1.8;
+           let nx = m.x + (dx/dist) * speed * dt;
+           let nz = m.z + (dz/dist) * speed * dt;
+           if (!this.isBlocked(nx, nz)) {
+             m.x = nx; m.z = nz;
+           }
+           m.mesh.position.set(m.x, 0.5, m.z);
+         }
+         if (dist < 0.5) {
+           showFailScreen();
+           return;
+         }
+       }
+     }
+     isBlocked(x, z) {
+       let r = 0.25;
+       return this.world.isWall(Math.floor(x-r), 0, Math.floor(z-r)) ||
+              this.world.isWall(Math.floor(x+r), 0, Math.floor(z-r)) ||
+              this.world.isWall(Math.floor(x-r), 0, Math.floor(z+r)) ||
+              this.world.isWall(Math.floor(x+r), 0, Math.floor(z+r)) ||
+              this.world.isWall(Math.floor(x-r), 1, Math.floor(z-r)) ||
+              this.world.isWall(Math.floor(x+r), 1, Math.floor(z-r)) ||
+              this.world.isWall(Math.floor(x-r), 1, Math.floor(z+r)) ||
+              this.world.isWall(Math.floor(x+r), 1, Math.floor(z+r));
+     }
+     trySpawn(px, pz) {
+       let pgx = Math.floor(px/CONFIG.nodeSize), pgz = Math.floor(pz/CONFIG.nodeSize);
+       let candidates = [];
+       for (let dx = -CONFIG.renderDistance; dx <= CONFIG.renderDistance; dx++) {
+         for (let dz = -CONFIG.renderDistance; dz <= CONFIG.renderDistance; dz++) {
+           let gx = pgx+dx, gz = pgz+dz;
+           if (this.world.nodes.has(`${gx},${gz}`) && Math.random() < 0.02) {
+             candidates.push({gx, gz});
+           }
+         }
+       }
+       if (candidates.length === 0) return;
+       let c = candidates[Math.floor(Math.random() * candidates.length)];
+       if (this.monsters.length >= this.maxMonsters) {
+         let old = this.monsters.shift();
+         scene.remove(old.mesh);
+       }
+       let x = c.gx * 4 + 2, z = c.gz * 4 + 2;
+       let sprite = new THREE.Sprite(this.material);
+       sprite.scale.set(1.5, 1.5, 1.5);
+       sprite.position.set(x, 0.5, z);
+       scene.add(sprite);
+       this.monsters.push({gx: c.gx, gz: c.gz, x, z, mesh: sprite});
+     }
+   }
+
+   class ExitManager {
+     constructor(world) {
+       this.world = world;
+       this.exits = [];
+       let canvas = document.createElement('canvas');
+       canvas.width = 256; canvas.height = 256;
+       let ctx = canvas.getContext('2d');
+       ctx.fillStyle = '#333';
+       ctx.fillRect(0, 0, 256, 256);
+       ctx.strokeStyle = '#555';
+       ctx.lineWidth = 4;
+       ctx.beginPath(); ctx.arc(128, 128, 110, 0, Math.PI*2); ctx.stroke();
+       ctx.beginPath(); ctx.arc(128, 128, 85, 0, Math.PI*2); ctx.stroke();
+       ctx.beginPath(); ctx.arc(128, 128, 60, 0, Math.PI*2); ctx.stroke();
+       for (let i = 0; i < 12; i++) {
+         let a = (i/12)*Math.PI*2;
+         ctx.beginPath();
+         ctx.moveTo(128+Math.cos(a)*60, 128+Math.sin(a)*60);
+         ctx.lineTo(128+Math.cos(a)*110, 128+Math.sin(a)*110);
+         ctx.stroke();
+       }
+       ctx.fillStyle = '#222';
+       for (let i = 0; i < 6; i++) {
+         let a = (i/6)*Math.PI*2 + Math.PI/12;
+         ctx.beginPath(); ctx.arc(128+Math.cos(a)*72, 128+Math.sin(a)*72, 6, 0, Math.PI*2); ctx.fill();
+       }
+       let tex = new THREE.CanvasTexture(canvas);
+       let mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 });
+       let geo = new THREE.CylinderGeometry(0.9, 0.9, 0.15, 32);
+       for (let [key, node] of world.nodes) {
+         if (Math.random() < 0.005) {
+           let x = node.gx * 4 + 2, z = node.gz * 4 + 2;
+           let mesh = new THREE.Mesh(geo, mat);
+           mesh.position.set(x, 0.075, z);
+           scene.add(mesh);
+           this.exits.push({x, z, mesh});
+         }
+       }
+     }
+     checkCollision(px, pz) {
+       for (let e of this.exits) {
+         let dx = px - e.x, dz = pz - e.z;
+         if (dx*dx + dz*dz < 0.7*0.7) return true;
+       }
+       return false;
+     }
+   }
+
+   class ChunkManager {
+     constructor(world) {
+       this.world = world;
+       this.dummy = new THREE.Object3D();
+       let geo = new THREE.BoxGeometry(1,1,1);
+       let tex = new THREE.TextureLoader().load('https://smallkun0.github.io/Grass/Level%201/Wall.jpg');
+       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+       let mat = new THREE.MeshStandardMaterial({map: tex});
+       this.mesh = new THREE.InstancedMesh(geo, mat, 12000);
+       this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+       scene.add(this.mesh);
+     }
+     update(px, pz) {
+       let pgx = Math.floor(px/CONFIG.nodeSize), pgz = Math.floor(pz/CONFIG.nodeSize);
+       let idx = 0;
+       for (let dx = -CONFIG.renderDistance; dx <= CONFIG.renderDistance; dx++) {
+         for (let dz = -CONFIG.renderDistance; dz <= CONFIG.renderDistance; dz++) {
+           let gx = pgx+dx, gz = pgz+dz;
+           let walls = this.world.getWallPositions(gx, gz);
+           for (let w of walls) {
+             this.dummy.position.set(w.x+0.5, w.y+0.5, w.z+0.5);
+             this.dummy.updateMatrix();
+             this.mesh.setMatrixAt(idx++, this.dummy.matrix);
+           }
+         }
+       }
+       this.mesh.count = idx;
+       this.mesh.instanceMatrix.needsUpdate = true;
+     }
+   }
+
+   class PlayerController {
+     constructor() {
+       this.keys = {};
+       this.joystick = {x:0, y:0, active:false};
+       this.yaw = 0;
+       this.pitch = 0;
+       this.standHeight = 1.5;
+       this.crouchHeight = 0.75;
+       this.crouching = false;
+       this.running = false;
+       this.setupKeyboard();
+       this.setupMouse();
+       this.setupMobile();
+     }
+     setupKeyboard() {
+       document.addEventListener('keydown', e => {
+         this.keys[e.key.toLowerCase()] = true;
+         if (e.key === 'Control') { if (!this.running) this.crouching = true; }
+         if (e.key === 'Shift') { this.running = true; this.crouching = false; }
+         if (e.key === 'Escape' && document.pointerLockElement) document.exitPointerLock();
+       });
+       document.addEventListener('keyup', e => {
+         this.keys[e.key.toLowerCase()] = false;
+         if (e.key === 'Control') this.crouching = false;
+         if (e.key === 'Shift') this.running = false;
+       });
+     }
+     setupMouse() {
+       let canvas = document.querySelector('canvas');
+       canvas.addEventListener('click', () => { if (!isMobile && gameState === 'playing') canvas.requestPointerLock(); });
+       document.addEventListener('mousemove', e => {
+         if (document.pointerLockElement === canvas && gameState === 'playing') {
+           this.yaw -= e.movementX * 0.0026;
+           this.pitch -= e.movementY * 0.0026;
+           this.pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.pitch));
+           this.updateCameraQuaternion();
+         }
+       });
+     }
+     setupMobile() {
+       isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+       if (isMobile) {
+         document.getElementById('mobile-controls').style.display = 'block';
+         document.getElementById('crouch-btn').style.display = 'flex';
+         document.getElementById('run-btn').style.display = 'flex';
+       }
+       let moveJoy = document.getElementById('move-joystick'), knob = moveJoy.querySelector('.joystick-knob');
+       let crouchBtn = document.getElementById('crouch-btn');
+       let runBtn = document.getElementById('run-btn');
+       let joyTouchId = null, lookTouchId = null, crouchTouchId = null, runTouchId = null;
+       let lookStart = null;
+       let updateJoy = (t) => {
+         let r = moveJoy.getBoundingClientRect(), cx = r.left+r.width/2, cy = r.top+r.height/2;
+         let dx = t.clientX-cx, dy = t.clientY-cy, dist = Math.sqrt(dx*dx+dy*dy), max = 40;
+         if (dist > max) { dx = (dx/dist)*max; dy = (dy/dist)*max; }
+         knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+         this.joystick.x = dx/max; this.joystick.y = dy/max;
+       };
+       document.addEventListener('touchstart', e => {
+         if (!isMobile || gameState !== 'playing') return;
+         for (let i = 0; i < e.changedTouches.length; i++) {
+           let t = e.changedTouches[i];
+           let jr = moveJoy.getBoundingClientRect();
+           let cr = crouchBtn.getBoundingClientRect();
+           let rr = runBtn.getBoundingClientRect();
+           if (t.clientX >= jr.left && t.clientX <= jr.right && t.clientY >= jr.top && t.clientY <= jr.bottom) {
+             if (joyTouchId === null) { joyTouchId = t.identifier; this.joystick.active = true; updateJoy(t); }
+           } else if (t.clientX >= cr.left && t.clientX <= cr.right && t.clientY >= cr.top && t.clientY <= cr.bottom) {
+             if (crouchTouchId === null) { crouchTouchId = t.identifier; if (!this.running) this.crouching = true; }
+           } else if (t.clientX >= rr.left && t.clientX <= rr.right && t.clientY >= rr.top && t.clientY <= rr.bottom) {
+             if (runTouchId === null) { runTouchId = t.identifier; this.running = true; this.crouching = false; }
+           } else if (lookTouchId === null) {
+             lookTouchId = t.identifier; lookStart = {x: t.clientX, y: t.clientY};
+           }
+         }
+       }, {passive: false});
+       document.addEventListener('touchmove', e => {
+         if (!isMobile || gameState !== 'playing') return;
+         e.preventDefault();
+         for (let i = 0; i < e.changedTouches.length; i++) {
+           let t = e.changedTouches[i];
+           if (t.identifier === joyTouchId) { updateJoy(t); }
+           else if (t.identifier === lookTouchId && lookStart) {
+             let dx = t.clientX - lookStart.x, dy = t.clientY - lookStart.y;
+             this.yaw -= dx * 0.0065;
+             this.pitch -= dy * 0.0065;
+             this.pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.pitch));
+             this.updateCameraQuaternion();
+             lookStart = {x: t.clientX, y: t.clientY};
+           }
+         }
+       }, {passive: false});
+       document.addEventListener('touchend', e => {
+         if (!isMobile || gameState !== 'playing') return;
+         for (let i = 0; i < e.changedTouches.length; i++) {
+           let t = e.changedTouches[i];
+           if (t.identifier === joyTouchId) {
+             joyTouchId = null; this.joystick.active = false; this.joystick.x = this.joystick.y = 0;
+             knob.style.transform = 'translate(-50%,-50%)';
+           } else if (t.identifier === lookTouchId) {
+             lookTouchId = null; lookStart = null;
+           } else if (t.identifier === crouchTouchId) {
+             crouchTouchId = null; this.crouching = false;
+           } else if (t.identifier === runTouchId) {
+             runTouchId = null; this.running = false;
+           }
+         }
+       }, {passive: false});
+     }
+     updateCameraQuaternion() {
+       let euler = new THREE.Euler(this.pitch, this.yaw, 0, 'YXZ');
+       camera.quaternion.setFromEuler(euler);
+     }
+     update(dt) {
+       if (gameState !== 'playing') return;
+       let targetHeight = this.crouching ? this.crouchHeight : this.standHeight;
+       camera.position.y += (targetHeight - camera.position.y) * Math.min(dt * 12, 1);
+       let mx = 0, mz = 0;
+       if (this.keys['w']) mz -= 1; if (this.keys['s']) mz += 1; if (this.keys['a']) mx -= 1; if (this.keys['d']) mx += 1;
+       if (this.joystick.active) {
+         mx += this.joystick.x;
+         mz += -this.joystick.y;
+       }
+       let len = Math.sqrt(mx*mx+mz*mz);
+       if (len > 1) { mx /= len; mz /= len; }
+       let speed = CONFIG.playerSpeed * (this.running ? 3 : 1);
+       let forward = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+       forward.y = 0; forward.normalize();
+       let right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+       right.y = 0; right.normalize();
+       let vx = (forward.x*mz + right.x*mx)*speed;
+       let vz = (forward.z*mz + right.z*mx)*speed;
+       let nx = camera.position.x + vx*dt;
+       let nz = camera.position.z + vz*dt;
+       if (!this.checkCollision(nx, camera.position.y, camera.position.z) && !pipelineManager.checkCollision(nx, camera.position.y, camera.position.z)) camera.position.x = nx;
+       if (!this.checkCollision(camera.position.x, camera.position.y, nz) && !pipelineManager.checkCollision(camera.position.x, camera.position.y, nz)) camera.position.z = nz;
+
+       let isMoving = Math.abs(mx) > 0.01 || Math.abs(mz) > 0.01;
+       if (isMoving) {
+         moveAudio.playbackRate = this.running ? 2.0 : 1.0;
+         if (moveAudio.paused) moveAudio.play().catch(()=>{});
+       } else {
+         if (!moveAudio.paused) moveAudio.pause();
+       }
+     }
+     checkCollision(x, y, z) {
+       let r = 0.3;
+       return pipeWorld.isWall(Math.floor(x-r), Math.floor(y), Math.floor(z-r)) || pipeWorld.isWall(Math.floor(x+r), Math.floor(y), Math.floor(z-r)) ||
+              pipeWorld.isWall(Math.floor(x-r), Math.floor(y), Math.floor(z+r)) || pipeWorld.isWall(Math.floor(x+r), Math.floor(y), Math.floor(z+r));
+     }
+   }
+
+   function init() {
+     scene = new THREE.Scene();
+     scene.fog = new THREE.Fog(0x000000, 8, 25);
+     camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100);
+     rearCamera = new THREE.PerspectiveCamera(75, 1, 0.1, 100);
+     renderer = new THREE.WebGLRenderer({antialias: true});
+     renderer.setSize(window.innerWidth, window.innerHeight);
+     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+     document.getElementById('game-container').appendChild(renderer.domElement);
+     scene.add(new THREE.AmbientLight(0x404040, 0.5));
+     let torch = new THREE.PointLight(0xffaa55, 1, 12);
+     camera.add(torch);
+     scene.add(camera);
+     pipeWorld = new PipeWorld();
+     chunkManager = new ChunkManager(pipeWorld);
+     pipelineManager = new PipelineManager(pipeWorld);
+     monsterManager = new MonsterManager(pipeWorld);
+     exitManager = new ExitManager(pipeWorld);
+     player = new PlayerController();
+     document.getElementById('start-btn').addEventListener('click', startGame);
+     let restartFail = document.getElementById('restart-fail');
+     restartFail.addEventListener('click', () => location.reload());
+     restartFail.addEventListener('touchend', (e) => { e.preventDefault(); location.reload(); });
+     let restartEscape = document.getElementById('restart-escape');
+     restartEscape.addEventListener('click', () => location.reload());
+     restartEscape.addEventListener('touchend', (e) => { e.preventDefault(); location.reload(); });
+     window.addEventListener('resize', () => {
+       camera.aspect = window.innerWidth/window.innerHeight;
+       camera.updateProjectionMatrix();
+       renderer.setSize(window.innerWidth, window.innerHeight);
+     });
+     animate();
+   }
+
+   function startGame() {
+     gameState = 'playing';
+     document.getElementById('main-menu').style.display = 'none';
+     document.getElementById('hud').style.display = 'block';
+     document.getElementById('rear-view-border').style.display = 'block';
+     document.getElementById('rear-label').style.display = 'block';
+     camera.position.set(1.5, 1.5, 1.5);
+     player.yaw = 0; player.pitch = 0;
+     player.updateCameraQuaternion();
+     let sx = 1.5, sz = 1.5;
+     for (let i = exitManager.exits.length - 1; i >= 0; i--) {
+       let e = exitManager.exits[i];
+       let dx = e.x - sx, dz = e.z - sz;
+       if (dx*dx + dz*dz < 25) {
+         scene.remove(e.mesh);
+         exitManager.exits.splice(i, 1);
+       }
+     }
+   }
+
+   function showFailScreen() {
+     gameState = 'fail';
+     document.getElementById('fail-screen').style.display = 'flex';
+     if (document.pointerLockElement) document.exitPointerLock();
+   }
+   function showEscapeScreen() {
+     gameState = 'escape';
+     document.getElementById('escape-screen').style.display = 'flex';
+     if (document.pointerLockElement) document.exitPointerLock();
+   }
+
+   function animate() {
+     requestAnimationFrame(animate);
+     let dt = Math.min(clock.getDelta(), 0.1);
+     if (gameState === 'menu') {
+       camera.position.set(1.5, 1.5, 1.5);
+       player.yaw += 0.005;
+       player.pitch = 0;
+       player.updateCameraQuaternion();
+       chunkManager.update(1.5, 1.5);
+       renderWithRearView();
+     } else if (gameState === 'playing') {
+       player.update(dt);
+       pipeWorld.update(camera.position.x, camera.position.z);
+       chunkManager.update(camera.position.x, camera.position.z);
+       monsterManager.update(dt, camera.position.x, camera.position.z);
+       if (exitManager.checkCollision(camera.position.x, camera.position.z)) {
+         showEscapeScreen();
+       }
+       renderWithRearView();
+     }
+   }
+
+   function renderWithRearView() {
+     let w = window.innerWidth, h = window.innerHeight;
+     renderer.setViewport(0, 0, w, h);
+     renderer.setScissorTest(false);
+     renderer.render(scene, camera);
+     let rw = Math.min(w * 0.22, 200);
+     let rh = rw;
+     let rx = w - rw - 15;
+     let ry = h - rh - 15;
+     renderer.setScissorTest(true);
+     renderer.setScissor(rx, ry, rw, rh);
+     renderer.setViewport(rx, ry, rw, rh);
+     rearCamera.position.copy(camera.position);
+     rearCamera.quaternion.copy(camera.quaternion);
+     rearCamera.rotateY(Math.PI);
+     renderer.render(scene, rearCamera);
+     renderer.setScissorTest(false);
+   }
+
+   init();
+ </script>
+</body>
+</html>
