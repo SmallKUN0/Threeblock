@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Level 14</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            touch-action: none;
+            background: #000;
+        }
+
+        #appContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            transform-origin: center center;
+            transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            background: #000;
+            z-index: 1;
+        }
+        #appContainer.portrait {
+            width: 100vh;
+            height: 100vw;
+            transform: rotate(90deg);
+            transform-origin: center center;
+            margin-left: calc((100vw - 100vh) / 2);
+            margin-top: calc((100vh - 100vw) / 2);
+        }
+        #appContainer>* {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #appContainer>audio {
+            display: none;
+            width: 0;
+            height: 0;
+        }
+        #appContainer.portrait #menu .menu-btn {
+            width: 160px;
+            height: 52px;
+            font-size: 18px;
+        }
+        #appContainer.portrait #menu .menu-btn-sm {
+            width: 140px;
+            height: 42px;
+            font-size: 15px;
+        }
+        #appContainer.portrait #menu>div:first-child {
+            font-size: 28px;
+            letter-spacing: 6px;
+        }
+
+        #menu {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 40px;
+            position: absolute;
+            z-index: 100;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.75);
+        }
+        .menu-btn {
+            width: 260px;
+            height: 80px;
+            border: 5px solid rgba(255, 255, 255, .9);
+            background: rgba(0, 0, 0, .45);
+            color: #fff;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .15s;
+            letter-spacing: 4px;
+            pointer-events: auto;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, .8);
+            flex-direction: column;
+            line-height: 1.2;
+            padding: 6px 12px;
+            border-radius: 4px;
+        }
+        .menu-btn:active {
+            background: rgba(0, 0, 0, .7);
+            transform: scale(.96);
+        }
+        .menu-btn-sm {
+            width: 200px;
+            height: 56px;
+            font-size: 20px;
+            border-width: 3px;
+            letter-spacing: 2px;
+            margin-top: -4px;
+        }
+
+        #gameUI {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 50;
+            pointer-events: none;
+        }
+        #gameUI>* {
+            pointer-events: auto;
+        }
+
+        #joystick {
+            position: absolute;
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            display: none;
+            touch-action: none;
+            left: 3%;
+            bottom: 10%;
+            width: 260px;
+            height: 260px;
+            max-width: 40vw;
+            max-height: 40vw;
+        }
+        #joystick-knob {
+            position: absolute;
+            width: 42%;
+            height: 42%;
+            background: rgba(255, 255, 255, 0.65);
+            border-radius: 50%;
+            left: 29%;
+            top: 29%;
+            pointer-events: none;
+        }
+
+        #backBtn {
+            position: absolute;
+            left: 5%;
+            top: 5%;
+            width: 110px;
+            height: 68px;
+            border: 2px solid rgba(255, 255, 255, .8);
+            background: rgba(0, 0, 0, .55);
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            z-index: 52;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 24px;
+            height: 24px;
+            pointer-events: none;
+            z-index: 55;
+            opacity: .85;
+        }
+        #crosshair-v {
+            position: absolute;
+            top: 0;
+            left: 11px;
+            width: 2px;
+            height: 24px;
+            background: #fff;
+        }
+        #crosshair-h {
+            position: absolute;
+            top: 11px;
+            left: 0;
+            width: 24px;
+            height: 2px;
+            background: #fff;
+        }
+        #crosshair-c {
+            position: absolute;
+            top: 11px;
+            left: 11px;
+            width: 2px;
+            height: 2px;
+            background: #fff;
+        }
+
+        #fpsDisplay {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #0f0;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: monospace;
+            text-shadow: 0 0 4px #000;
+            display: none;
+            pointer-events: none;
+            z-index: 60;
+        }
+
+        #resultScreen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, .9);
+            z-index: 200;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+            pointer-events: none;
+        }
+        #resultText {
+            font-size: 46px;
+            font-weight: bold;
+            color: #fff;
+            letter-spacing: 8px;
+            text-shadow: 0 2px 16px rgba(0, 0, 0, .9);
+        }
+
+        #redFilter {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 0, 0, 0);
+            pointer-events: none;
+            z-index: 70;
+            transition: background .2s;
+        }
+        #blurFilter {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            backdrop-filter: blur(0px);
+            pointer-events: none;
+            z-index: 71;
+            opacity: 0;
+        }
+        #blackFilter {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, transparent 20%, black 90%);
+            pointer-events: none;
+            z-index: 80;
+            opacity: 0;
+            transition: opacity .5s;
+        }
+
+        /* ===== 癫痫警告提示层 ===== */
+        #epilepsyWarning {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 300;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 25px;
+            cursor: pointer;
+        }
+        #epilepsyWarning .epilepsy-title {
+            font-size: 42px;
+            font-weight: bold;
+            color: #ff2222;
+            letter-spacing: 6px;
+            text-shadow: 0 2px 10px rgba(255, 0, 0, 0.5);
+        }
+        #epilepsyWarning .epilepsy-text {
+            font-size: 20px;
+            line-height: 1.6;
+            color: #ffffff;
+            max-width: 80%;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 600px) {
+            .menu-btn {
+                width: 200px;
+                height: 64px;
+                font-size: 22px;
+            }
+            .menu-btn-sm {
+                width: 160px;
+                height: 48px;
+                font-size: 17px;
+            }
+            #joystick {
+                width: 200px;
+                height: 200px;
+                left: 2%;
+                bottom: 8%;
+            }
+            #appContainer.portrait #menu .menu-btn {
+                width: 160px;
+                height: 52px;
+                font-size: 18px;
+            }
+            #appContainer.portrait #menu .menu-btn-sm {
+                width: 140px;
+                height: 42px;
+                font-size: 15px;
+            }
+            #epilepsyWarning .epilepsy-title {
+                font-size: 32px;
+            }
+            #epilepsyWarning .epilepsy-text {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="appContainer">
+
+        <div id="menu">
+            <div style="position:absolute;top:40px;left:50%;transform:translateX(-50%);font-size:48px;font-weight:bold;color:#fff;letter-spacing:12px;text-shadow:0 2px 12px rgba(0,0,0,.9);">血色天堂</div>
+            <div class="menu-btn" id="btnStart">开始游戏</div>
+            <!-- 翻转屏幕按钮 -->
+            <div class="menu-btn menu-btn-sm" id="btnFlipScreen">翻转屏幕</div>
+            <div id="loadingText" style="font-size:18px;color:#fff;opacity:.85;text-shadow:0 1px 4px rgba(0,0,0,.8);letter-spacing:2px;margin-top:-24px;">正在生成中，可能需要等待十几秒时间</div>
+            <div style="position:absolute;bottom:16px;right:20px;font-size:13px;color:#fff;font-weight:bold;letter-spacing:1px;opacity:.7;text-shadow:0 1px 4px rgba(0,0,0,.8);">🏀坤坤工作室&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;版本号：1.1</div>
+        </div>
+
+        <!-- 背景音乐 -->
+        <audio id="bgmAudio" loop playsinline webkit-playsinline crossorigin="anonymous" style="display:none;">
+            <source src="https://tymov2.a.kwimgs.com/upic/2025/12/10/12/BMjAyNTEyMTAxMjE4MzBfMTQ1NTExMjIxNF8xODE5NjUxMzQ1OTRfMl8z_b_B2546aab1f3a535cd76552e2caa4fae12.mp4?clientCacheKey=3xyfnt8adav7mim_b.mp4&tt=b&di=65c885fb&bp=10000" type="audio/mp4">
+        </audio>
+
+        <div id="gameUI">
+            <div id="joystick"><div id="joystick-knob"></div></div>
+            <div id="backBtn">返回主菜单</div>
+            <div id="crosshair"><div id="crosshair-v"></div><div id="crosshair-h"></div><div id="crosshair-c"></div></div>
+            <div id="fpsDisplay">0 FPS</div>
+        </div>
+
+        <div id="resultScreen">
+            <div id="resultText"></div>
+            <div class="menu-btn" id="btnResultBack" style="pointer-events:auto;width:220px;height:70px;font-size:24px;">返回主菜单</div>
+        </div>
+
+        <!-- 理智特效层 -->
+        <div id="redFilter"></div>
+        <div id="blurFilter"></div>
+        <div id="blackFilter"></div>
+
+        <!-- 光敏性癫痫提示 -->
+        <div id="epilepsyWarning">
+            <div class="epilepsy-title">光敏性癫痫提示</div>
+            <div class="epilepsy-text">
+                某些人存在遇到特定的频闪、图像或光影时可能会癫痫发作。<br>
+                即使他们没有癫痫病史或癫痫发作史<br>
+                点击任意位置代表你已完整阅读并进入游戏
+            </div>
+        </div>
+
+        <div id="canvas-container"></div>
+
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
+    </script>
+    <script>
+        // ==================== 硬编码配置 ====================
+        const CONFIG = {
+            cellSize: 2.2,
+            cameraHeight: 1.6,
+            fov: 75,
+            sens: 1.3,
+            speed: 2.0,
+            playerSpeed: 1.0,
+            viewRadius: 4.62,
+            mazeRenderRadius: 9.24,
+            showFps: false,
+            bigChunkSize: 10
+        };
+
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (isMobile) {
+            CONFIG.sens *= 1.8;
+        }
+
+        // ==================== 噪声地形函数 ====================
+        function lerp(a, b, t) { return a + (b - a) * t; }
+
+        function hash2D(x, z) { let n = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return n - Math.floor(n); }
+
+        function smoothNoise(x, z) {
+            const ix = Math.floor(x),
+                iz = Math.floor(z);
+            const fx = x - ix,
+                fz = z - iz;
+            const u = fx * fx * (3 - 2 * fx);
+            const v = fz * fz * (3 - 2 * fz);
+            const a = hash2D(ix, iz),
+                b = hash2D(ix + 1, iz);
+            const c = hash2D(ix, iz + 1),
+                d = hash2D(ix + 1, iz + 1);
+            return lerp(lerp(a, b, u), lerp(c, d, u), v);
+        }
+
+        function fbm(x, z) {
+            let sum = 0,
+                amp = 1,
+                freq = 0.06;
+            for (let i = 0; i < 4; i++) {
+                sum += smoothNoise(x * freq, z * freq) * amp;
+                amp *= 0.5;
+                freq *= 2;
+            }
+            return sum;
+        }
+
+        function groundHeight(x, z) { return (fbm(x * 0.5, z * 0.5) - 0.5) * 3.0; }
+
+        // ==================== 核心变量 ====================
+        let scene, camera, renderer;
+        let appState = 'menu';
+        let clock = new THREE.Clock();
+        let fpsFrameCount = 0,
+            fpsLastTime = 0;
+        let joystick = { active: false, dx: 0, dy: 0, originX: 0, originY: 0, maxR: 43 };
+        let lookInput = { active: false, lastX: 0, lastY: 0 };
+        let pressedKeys = new Set();
+        let walkTime = 0;
+        let timeSinceLastSpawn = 0;
+        let nextSpawnDelay = 15 + Math.random() * 8;
+        let sanity = 3;
+        let withering = false;
+        let witherTimer = 0;
+        let fovBase = 75;
+        let eyeTreeDistress = 0;
+        let eyeTreeTimer = 0;
+
+        const menu = document.getElementById('menu');
+        const gameUI = document.getElementById('gameUI');
+        const fpsDisplay = document.getElementById('fpsDisplay');
+        const joystickEl = document.getElementById('joystick');
+        const knobEl = document.getElementById('joystick-knob');
+        const backBtn = document.getElementById('backBtn');
+        const resultScreen = document.getElementById('resultScreen');
+        const resultText = document.getElementById('resultText');
+        const btnResultBack = document.getElementById('btnResultBack');
+        const bgmAudio = document.getElementById('bgmAudio');
+        const redFilter = document.getElementById('redFilter');
+        const blurFilter = document.getElementById('blurFilter');
+        const blackFilter = document.getElementById('blackFilter');
+        const appContainer = document.getElementById('appContainer');
+        const btnFlipScreen = document.getElementById('btnFlipScreen');
+        const epilepsyWarning = document.getElementById('epilepsyWarning');
+
+        // ★ 翻转状态
+        let isPortrait = false;
+
+        const activeCells = new Map();
+        const activeChunks = new Map();
+        let monsters = new Map();
+        let fallingLeaves = [];
+        let trunkGeo = null;
+        let branchGeo = null;
+        let trunkMat = null;
+        let trunkMatEyeTree = null;
+        let branchMat = null;
+        let leafGeo = null;
+        let leafMat = null;
+        let exitTreeMat = null;
+        let sharedFloorMat = null;
+        let texturesLoaded = false;
+
+        // ==================== 纹理加载 ====================
+        const textures = {};
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.setCrossOrigin('anonymous');
+
+        function loadTexture(name, url) {
+            return new Promise((resolve) => {
+                textureLoader.load(url, (tex) => {
+                    tex.wrapS = THREE.RepeatWrapping;
+                    tex.wrapT = THREE.RepeatWrapping;
+                    tex.generateMipmaps = true;
+                    tex.minFilter = THREE.LinearMipmapLinearFilter;
+                    tex.magFilter = THREE.LinearFilter;
+                    textures[name] = tex;
+                    resolve();
+                }, undefined, () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 64;
+                    canvas.height = 64;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#e6c840';
+                    ctx.fillRect(0, 0, 64, 64);
+                    const fallback = new THREE.CanvasTexture(canvas);
+                    fallback.wrapS = THREE.RepeatWrapping;
+                    fallback.wrapT = THREE.RepeatWrapping;
+                    fallback.generateMipmaps = true;
+                    fallback.minFilter = THREE.LinearMipmapLinearFilter;
+                    textures[name] = fallback;
+                    resolve();
+                });
+            });
+        }
+
+        // ==================== 初始化 Three.js ====================
+        function initThree() {
+            if (renderer) return;
+            scene = new THREE.Scene();
+            scene.background = null;
+
+            camera = new THREE.PerspectiveCamera(CONFIG.fov, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, CONFIG.cameraHeight, 0);
+            camera.rotation.order = 'YXZ';
+
+            renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            window.addEventListener('resize', () => {
+                resizeRenderer();
+            });
+        }
+
+        function resizeRenderer() {
+            const container = document.getElementById('canvas-container');
+            if (!container) return;
+            const w = container.clientWidth || window.innerWidth;
+            const h = container.clientHeight || window.innerHeight;
+            if (w === 0 || h === 0) return;
+            renderer.setSize(w, h);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+        }
+
+        // ==================== 共享资源 ====================
+        function initSharedResources() {
+            const cs = CONFIG.cellSize;
+            sharedFloorMat = new THREE.MeshBasicMaterial({ map: textures.floor, color: 0xffffff });
+            textures.floor.repeat.set(CONFIG.bigChunkSize, CONFIG.bigChunkSize);
+
+            trunkGeo = new THREE.CylinderGeometry(0.1, 0.15, 9, 6);
+            trunkMat = new THREE.MeshBasicMaterial({ map: textures.tree });
+            trunkMat.map.repeat.set(1, 9);
+            trunkMatEyeTree = new THREE.MeshBasicMaterial({ map: textures.eyeTree });
+            trunkMatEyeTree.map.repeat.set(1, 9);
+
+            branchGeo = new THREE.CylinderGeometry(0.04, 0.07, 2.4, 4);
+            branchMat = new THREE.MeshBasicMaterial({ map: textures.tree });
+
+            leafGeo = new THREE.PlaneGeometry(0.6, 0.4);
+            leafMat = new THREE.MeshBasicMaterial({ map: textures.leaf, side: THREE.DoubleSide, transparent: true });
+
+            exitTreeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        }
+
+        // ==================== 树木创建 ====================
+        function createTree(x, z, isEyeTree = false) {
+            const group = new THREE.Group();
+            const gh = groundHeight(x, z);
+
+            const trunk = new THREE.Mesh(trunkGeo, isEyeTree ? trunkMatEyeTree : trunkMat);
+            trunk.position.y = 4.5;
+            group.add(trunk);
+
+            const branchCount = 2;
+            const branchLen = 2.4;
+            for (let i = 0; i < branchCount; i++) {
+                const angle = (i / branchCount) * Math.PI * 2 + Math.random() * 0.6;
+                const tilt = Math.PI / 2.5 + Math.random() * 0.5;
+                const dirX = Math.cos(angle) * Math.sin(tilt);
+                const dirY = Math.cos(tilt);
+                const dirZ = Math.sin(angle) * Math.sin(tilt);
+                const baseY = 3 + Math.random() * 3;
+                const centerX = dirX * branchLen / 2;
+                const centerY = baseY + dirY * branchLen / 2;
+                const centerZ = dirZ * branchLen / 2;
+                const branch = new THREE.Mesh(branchGeo, branchMat);
+                branch.position.set(centerX, centerY, centerZ);
+                const quat = new THREE.Quaternion();
+                quat.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dirX, dirY, dirZ));
+                branch.quaternion.copy(quat);
+                group.add(branch);
+
+                const endX = dirX * branchLen,
+                    endY = baseY + dirY * branchLen,
+                    endZ = dirZ * branchLen;
+                const smallBranchCount = 3 + Math.floor(Math.random() * 3);
+                for (let j = 0; j < smallBranchCount; j++) {
+                    const smallBranch = new THREE.Mesh(branchGeo, branchMat);
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.random() * Math.PI * 0.6 + 0.2;
+                    const sDirX = Math.sin(phi) * Math.cos(theta),
+                        sDirY = Math.cos(phi),
+                        sDirZ = Math.sin(phi) * Math.sin(theta);
+                    const smallLen = 0.5 + Math.random() * 0.9;
+                    const sCenterX = endX + sDirX * smallLen / 2,
+                        sCenterY = endY + sDirY * smallLen / 2,
+                        sCenterZ = endZ + sDirZ * smallLen / 2;
+                    smallBranch.position.set(sCenterX, sCenterY, sCenterZ);
+                    const sQuat = new THREE.Quaternion();
+                    sQuat.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(sDirX, sDirY, sDirZ));
+                    smallBranch.quaternion.copy(sQuat);
+                    smallBranch.scale.y = smallLen / 2.4;
+                    group.add(smallBranch);
+
+                    if (Math.random() < 0.6) {
+                        const leafCount = 1 + Math.floor(Math.random() * 3);
+                        for (let l = 0; l < leafCount; l++) {
+                            const leaf = new THREE.Mesh(leafGeo, leafMat);
+                            leaf.position.set(
+                                sCenterX + sDirX * smallLen / 2 + (Math.random() - 0.5) * 0.3,
+                                sCenterY + sDirY * smallLen / 2 + (Math.random() - 0.5) * 0.3,
+                                sCenterZ + sDirZ * smallLen / 2 + (Math.random() - 0.5) * 0.3
+                            );
+                            leaf.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                            group.add(leaf);
+                        }
+                    }
+                }
+            }
+            group.position.set(x, gh, z);
+            return group;
+        }
+
+        function createExitTree(x, z) {
+            const group = new THREE.Group();
+            const gh = groundHeight(x, z);
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, 9, 6), exitTreeMat);
+            trunk.position.y = 4.5;
+            group.add(trunk);
+            const branch1 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.07, 2.4, 4), exitTreeMat);
+            branch1.position.set(0.8, 5.5, 0.6);
+            branch1.rotation.z = Math.PI / 3;
+            group.add(branch1);
+            const branch2 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.07, 2.4, 4), exitTreeMat);
+            branch2.position.set(-0.5, 6, -0.7);
+            branch2.rotation.x = Math.PI / 2.5;
+            group.add(branch2);
+            const branch3 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.07, 1.8, 4), exitTreeMat);
+            branch3.position.set(0, 7.2, 0);
+            branch3.rotation.y = Math.PI / 4;
+            group.add(branch3);
+
+            group.position.set(x, gh, z);
+            return group;
+        }
+
+        // ==================== 落叶粒子 ====================
+        function spawnFallingLeaves(dt) {
+            const px = camera.position.x,
+                pz = camera.position.z;
+            const r = 4 * CONFIG.cellSize;
+            if (Math.random() < dt * 3) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = Math.random() * r;
+                const leaf = new THREE.Mesh(leafGeo, leafMat);
+                leaf.position.set(px + Math.cos(angle) * dist, 5, pz + Math.sin(angle) * dist);
+                leaf.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                fallingLeaves.push({ mesh: leaf, velocityX: (Math.random() - 0.5) * 0.5, velocityY: -0.5 - Math
+                    .random() * 0.8, velocityZ: 0 });
+                scene.add(leaf);
+            }
+            for (let i = fallingLeaves.length - 1; i >= 0; i--) {
+                const leaf = fallingLeaves[i];
+                leaf.mesh.position.x += leaf.velocityX * dt;
+                leaf.mesh.position.y += leaf.velocityY * dt;
+                leaf.mesh.rotation.y += dt * 2;
+                const gh = groundHeight(leaf.mesh.position.x, leaf.mesh.position.z);
+                if (leaf.mesh.position.y < gh + 0.1 || Math.sqrt((leaf.mesh.position.x - px) ** 2 + (leaf.mesh.position
+                        .z - pz) ** 2) > r * 1.2) {
+                    scene.remove(leaf.mesh);
+                    fallingLeaves.splice(i, 1);
+                }
+            }
+        }
+
+        // ==================== 无限地图 ====================
+        function updateWorld() {
+            if (!texturesLoaded || !sharedFloorMat) return;
+
+            const cs = CONFIG.cellSize;
+            const pgx = Math.floor(camera.position.x / cs);
+            const pgz = Math.floor(camera.position.z / cs);
+            const R = CONFIG.mazeRenderRadius;
+            const needed = new Set();
+
+            const CHUNK_SIZE = CONFIG.bigChunkSize;
+            const CHUNK_WORLD_SIZE = CHUNK_SIZE * cs;
+            const chunkX = Math.floor(pgx / CHUNK_SIZE);
+            const chunkZ = Math.floor(pgz / CHUNK_SIZE);
+            const chunkRadius = Math.ceil(R / CHUNK_SIZE) + 1;
+            const neededChunks = new Set();
+            for (let dx = -chunkRadius; dx <= chunkRadius; dx++) {
+                for (let dz = -chunkRadius; dz <= chunkRadius; dz++) {
+                    neededChunks.add(`${chunkX + dx},${chunkZ + dz}`);
+                }
+            }
+
+            for (const [key, chunk] of activeChunks) {
+                if (!neededChunks.has(key)) {
+                    scene.remove(chunk.mesh);
+                    activeChunks.delete(key);
+                }
+            }
+
+            for (const key of neededChunks) {
+                if (activeChunks.has(key)) continue;
+                const [cx, cz] = key.split(',').map(Number);
+                const originX = cx * CHUNK_WORLD_SIZE;
+                const originZ = cz * CHUNK_WORLD_SIZE;
+
+                const segs = CHUNK_SIZE;
+                const geo = new THREE.PlaneGeometry(CHUNK_WORLD_SIZE, CHUNK_WORLD_SIZE, segs, segs);
+                geo.rotateX(-Math.PI / 2);
+                const pos = geo.attributes.position;
+                for (let i = 0; i < pos.count; i++) {
+                    const localX = pos.getX(i);
+                    const localZ = pos.getZ(i);
+                    const worldX = originX + localX + CHUNK_WORLD_SIZE / 2;
+                    const worldZ = originZ + localZ + CHUNK_WORLD_SIZE / 2;
+                    pos.setY(i, groundHeight(worldX, worldZ));
+                }
+                geo.computeVertexNormals();
+
+                const mesh = new THREE.Mesh(geo, sharedFloorMat);
+                mesh.position.set(originX + CHUNK_WORLD_SIZE / 2, 0, originZ + CHUNK_WORLD_SIZE / 2);
+                scene.add(mesh);
+                activeChunks.set(key, { mesh });
+            }
+
+            for (let dz = -R; dz <= R; dz++) {
+                for (let dx = -R; dx <= R; dx++) {
+                    if (dx * dx + dz * dz > R * R) continue;
+                    const gx = pgx + dx,
+                        gz = pgz + dz;
+                    needed.add(`${gx},${gz}`);
+                }
+            }
+
+            for (const [key, cell] of activeCells) {
+                if (!needed.has(key)) {
+                    if (cell.mesh) scene.remove(cell.mesh);
+                    activeCells.delete(key);
+                }
+            }
+
+            const monsterMaxDist = R * cs;
+            for (const [id, monster] of monsters) {
+                const mdx = monster.x - camera.position.x;
+                const mdz = monster.z - camera.position.z;
+                if (mdx * mdx + mdz * mdz > monsterMaxDist * monsterMaxDist) {
+                    scene.remove(monster.mesh);
+                    monsters.delete(id);
+                }
+            }
+
+            for (const key of needed) {
+                if (activeCells.has(key)) continue;
+                const [gx, gz] = key.split(',').map(Number);
+
+                const roll = Math.random();
+                let mesh = null;
+                let hasMonster = false,
+                    hasTree = false,
+                    isEyeTree = false,
+                    hasExitTree = false;
+
+                if (roll < 0.0007) {
+                    hasExitTree = true;
+                    mesh = createExitTree(gx * cs, gz * cs);
+                    scene.add(mesh);
+                } else if (roll < 0.008) {
+                    hasMonster = true;
+                    const type = Math.random() < 0.4 ? 'smiler' : 'eye';
+                    const monsterTex = type === 'smiler' ? textures.smiler : textures.eye;
+                    const spriteMat = new THREE.SpriteMaterial({
+                        map: monsterTex,
+                        transparent: true,
+                        alphaTest: 0.5,
+                        depthWrite: false,
+                        side: THREE.DoubleSide
+                    });
+                    const sprite = new THREE.Sprite(spriteMat);
+                    const h = groundHeight(gx * cs, gz * cs);
+                    sprite.position.set(gx * cs, h + CONFIG.cameraHeight, gz * cs);
+                    const scaleX = type === 'eye' ? 1.7857 : 1.6;
+                    const scaleY = type === 'eye' ? 1.0 : 1.6;
+                    sprite.scale.set(scaleX, scaleY, 1);
+                    scene.add(sprite);
+                    monsters.set(`m_${gx}_${gz}_${Date.now()}_${Math.floor(Math.random()*10000)}`, {
+                        mesh: sprite,
+                        x: gx * cs,
+                        z: gz * cs,
+                        isStatic: true,
+                        type: type,
+                        withering: false,
+                        redPhase: 0,
+                        stateTimer: 0
+                    });
+                } else if (roll < 0.708) {
+                    hasTree = true;
+                    isEyeTree = Math.random() < 0.03;
+                    const treeX = gx * cs + (Math.random() - 0.5) * cs * 0.7;
+                    const treeZ = gz * cs + (Math.random() - 0.5) * cs * 0.7;
+                    mesh = createTree(treeX, treeZ, isEyeTree);
+                    scene.add(mesh);
+                }
+
+                activeCells.set(key, { hasMonster, hasTree, isEyeTree, hasExitTree, mesh });
+            }
+        }
+
+        // ==================== 清除出生点附近树木 ====================
+        function clearSpawnAreaTrees() {
+            const cs = CONFIG.cellSize;
+            const spawnGX = Math.floor(camera.position.x / cs);
+            const spawnGZ = Math.floor(camera.position.z / cs);
+            const R = 3;
+            for (let dz = -R; dz <= R; dz++) {
+                for (let dx = -R; dx <= R; dx++) {
+                    const gx = spawnGX + dx,
+                        gz = spawnGZ + dz;
+                    const key = `${gx},${gz}`;
+                    if (activeCells.has(key)) {
+                        const cell = activeCells.get(key);
+                        if (cell.hasTree || cell.hasExitTree) {
+                            if (cell.mesh) {
+                                scene.remove(cell.mesh);
+                                cell.mesh = null;
+                            }
+                            cell.hasTree = false;
+                            cell.isEyeTree = false;
+                            cell.hasExitTree = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==================== 碰撞检测 ====================
+        function canMoveTo(x, z, currentX, currentZ, radius) {
+            const r = radius || 0.35;
+            const curX = (currentX !== undefined) ? currentX : camera.position.x;
+            const curZ = (currentZ !== undefined) ? currentZ : camera.position.z;
+            const currentH = groundHeight(curX, curZ);
+            const targetH = groundHeight(x, z);
+            if (Math.abs(targetH - currentH) > 0.8) return false;
+
+            for (const [key, cell] of activeCells) {
+                if (cell.hasTree && cell.mesh) {
+                    const treeX = cell.mesh.position.x;
+                    const treeZ = cell.mesh.position.z;
+                    const dx = x - treeX;
+                    const dz = z - treeZ;
+                    if (dx * dx + dz * dz < (r + 0.2) * (r + 0.2)) return false;
+                }
+            }
+            return true;
+        }
+
+        // ==================== 怪物更新 ====================
+        function updateMonsters(dt) {
+            const playerPos = camera.position;
+            const cs = CONFIG.cellSize;
+
+            for (const [id, monster] of monsters) {
+                const dx = playerPos.x - monster.x;
+                const dz = playerPos.z - monster.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+
+                if (monster.type === 'smiler') {
+                    if (dist < 0.8) { gameOver(false); return; }
+                } else if (monster.type === 'eye') {
+                    monster.mesh.lookAt(playerPos.x, playerPos.y, playerPos.z);
+
+                    monster.stateTimer += dt;
+                    if (monster.redPhase === 0 && monster.stateTimer >= 15) {
+                        monster.redPhase = 1;
+                        monster.stateTimer = 0;
+                    } else if (monster.redPhase === 1 && monster.stateTimer >= 10) {
+                        monster.redPhase = 2;
+                        monster.stateTimer = 0;
+                    } else if (monster.redPhase === 2 && monster.stateTimer >= 2) {
+                        monster.redPhase = 0;
+                        monster.stateTimer = 0;
+                    }
+
+                    if (monster.redPhase === 1) {
+                        monster.mesh.material.color.setHex(0xff4444);
+                        monster.mesh.position.x = monster.x + (Math.random() - 0.5) * 0.05;
+                        monster.mesh.position.z = monster.z + (Math.random() - 0.5) * 0.05;
+                    } else {
+                        monster.mesh.material.color.setHex(0xffffff);
+                        monster.mesh.position.x = monster.x;
+                        monster.mesh.position.z = monster.z;
+                    }
+                    monster.mesh.position.y = groundHeight(monster.x, monster.z) + CONFIG.cameraHeight;
+
+                    if (dist < cs && monster.redPhase !== 1) {
+                        const fadeRate = 0.5 * dt;
+                        monster.mesh.material.opacity = Math.max(0, monster.mesh.material.opacity - fadeRate);
+                        if (monster.mesh.material.opacity <= 0.01) {
+                            scene.remove(monster.mesh);
+                            monsters.delete(id);
+                            loseSanity();
+                        }
+                    }
+                }
+                if (monster.withering && dist < 0.8) { gameOver(false); return; }
+            }
+        }
+
+        // 理智系统
+        function loseSanity() {
+            if (sanity > 0) {
+                sanity--;
+                updateSanityEffects();
+                if (sanity <= 0) { startWithering(); }
+            }
+        }
+
+        function updateSanityEffects() {
+            const redOpacity = (3 - sanity) / 3 * 0.6;
+            redFilter.style.background = `rgba(255,0,0,${redOpacity})`;
+            if (sanity === 1) { blurFilter.style.opacity = 0.4; } else { blurFilter.style.opacity = 0; }
+            const fovReduction = (3 - sanity) * 6;
+            camera.fov = fovBase - fovReduction;
+            camera.updateProjectionMatrix();
+        }
+
+        function startWithering() {
+            if (withering) return;
+            withering = true;
+            witherTimer = 0;
+            blackFilter.style.opacity = 0.2;
+            const cs = CONFIG.cellSize;
+            for (let dz = -2; dz <= 2; dz++) {
+                for (let dx = -2; dx <= 2; dx++) {
+                    if (dx === 0 && dz === 0) continue;
+                    const x = camera.position.x + dx * cs;
+                    const z = camera.position.z + dz * cs;
+                    const spriteMat = new THREE.SpriteMaterial({ map: textures.eye, transparent: true, alphaTest: 0.5 });
+                    const sprite = new THREE.Sprite(spriteMat);
+                    const h = groundHeight(x, z);
+                    sprite.position.set(x, h + CONFIG.cameraHeight, z);
+                    sprite.scale.set(1.7857, 1.0, 1);
+                    scene.add(sprite);
+                    monsters.set(`w_${Date.now()}_${Math.random()}`, { mesh: sprite, x, z, isStatic: true, type: 'eye',
+                        withering: true, redPhase: 0, stateTimer: 0 });
+                }
+            }
+        }
+
+        function updateWithering(dt) {
+            if (!withering) return;
+            witherTimer += dt;
+            blackFilter.style.opacity = Math.min(0.9, witherTimer / 2);
+            if (witherTimer >= 2.2) { gameOver(true, '你已腐败'); }
+        }
+
+        function gameOver(win, customText = null) {
+            appState = 'result';
+            resultText.textContent = customText ? customText : (win ? '你成功逃脱了后室！' : '你被怪物抓住了...');
+            resultText.style.color = win ? '#0f0' : '#f00';
+            resultScreen.style.display = 'flex';
+        }
+
+        // ==================== 基础场景 ====================
+        function buildBaseScene() {
+            const spawnX = 0,
+                spawnZ = 0;
+            camera.position.set(spawnX, groundHeight(spawnX, spawnZ) + CONFIG.cameraHeight, spawnZ);
+            camera.rotation.set(0, 0, 0);
+        }
+
+        function clearWorld() {
+            for (const [key, cell] of activeCells) {
+                if (cell.mesh) scene.remove(cell.mesh);
+            }
+            activeCells.clear();
+            for (const [id, monster] of monsters) {
+                scene.remove(monster.mesh);
+            }
+            monsters.clear();
+            for (const [key, chunk] of activeChunks) {
+                scene.remove(chunk.mesh);
+            }
+            activeChunks.clear();
+            for (const leaf of fallingLeaves) {
+                scene.remove(leaf.mesh);
+            }
+            fallingLeaves = [];
+        }
+
+        // ==================== 输入控制 ====================
+        let joystickTouchId = null;
+
+        joystickEl.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const touch = e.changedTouches[0];
+            joystickTouchId = touch.identifier;
+            const rect = joystickEl.getBoundingClientRect();
+            joystick.active = true;
+            joystick.originX = rect.left + rect.width / 2;
+            joystick.originY = rect.top + rect.height / 2;
+            updateJoystick(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        joystickEl.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            for (let t of e.changedTouches) {
+                if (t.identifier === joystickTouchId) { updateJoystick(t.clientX, t.clientY); break; }
+            }
+        }, { passive: false });
+
+        joystickEl.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            for (let t of e.changedTouches) {
+                if (t.identifier === joystickTouchId) {
+                    joystick.active = false;
+                    joystickTouchId = null;
+                    joystick.dx = 0;
+                    joystick.dy = 0;
+                    knobEl.style.transform = 'translate(0px, 0px)';
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        function updateJoystick(x, y) {
+            let dx = x - joystick.originX,
+                dy = y - joystick.originY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > joystick.maxR) { const s = joystick.maxR / dist;
+                dx *= s;
+                dy *= s; }
+            joystick.dx = dx / joystick.maxR;
+            joystick.dy = dy / joystick.maxR;
+            knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+        }
+
+        backBtn.addEventListener('touchstart', (e) => { e.preventDefault();
+            stopGame(); }, { passive: false });
+        backBtn.addEventListener('mousedown', (e) => { if (e.button === 0) stopGame(); });
+
+        let lookTouchId = null;
+        document.addEventListener('touchstart', (e) => {
+            if (appState !== 'game') return;
+            for (let t of e.changedTouches) {
+                if (t.clientX > window.innerWidth * 0.5 && lookTouchId === null) {
+                    lookTouchId = t.identifier;
+                    lookInput.active = true;
+                    lookInput.lastX = t.clientX;
+                    lookInput.lastY = t.clientY;
+                }
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchmove', (e) => {
+            if (appState !== 'game' || !lookInput.active) return;
+            for (let t of e.changedTouches) {
+                if (t.identifier === lookTouchId) {
+                    e.preventDefault();
+                    let dx = t.clientX - lookInput.lastX;
+                    let dy = t.clientY - lookInput.lastY;
+                    // ★ 竖屏模式下旋转视角增量
+                    if (isPortrait) {
+                        const temp = dx;
+                        dx = dy;
+                        dy = -temp;
+                    }
+                    const sens = CONFIG.sens * 0.0025;
+                    camera.rotation.y -= dx * sens;
+                    camera.rotation.x -= dy * sens;
+                    camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+                    lookInput.lastX = t.clientX;
+                    lookInput.lastY = t.clientY;
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchend', (e) => {
+            for (let t of e.changedTouches) {
+                if (t.identifier === lookTouchId) {
+                    lookInput.active = false;
+                    lookTouchId = null;
+                    break;
+                }
+            }
+        });
+
+        let mouseLook = false;
+        document.addEventListener('mousedown', (e) => {
+            if (appState !== 'game') return;
+            if (e.clientX > window.innerWidth * 0.5 && e.button === 0) {
+                mouseLook = true;
+                lookInput.lastX = e.clientX;
+                lookInput.lastY = e.clientY;
+            }
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (appState !== 'game' || !mouseLook) return;
+            let dx = e.clientX - lookInput.lastX;
+            let dy = e.clientY - lookInput.lastY;
+            // ★ 竖屏模式下旋转视角增量
+            if (isPortrait) {
+                const temp = dx;
+                dx = dy;
+                dy = -temp;
+            }
+            const sens = CONFIG.sens * 0.0025;
+            camera.rotation.y -= dx * sens;
+            camera.rotation.x -= dy * sens;
+            camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+            lookInput.lastX = e.clientX;
+            lookInput.lastY = e.clientY;
+        });
+        document.addEventListener('mouseup', () => { mouseLook = false; });
+
+        document.addEventListener('keydown', (e) => { if (appState === 'game') pressedKeys.add(e.code); });
+        document.addEventListener('keyup', (e) => { pressedKeys.delete(e.code); });
+
+        function updateKeyboardMovement(dt) {
+            if (appState !== 'game') return;
+            const speed = 3.2 * CONFIG.playerSpeed * dt;
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            forward.y = 0;
+            forward.normalize();
+            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            right.y = 0;
+            right.normalize();
+            let mx = 0,
+                mz = 0;
+            if (pressedKeys.has('KeyW')) { mx += forward.x;
+                mz += forward.z; }
+            if (pressedKeys.has('KeyS')) { mx -= forward.x;
+                mz -= forward.z; }
+            if (pressedKeys.has('KeyD')) { mx += right.x;
+                mz += right.z; }
+            if (pressedKeys.has('KeyA')) { mx -= right.x;
+                mz -= right.z; }
+            if (mx !== 0 || mz !== 0) {
+                const len = Math.sqrt(mx * mx + mz * mz);
+                mx /= len;
+                mz /= len;
+                const newX = camera.position.x + mx * speed;
+                const newZ = camera.position.z + mz * speed;
+                if (canMoveTo(newX, camera.position.z, camera.position.x, camera.position.z)) camera.position.x = newX;
+                if (canMoveTo(camera.position.x, newZ, camera.position.x, camera.position.z)) camera.position.z = newZ;
+            }
+        }
+
+        // ==================== 翻转屏幕 ====================
+        function toggleFlipScreen() {
+            isPortrait = !isPortrait;
+            appContainer.classList.toggle('portrait', isPortrait);
+            btnFlipScreen.textContent = isPortrait ? '横屏模式' : '翻转屏幕';
+            requestAnimationFrame(() => {
+                resizeRenderer();
+            });
+        }
+
+        btnFlipScreen.addEventListener('click', toggleFlipScreen);
+        btnFlipScreen.addEventListener('touchstart', (e) => { e.preventDefault();
+            toggleFlipScreen(); }, { passive: false });
+
+        // ==================== 癫痫警告弹窗 ====================
+        function showEpilepsyWarning() {
+            epilepsyWarning.style.display = 'flex';
+            let dismissed = false;
+
+            function dismissAndStart(e) {
+                if (dismissed) return;
+                dismissed = true;
+                e.preventDefault();
+                epilepsyWarning.style.display = 'none';
+                epilepsyWarning.removeEventListener('click', dismissAndStart);
+                epilepsyWarning.removeEventListener('touchstart', dismissAndStart);
+                startGame();
+            }
+
+            epilepsyWarning.addEventListener('click', dismissAndStart);
+            epilepsyWarning.addEventListener('touchstart', dismissAndStart, { passive: false });
+        }
+
+        // 修改开始按钮事件
+        document.getElementById('btnStart').addEventListener('click', showEpilepsyWarning);
+        document.getElementById('btnStart').addEventListener('touchstart', (e) => { e.preventDefault();
+            showEpilepsyWarning(); }, { passive: false });
+
+        btnResultBack.addEventListener('click', stopGame);
+        btnResultBack.addEventListener('touchstart', (e) => { e.preventDefault();
+            stopGame(); }, { passive: false });
+
+        // ==================== 游戏循环 ====================
+        function updateFPS() {
+            if (!CONFIG.showFps) { fpsDisplay.style.display = 'none'; return; }
+            fpsDisplay.style.display = 'block';
+            fpsFrameCount++;
+            const now = performance.now();
+            if (now - fpsLastTime >= 1000) {
+                fpsDisplay.textContent = Math.round(fpsFrameCount * 1000 / (now - fpsLastTime)) + ' FPS';
+                fpsFrameCount = 0;
+                fpsLastTime = now;
+            }
+        }
+
+        function update(dt) {
+            updateKeyboardMovement(dt);
+            let isMoving = false;
+
+            // ★ 获取摇杆输入并旋转（竖屏模式下）
+            let jx = joystick.dx;
+            let jy = joystick.dy;
+            if (isPortrait) {
+                const temp = jx;
+                jx = jy;
+                jy = -temp;
+            }
+
+            if (joystick.active && (jx !== 0 || jy !== 0)) {
+                isMoving = true;
+                const speed = 3.2 * CONFIG.playerSpeed * dt;
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+                forward.y = 0;
+                forward.normalize();
+                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+                right.y = 0;
+                right.normalize();
+                const moveX = (forward.x * -jy + right.x * jx) * speed;
+                const moveZ = (forward.z * -jy + right.z * jx) * speed;
+                const newX = camera.position.x + moveX;
+                const newZ = camera.position.z + moveZ;
+                if (canMoveTo(newX, camera.position.z, camera.position.x, camera.position.z)) camera.position.x = newX;
+                if (canMoveTo(camera.position.x, newZ, camera.position.x, camera.position.z)) camera.position.z = newZ;
+            }
+            if (pressedKeys.has('KeyW') || pressedKeys.has('KeyS') || pressedKeys.has('KeyA') || pressedKeys.has('KeyD')) {
+                isMoving = true;
+            }
+            camera.position.y = groundHeight(camera.position.x, camera.position.z) + CONFIG.cameraHeight;
+
+            const sanityBoost = (3 - sanity) * 0.03;
+            if (isMoving && appState === 'game') {
+                walkTime += dt * 10;
+                camera.position.y += Math.sin(walkTime) * (0.08 + sanityBoost);
+                camera.rotation.z = Math.sin(walkTime * 0.5) * (0.02 + sanityBoost * 0.5);
+            } else {
+                camera.rotation.z *= 0.9;
+            }
+
+            let nearEyeTree = false;
+            for (const [key, cell] of activeCells) {
+                if (cell.isEyeTree && cell.mesh) {
+                    const dx = camera.position.x - cell.mesh.position.x;
+                    const dz = camera.position.z - cell.mesh.position.z;
+                    const dist = Math.sqrt(dx * dx + dz * dz);
+                    if (dist < CONFIG.cellSize) {
+                        nearEyeTree = true;
+                        break;
+                    }
+                }
+            }
+
+            if (nearEyeTree) {
+                eyeTreeDistress = Math.min(1, eyeTreeDistress + dt * 0.8);
+                eyeTreeTimer += dt;
+                if (eyeTreeTimer > 5) {
+                    gameOver(true, '你已腐败');
+                }
+            } else {
+                eyeTreeDistress = Math.max(0, eyeTreeDistress - dt * 0.4);
+                eyeTreeTimer = Math.max(0, eyeTreeTimer - dt * 0.4);
+            }
+
+            const redS = (3 - sanity) / 3 * 0.6;
+            const redT = eyeTreeDistress * 0.8;
+            const redOpacity = Math.min(0.9, redS + redT);
+            redFilter.style.background = `rgba(255,0,0,${redOpacity})`;
+
+            if (appState === 'game') {
+                timeSinceLastSpawn += dt;
+                if (timeSinceLastSpawn >= nextSpawnDelay) {
+                    spawnRandomEyeMonster();
+                    timeSinceLastSpawn = 0;
+                    nextSpawnDelay = 15 + Math.random() * 8;
+                }
+                updateWorld();
+                updateMonsters(dt);
+                spawnFallingLeaves(dt);
+                updateWithering(dt);
+                checkWin();
+            }
+        }
+
+        function spawnRandomEyeMonster() {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 5 + Math.random() * 5;
+            const px = camera.position.x,
+                pz = camera.position.z;
+            const mx = px + Math.cos(angle) * radius,
+                mz = pz + Math.sin(angle) * radius;
+            const spriteMat = new THREE.SpriteMaterial({ map: textures.eye, transparent: true, alphaTest: 0.5 });
+            const sprite = new THREE.Sprite(spriteMat);
+            const h = groundHeight(mx, mz);
+            sprite.position.set(mx, h + CONFIG.cameraHeight, mz);
+            sprite.scale.set(1.7857, 1.0, 1);
+            scene.add(sprite);
+            monsters.set(`m_${Date.now()}_${Math.random()}`, { mesh: sprite, x: mx, z: mz, isStatic: true, type: 'eye',
+                withering: false, redPhase: 0, stateTimer: 0 });
+        }
+
+        function checkWin() {
+            const cs = CONFIG.cellSize;
+            for (const [key, cell] of activeCells) {
+                if (cell.hasExitTree && cell.mesh) {
+                    const [gx, gz] = key.split(',').map(Number);
+                    const mx = gx * cs,
+                        mz = gz * cs;
+                    const dx = camera.position.x - mx,
+                        dz = camera.position.z - mz;
+                    if (dx * dx + dz * dz < 0.6 * 0.6) { gameOver(true); return; }
+                }
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.15);
+            if (appState === 'menu') {
+                if (camera) {
+                    camera.rotation.y += 0.12 * dt;
+                    if (texturesLoaded) {
+                        updateWorld();
+                    }
+                    renderer.render(scene, camera);
+                }
+            } else if (appState === 'game') {
+                update(dt);
+                updateFPS();
+                renderer.render(scene, camera);
+            } else if (appState === 'result') {
+                if (camera) renderer.render(scene, camera);
+            }
+        }
+
+        // ==================== 游戏状态 ====================
+        function startGame() {
+            if (!texturesLoaded) return;
+            menu.style.display = 'none';
+            gameUI.style.display = 'block';
+            joystickEl.style.display = 'block';
+            backBtn.style.display = 'flex';
+            resultScreen.style.display = 'none';
+            appState = 'game';
+
+            clearWorld();
+            buildBaseScene();
+            updateWorld();
+            clearSpawnAreaTrees();
+
+            sanity = 3;
+            withering = false;
+            witherTimer = 0;
+            redFilter.style.background = 'rgba(255,0,0,0)';
+            blurFilter.style.opacity = 0;
+            blackFilter.style.opacity = 0;
+            fovBase = 75;
+            camera.fov = fovBase;
+            camera.updateProjectionMatrix();
+
+            timeSinceLastSpawn = 0;
+            nextSpawnDelay = 15 + Math.random() * 8;
+            scene.background = new THREE.Color(0x0a0a2e);
+            scene.fog = new THREE.FogExp2(0x0a0a2e, 0.22);
+
+            bgmAudio.currentTime = 0;
+            bgmAudio.volume = 0.5;
+            bgmAudio.play().catch(() => {});
+            resizeRenderer();
+        }
+
+        function stopGame() {
+            appState = 'menu';
+            menu.style.display = 'flex';
+            gameUI.style.display = 'none';
+            joystickEl.style.display = 'none';
+            backBtn.style.display = 'none';
+            fpsDisplay.style.display = 'none';
+            resultScreen.style.display = 'none';
+            bgmAudio.pause();
+
+            scene.background = new THREE.Color(0x0a0a2e);
+            scene.fog = new THREE.FogExp2(0x0a0a2e, 0.22);
+
+            camera.position.set(0, groundHeight(0, 0) + CONFIG.cameraHeight, 0);
+            camera.rotation.set(0, 0, 0);
+            buildBaseScene();
+            updateWorld();
+        }
+
+        // ==================== 启动 ====================
+        window.addEventListener('load', () => {
+            initThree();
+            Promise.all([
+                loadTexture('floor', 'https://smallkun0.github.io/Grass/Level%2014/Grass.jpg'),
+                loadTexture('tree', 'https://smallkun0.github.io/Grass/Level%2014/Tree.jpg'),
+                loadTexture('leaf', 'https://smallkun0.github.io/Grass/Level%2014/Leaf.png'),
+                loadTexture('smiler', 'https://smallkun0.github.io/Grass/Backrooms/Smiler.png'),
+                loadTexture('eye', 'https://smallkun0.github.io/Grass/Backrooms/Eye.png'),
+                loadTexture('eyeTree', 'https://smallkun0.github.io/Grass/Level%2014/Eye_Of_Tree.jpg')
+            ]).then(() => {
+                texturesLoaded = true;
+                initSharedResources();
+                camera.position.set(0, groundHeight(0, 0) + CONFIG.cameraHeight, 0);
+                camera.rotation.set(0, 0, 0);
+                buildBaseScene();
+                updateWorld();
+                clock.start();
+                animate();
+                document.getElementById('loadingText').style.display = 'none';
+                resizeRenderer();
+                btnFlipScreen.textContent = '翻转屏幕';
+            });
+        });
+    </script>
+</body>
+</html>
