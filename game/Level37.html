@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Level 37</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            touch-action: none;
+            background: #000;
+        }
+        #menu {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 40px;
+            position: absolute;
+            z-index: 100;
+            pointer-events: none;
+        }
+        .menu-btn {
+            width: 260px;
+            height: 80px;
+            border: 5px solid rgba(255, 255, 255, .9);
+            background: rgba(0, 0, 0, .45);
+            color: #fff;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .15s;
+            letter-spacing: 4px;
+            pointer-events: auto;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, .8);
+            flex-direction: column;
+            line-height: 1.2;
+            padding: 6px 12px;
+            border-radius: 4px;
+        }
+        .menu-btn:active {
+            background: rgba(0, 0, 0, .7);
+            transform: scale(.96);
+        }
+        .menu-btn-sm {
+            width: 200px;
+            height: 56px;
+            font-size: 20px;
+            border-width: 3px;
+            letter-spacing: 2px;
+            margin-top: -4px;
+        }
+        #gameUI {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 50;
+            pointer-events: none;
+        }
+        #gameUI>* {
+            pointer-events: auto;
+        }
+        #joystick {
+            position: absolute;
+            border: 3px solid rgba(255, 255, 255, .4);
+            border-radius: 50%;
+            background: rgba(255, 255, 255, .1);
+            display: none;
+            touch-action: none;
+            left: 3%;
+            bottom: 14%;
+            width: 260px;
+            height: 260px;
+            max-width: 38vw;
+            max-height: 38vw;
+        }
+        #joystick-knob {
+            position: absolute;
+            width: 42%;
+            height: 42%;
+            background: rgba(255, 255, 255, .65);
+            border-radius: 50%;
+            left: 29%;
+            top: 29%;
+            pointer-events: none;
+        }
+        #backBtn {
+            position: absolute;
+            left: 5%;
+            top: 5%;
+            width: 110px;
+            height: 68px;
+            border: 2px solid rgba(255, 255, 255, .8);
+            background: rgba(0, 0, 0, .55);
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            z-index: 52;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 24px;
+            height: 24px;
+            pointer-events: none;
+            z-index: 55;
+            opacity: .85;
+        }
+        #crosshair-v {
+            position: absolute;
+            top: 0;
+            left: 11px;
+            width: 2px;
+            height: 24px;
+            background: #fff;
+        }
+        #crosshair-h {
+            position: absolute;
+            top: 11px;
+            left: 0;
+            width: 24px;
+            height: 2px;
+            background: #fff;
+        }
+        #crosshair-c {
+            position: absolute;
+            top: 11px;
+            left: 11px;
+            width: 2px;
+            height: 2px;
+            background: #fff;
+        }
+        #fpsDisplay {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #0f0;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: monospace;
+            text-shadow: 0 0 4px #000;
+            display: none;
+            pointer-events: none;
+            z-index: 60;
+        }
+        #resultScreen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, .9);
+            z-index: 200;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+            pointer-events: none;
+        }
+        #resultText {
+            font-size: 46px;
+            font-weight: bold;
+            color: #fff;
+            letter-spacing: 8px;
+            text-shadow: 0 2px 16px rgba(0, 0, 0, .9);
+        }
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #sanityOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 80;
+            background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.8) 100%);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        #appContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            transform-origin: center center;
+            transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            background: #000;
+            z-index: 1;
+        }
+        #appContainer.portrait {
+            width: 100vh;
+            height: 100vw;
+            transform: rotate(90deg);
+            transform-origin: center center;
+            margin-left: calc((100vw - 100vh) / 2);
+            margin-top: calc((100vh - 100vw) / 2);
+        }
+        #appContainer>* {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #appContainer.portrait #menu .menu-btn {
+            width: 200px;
+            height: 64px;
+            font-size: 22px;
+        }
+        #appContainer.portrait #menu .menu-btn-sm {
+            width: 160px;
+            height: 48px;
+            font-size: 18px;
+        }
+        #appContainer.portrait #joystick {
+            width: 220px;
+            height: 220px;
+            left: 2%;
+            bottom: 8%;
+        }
+        @media (max-width: 600px) {
+            .menu-btn {
+                width: 200px;
+                height: 64px;
+                font-size: 22px;
+            }
+            .menu-btn-sm {
+                width: 160px;
+                height: 48px;
+                font-size: 17px;
+            }
+            #joystick {
+                width: 200px;
+                height: 200px;
+                left: 2%;
+                bottom: 10%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="appContainer">
+        <div id="menu">
+            <div style="position:absolute;top:40px;left:50%;transform:translateX(-50%);font-size:48px;font-weight:bold;color:#fff;letter-spacing:12px;text-shadow:0 2px 12px rgba(0,0,0,.9);">池核</div>
+            <div class="menu-btn" id="btnStart">开始游戏</div>
+            <div class="menu-btn menu-btn-sm" id="btnFlipScreen">翻转屏幕</div>
+            <div id="loadingText" style="font-size:18px;color:#fff;opacity:.85;text-shadow:0 1px 4px rgba(0,0,0,.8);letter-spacing:2px;margin-top:-4px;">正在生成中，可能需要等待十几秒时间</div>
+            <div style="position:absolute;bottom:16px;right:20px;font-size:13px;color:#fff;font-weight:bold;letter-spacing:1px;opacity:.7;text-shadow:0 1px 4px rgba(0,0,0,.8);">🏀坤坤工作室</div>
+        </div>
+
+        <audio id="bgmAudio" loop playsinline webkit-playsinline muted style="display:none;">
+            <source src="https://hwmov.a.yximgs.com/upic/2024/05/02/11/BMjAyNDA1MDIxMTA4NDhfNDExMjU3MTUzOV8xMzEzMTExMTI3NTNfMl8z_b_Bcc4d1eb2a95715123e5a1e32ed4eedee.mp4?clientCacheKey=3xg3viruh2927pe_b.mp4&tt=b&di=b65c5032&bp=10000" type="audio/mpeg">
+        </audio>
+
+        <div id="gameUI">
+            <div id="joystick"><div id="joystick-knob"></div></div>
+            <div id="backBtn">返回主菜单</div>
+            <div id="crosshair"><div id="crosshair-v"></div><div id="crosshair-h"></div><div id="crosshair-c"></div></div>
+            <div id="fpsDisplay">0 FPS</div>
+        </div>
+        <div id="sanityOverlay"></div>
+        <div id="resultScreen">
+            <div id="resultText"></div>
+            <div class="menu-btn" id="btnResultBack" style="pointer-events:auto;width:220px;height:70px;font-size:24px;">返回主菜单</div>
+        </div>
+        <div id="canvas-container"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // ==================== 配置 ====================
+        const CONFIG = {
+            mazeSize: 100,
+            cellSize: 2.2,
+            wallHeight: 2.56,
+            cameraHeight: 1.6,
+            fov: 75,
+            sens: 1.3,
+            speed: 1.0,
+            viewRadius: 14,
+            showFps: false
+        };
+
+        // ==================== 大区块系统 ====================
+        const SUPER_BLOCK_SIZE = 10;
+        const SUPER_BLOCK_COUNT = Math.floor(CONFIG.mazeSize / SUPER_BLOCK_SIZE);
+        const dirtyBlocks = new Set();
+        const pillarBlocks = new Set();
+
+        function initSuperBlocks() {
+            dirtyBlocks.clear();
+            pillarBlocks.clear();
+            for (let sbz = 0; sbz < SUPER_BLOCK_COUNT; sbz++) {
+                for (let sbx = 0; sbx < SUPER_BLOCK_COUNT; sbx++) {
+                    if (Math.random() < 0.4) dirtyBlocks.add(`${sbx},${sbz}`);
+                    if (Math.random() < 0.4) pillarBlocks.add(`${sbx},${sbz}`);
+                }
+            }
+        }
+
+        function getSuperBlock(gx, gz) {
+            return `${Math.floor(gx / SUPER_BLOCK_SIZE)},${Math.floor(gz / SUPER_BLOCK_SIZE)}`;
+        }
+
+        function isDirtyCell(gx, gz) {
+            return dirtyBlocks.has(getSuperBlock(gx, gz));
+        }
+
+        function isPillarCell(gx, gz) {
+            return pillarBlocks.has(getSuperBlock(gx, gz));
+        }
+
+        function isPlayerInDirtyBlock() {
+            const gx = Math.floor(camera.position.x / CONFIG.cellSize + 0.5);
+            const gz = Math.floor(camera.position.z / CONFIG.cellSize + 0.5);
+            return isDirtyCell(gx, gz);
+        }
+
+        function findSafeSpawn() {
+            const ms = CONFIG.mazeSize;
+            const cx = Math.floor(ms / 2);
+            const cz = Math.floor(ms / 2);
+            if (!isDirtyCell(cx, cz)) return { gx: cx, gz: cz };
+            for (let r = 1; r < ms; r++) {
+                for (let dz = -r; dz <= r; dz++) {
+                    for (let dx = -r; dx <= r; dx++) {
+                        if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
+                        const nx = cx + dx;
+                        const nz = cz + dz;
+                        if (nx < 1 || nx >= ms - 1 || nz < 1 || nz >= ms - 1) continue;
+                        if (!isDirtyCell(nx, nz)) return { gx: nx, gz: nz };
+                    }
+                }
+            }
+            return { gx: cx, gz: cz };
+        }
+
+        // ==================== 核心变量 ====================
+        let scene, camera, renderer;
+        let appState = 'menu';
+        let clock = new THREE.Clock();
+        let fpsFrameCount = 0,
+            fpsLastTime = 0;
+        let joystick = { active: false, dx: 0, dy: 0, originX: 0, originY: 0, maxR: 43 };
+        let lookInput = { active: false, lastX: 0, lastY: 0 };
+        let pressedKeys = new Set();
+        const menu = document.getElementById('menu');
+        const gameUI = document.getElementById('gameUI');
+        const fpsDisplay = document.getElementById('fpsDisplay');
+        const joystickEl = document.getElementById('joystick');
+        const knobEl = document.getElementById('joystick-knob');
+        const backBtn = document.getElementById('backBtn');
+        const bgmAudio = document.getElementById('bgmAudio');
+        const resultScreen = document.getElementById('resultScreen');
+        const resultText = document.getElementById('resultText');
+        const btnResultBack = document.getElementById('btnResultBack');
+        const sanityOverlay = document.getElementById('sanityOverlay');
+        const appContainer = document.getElementById('appContainer');
+        const btnFlipScreen = document.getElementById('btnFlipScreen');
+
+        let isPortrait = false;
+
+        // ==================== 理智计时器变量 ====================
+        let sanityTime = 0;
+        let sanityTriggered = false;
+        let extraMonsters = [];
+        let redFilterStrength = 0;
+        let redFilterRecovery = 0;
+        const RED_FILTER_RECOVERY_TIME = 10.0;
+
+        // ==================== 动态数据 ====================
+        const activeCells = new Map();
+        let monsters = new Map();
+        let sharedWallGeo = null;
+        let sharedWallMat = null;
+        let sharedWallMatDirty = null;
+        let sharedPillarGeo = null;
+        let sharedFloorGeo = null;
+        let sharedFloorMat = null;
+        let sharedFloorMatDirty = null;
+        let sharedCeilGeo = null;
+        let sharedCeilMat = null;
+        let sharedCeilMatDirty = null;
+        let manholeGeo = null;
+        let manholeMat = null;
+        let texturesLoaded = false;
+        let wasMoving = false;
+        let audioContext = null;
+        let moveAudioGain = null;
+
+        // 水面相关
+        let waterMesh = null;
+        let waterMat = null;
+        // 动态光源
+        let playerLight = null;
+        // 行走晃动
+        let walkTime = 0;
+        // 雾颜色渐变
+        let currentFogColor = new THREE.Color(0xffffff);
+        // 脏区块渐变程度
+        let currentDirtyLevel = 0.0;
+
+        // 地板/天花板网格数组
+        let floorMeshes = [];
+        let ceilMeshes = [];
+
+        // ==================== 纹理加载 ====================
+        const textures = {};
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.setCrossOrigin('anonymous');
+
+        function loadTexture(name, url) {
+            return new Promise((resolve) => {
+                textureLoader.load(url, (tex) => {
+                    tex.wrapS = THREE.RepeatWrapping;
+                    tex.wrapT = THREE.RepeatWrapping;
+                    tex.magFilter = THREE.LinearFilter;
+                    tex.minFilter = THREE.LinearMipmapLinearFilter;
+                    tex.generateMipmaps = true;
+                    textures[name] = tex;
+                    resolve();
+                }, undefined, () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 64;
+                    canvas.height = 64;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#cccccc';
+                    ctx.fillRect(0, 0, 64, 64);
+                    const fallback = new THREE.CanvasTexture(canvas);
+                    fallback.wrapS = THREE.RepeatWrapping;
+                    fallback.wrapT = THREE.RepeatWrapping;
+                    fallback.magFilter = THREE.LinearFilter;
+                    fallback.minFilter = THREE.LinearMipmapLinearFilter;
+                    fallback.generateMipmaps = true;
+                    textures[name] = fallback;
+                    resolve();
+                });
+            });
+        }
+
+        // ==================== 初始化 Three.js ====================
+        function initThree() {
+            if (renderer) return;
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
+            camera = new THREE.PerspectiveCamera(CONFIG.fov, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, CONFIG.cameraHeight, 0);
+            camera.rotation.order = 'YXZ';
+            renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            window.addEventListener('resize', () => {
+                resizeRenderer();
+            });
+            playerLight = new THREE.PointLight(0xffffff, 1.5, 22);
+            playerLight.visible = false;
+            scene.add(playerLight);
+        }
+
+        function resizeRenderer() {
+            const container = document.getElementById('canvas-container');
+            if (!container) return;
+            const w = container.clientWidth || window.innerWidth;
+            const h = container.clientHeight || window.innerHeight;
+            if (w === 0 || h === 0) return;
+            renderer.setSize(w, h);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+        }
+
+        // ==================== 共享资源 ====================
+        function initSharedResources() {
+            const cs = CONFIG.cellSize;
+            const wh = CONFIG.wallHeight;
+            const superSize = SUPER_BLOCK_SIZE;
+            sharedWallGeo = new THREE.BoxGeometry(cs, wh, cs);
+            const pillarRadius = 0.4;
+            sharedPillarGeo = new THREE.CylinderGeometry(pillarRadius, pillarRadius, wh, 12);
+            sharedWallMat = new THREE.MeshBasicMaterial({ map: textures.wall, color: 0xffffff });
+            textures.wall.repeat.set(1, wh / cs);
+            sharedWallMatDirty = new THREE.MeshBasicMaterial({ map: textures.dirtyWall, color: 0xffffff });
+            textures.dirtyWall.repeat.set(1, wh / cs);
+
+            const floorTexClean = textures.wall.clone();
+            floorTexClean.needsUpdate = true;
+            floorTexClean.repeat.set(superSize, superSize);
+            sharedFloorMat = new THREE.MeshBasicMaterial({ map: floorTexClean, color: 0xffffff });
+            const floorTexDirty = textures.dirtyWall.clone();
+            floorTexDirty.needsUpdate = true;
+            floorTexDirty.repeat.set(superSize, superSize);
+            sharedFloorMatDirty = new THREE.MeshBasicMaterial({ map: floorTexDirty, color: 0xffffff });
+            const ceilTexClean = textures.wall.clone();
+            ceilTexClean.needsUpdate = true;
+            ceilTexClean.repeat.set(superSize, superSize);
+            sharedCeilMat = new THREE.MeshBasicMaterial({ map: ceilTexClean, color: 0xffffff });
+            const ceilTexDirty = textures.dirtyWall.clone();
+            ceilTexDirty.needsUpdate = true;
+            ceilTexDirty.repeat.set(superSize, superSize);
+            sharedCeilMatDirty = new THREE.MeshBasicMaterial({ map: ceilTexDirty, color: 0xffffff });
+            sharedFloorGeo = new THREE.PlaneGeometry(superSize * cs, superSize * cs);
+            sharedCeilGeo = new THREE.PlaneGeometry(superSize * cs, superSize * cs);
+
+            const manholeCanvas = document.createElement('canvas');
+            manholeCanvas.width = 128;
+            manholeCanvas.height = 128;
+            const mctx = manholeCanvas.getContext('2d');
+            mctx.fillStyle = '#2a2a2a';
+            mctx.fillRect(0, 0, 128, 128);
+            mctx.beginPath();
+            mctx.arc(64, 64, 58, 0, Math.PI * 2);
+            mctx.fillStyle = '#4a4a4a';
+            mctx.fill();
+            mctx.strokeStyle = '#1a1a1a';
+            mctx.lineWidth = 6;
+            mctx.stroke();
+            mctx.beginPath();
+            mctx.arc(64, 64, 44, 0, Math.PI * 2);
+            mctx.strokeStyle = '#333';
+            mctx.lineWidth = 3;
+            mctx.stroke();
+            for (let i = 0; i < 12; i++) {
+                const a = (i / 12) * Math.PI * 2;
+                mctx.beginPath();
+                mctx.moveTo(64 + Math.cos(a) * 22, 64 + Math.sin(a) * 22);
+                mctx.lineTo(64 + Math.cos(a) * 52, 64 + Math.sin(a) * 52);
+                mctx.strokeStyle = '#3a3a3a';
+                mctx.lineWidth = 2;
+                mctx.stroke();
+            }
+            const manholeTex = new THREE.CanvasTexture(manholeCanvas);
+            manholeGeo = new THREE.CircleGeometry(cs * 0.35, 32);
+            manholeMat = new THREE.MeshBasicMaterial({ map: manholeTex, side: THREE.DoubleSide });
+        }
+
+        // ==================== 创建水面 ====================
+        function createWater() {
+            const cs = CONFIG.cellSize;
+            const waterSize = CONFIG.viewRadius * cs * 3;
+            const waterGeo = new THREE.PlaneGeometry(waterSize, waterSize, 80, 80);
+            const waterTex = textures.water;
+            waterTex.wrapS = THREE.RepeatWrapping;
+            waterTex.wrapT = THREE.RepeatWrapping;
+            waterTex.repeat.set(waterSize / cs, waterSize / cs);
+            waterMat = new THREE.ShaderMaterial({
+                uniforms: {
+                    time: { value: 0 },
+                    waterMap: { value: waterTex },
+                    dirtyLevel: { value: 0.0 },
+                    fogColor: { value: new THREE.Color(0xffffff) },
+                    fogDensity: { value: 0.08 }
+                },
+                vertexShader: `
+                    uniform float time;
+                    varying vec2 vUv;
+                    varying float wave;
+                    varying float vDepth;
+                    void main() {
+                        vUv = uv;
+                        vec3 pos = position;
+                        float w = sin(pos.x * 1.8 + time * 2.5) * 0.04 
+                                  + cos(pos.y * 1.8 + time * 2.5) * 0.04
+                                  + sin(pos.x * 4.0 + time * 1.5) * 0.018
+                                  + cos(pos.y * 4.0 + time * 1.5) * 0.018;
+                        pos.z += w;
+                        wave = w;
+                        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                        vDepth = -mvPosition.z;
+                        gl_Position = projectionMatrix * mvPosition;
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D waterMap;
+                    uniform float dirtyLevel;
+                    uniform vec3 fogColor;
+                    uniform float fogDensity;
+                    varying vec2 vUv;
+                    varying float wave;
+                    varying float vDepth;
+                    void main() {
+                        vec2 uv = vUv + wave * 0.8;
+                        vec4 tex = texture2D(waterMap, uv);
+                        vec3 tint = vec3(0.5, 0.8, 1.0);
+                        float mixFactor = (1.0 - dirtyLevel) * 0.5;
+                        vec3 finalColor = mix(tex.rgb, tint, mixFactor);
+                        float fogFactor = 1.0 - exp(-fogDensity * fogDensity * vDepth * vDepth);
+                        finalColor = mix(finalColor, fogColor, fogFactor);
+                        gl_FragColor = vec4(finalColor, tex.a * 0.65);
+                    }
+                `,
+                transparent: true,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            waterMesh = new THREE.Mesh(waterGeo, waterMat);
+            waterMesh.rotation.x = -Math.PI / 2;
+            const spawn = findSafeSpawn();
+            waterMesh.position.set(spawn.gx * cs, CONFIG.cameraHeight / 2, spawn.gz * cs);
+            waterMesh.renderOrder = -1;
+            scene.add(waterMesh);
+        }
+
+        // ==================== 构建基础场景 ====================
+        function buildBaseScene() {
+            const cs = CONFIG.cellSize;
+            const ms = CONFIG.mazeSize;
+            for (const mesh of floorMeshes) scene.remove(mesh);
+            for (const mesh of ceilMeshes) scene.remove(mesh);
+            floorMeshes = [];
+            ceilMeshes = [];
+            for (let sbz = 0; sbz < SUPER_BLOCK_COUNT; sbz++) {
+                for (let sbx = 0; sbx < SUPER_BLOCK_COUNT; sbx++) {
+                    const isDirty = dirtyBlocks.has(`${sbx},${sbz}`);
+                    const fMat = isDirty ? sharedFloorMatDirty : sharedFloorMat;
+                    const fMesh = new THREE.Mesh(sharedFloorGeo, fMat);
+                    fMesh.rotation.x = -Math.PI / 2;
+                    fMesh.position.set((sbx * SUPER_BLOCK_SIZE + SUPER_BLOCK_SIZE / 2) * cs, 0, (sbz * SUPER_BLOCK_SIZE +
+                        SUPER_BLOCK_SIZE / 2) * cs);
+                    scene.add(fMesh);
+                    floorMeshes.push(fMesh);
+                    const cMat = isDirty ? sharedCeilMatDirty : sharedCeilMat;
+                    const cMesh = new THREE.Mesh(sharedCeilGeo, cMat);
+                    cMesh.rotation.x = Math.PI / 2;
+                    cMesh.position.set((sbx * SUPER_BLOCK_SIZE + SUPER_BLOCK_SIZE / 2) * cs, CONFIG.wallHeight - 0.02, (
+                        sbz * SUPER_BLOCK_SIZE + SUPER_BLOCK_SIZE / 2) * cs);
+                    scene.add(cMesh);
+                    ceilMeshes.push(cMesh);
+                }
+            }
+            const spawn = findSafeSpawn();
+            camera.position.set(spawn.gx * cs, CONFIG.cameraHeight, spawn.gz * cs);
+            camera.rotation.set(0, 0, 0);
+        }
+
+        // ==================== 清理世界 ====================
+        function clearWorld() {
+            for (const [key, cell] of activeCells) {
+                if (cell.mesh) scene.remove(cell.mesh);
+            }
+            activeCells.clear();
+            for (const [id, monster] of monsters) {
+                scene.remove(monster.mesh);
+            }
+            monsters.clear();
+            extraMonsters = [];
+            for (const mesh of floorMeshes) scene.remove(mesh);
+            for (const mesh of ceilMeshes) scene.remove(mesh);
+            floorMeshes = [];
+            ceilMeshes = [];
+            if (waterMesh) { scene.remove(waterMesh);
+                waterMesh = null;
+                waterMat = null; }
+            sanityTime = 0;
+            sanityTriggered = false;
+            redFilterStrength = 0;
+            redFilterRecovery = 0;
+        }
+
+        // ==================== 动态世界生成 ====================
+        function updateWorld() {
+            if (!texturesLoaded || !sharedWallGeo) return;
+            const cs = CONFIG.cellSize;
+            const pgx = Math.floor(camera.position.x / cs + 0.5);
+            const pgz = Math.floor(camera.position.z / cs + 0.5);
+            const R = CONFIG.viewRadius;
+            const needed = new Set();
+            for (let dz = -R; dz <= R; dz++) {
+                for (let dx = -R; dx <= R; dx++) {
+                    if (dx * dx + dz * dz > R * R) continue;
+                    const gx = pgx + dx;
+                    const gz = pgz + dz;
+                    if (gx < 0 || gx >= CONFIG.mazeSize || gz < 0 || gz >= CONFIG.mazeSize) continue;
+                    needed.add(`${gx},${gz}`);
+                }
+            }
+            for (const [key, cell] of activeCells) {
+                if (!needed.has(key)) {
+                    if (cell.mesh) scene.remove(cell.mesh);
+                    activeCells.delete(key);
+                }
+            }
+            const monsterMaxDist = R * cs;
+            for (const [id, monster] of monsters) {
+                const mdx = monster.x - camera.position.x;
+                const mdz = monster.z - camera.position.z;
+                if (mdx * mdx + mdz * mdz > monsterMaxDist * monsterMaxDist) {
+                    scene.remove(monster.mesh);
+                    monsters.delete(id);
+                    if (extraMonsters.includes(id)) extraMonsters = extraMonsters.filter(x => x !== id);
+                }
+            }
+            for (const key of needed) {
+                if (activeCells.has(key)) continue;
+                const [gx, gz] = key.split(',').map(Number);
+                let isWall = false;
+                let hasManhole = false;
+                let hasMonster = false;
+                const dirty = isDirtyCell(gx, gz);
+                const pillar = isPillarCell(gx, gz);
+                if (gx === 0 || gx === CONFIG.mazeSize - 1 || gz === 0 || gz === CONFIG.mazeSize - 1) {
+                    isWall = true;
+                } else if (Math.abs(gx - pgx) <= 1 && Math.abs(gz - pgz) <= 1) {
+                    isWall = false;
+                } else {
+                    if (pillar) isWall = true;
+                    else isWall = Math.random() < 0.38;
+                }
+                let mesh = null;
+                if (isWall) {
+                    if (pillar && gx > 0 && gx < CONFIG.mazeSize - 1 && gz > 0 && gz < CONFIG.mazeSize - 1) {
+                        const mat = dirty ? sharedWallMatDirty : sharedWallMat;
+                        mesh = new THREE.Mesh(sharedPillarGeo, mat);
+                        mesh.position.set(gx * cs, CONFIG.wallHeight / 2, gz * cs);
+                        scene.add(mesh);
+                        activeCells.set(key, { isWall, isPillar: true, hasManhole, hasMonster, mesh });
+                        continue;
+                    } else {
+                        const mat = dirty ? sharedWallMatDirty : sharedWallMat;
+                        mesh = new THREE.Mesh(sharedWallGeo, mat);
+                        mesh.position.set(gx * cs, CONFIG.wallHeight / 2, gz * cs);
+                        scene.add(mesh);
+                    }
+                } else {
+                    const roll = Math.random();
+                    if (dirty && roll < 0.003) {
+                        hasManhole = true;
+                        mesh = new THREE.Mesh(manholeGeo, manholeMat);
+                        mesh.rotation.x = -Math.PI / 2;
+                        mesh.position.set(gx * cs, 0.02, gz * cs);
+                        scene.add(mesh);
+                    } else if (dirty && roll < 0.05) {
+                        hasMonster = true;
+                        const spriteMat = new THREE.SpriteMaterial({ map: textures.smiler, depthWrite: false });
+                        const sprite = new THREE.Sprite(spriteMat);
+                        sprite.position.set(gx * cs, CONFIG.cameraHeight, gz * cs);
+                        sprite.scale.set(1.6, 1.6, 1.6);
+                        scene.add(sprite);
+                        monsters.set(`m_${gx}_${gz}_${Date.now()}_${Math.floor(Math.random() * 10000)}`, {
+                            mesh: sprite,
+                            x: gx * cs,
+                            z: gz * cs
+                        });
+                    }
+                }
+                activeCells.set(key, { isWall, isPillar: false, hasManhole, hasMonster, mesh });
+            }
+        }
+
+        // ==================== 碰撞检测 ====================
+        function canMoveTo(x, z, radius) {
+            const r = radius || 0.35;
+            const cs = CONFIG.cellSize;
+            const minX = Math.floor((x - r) / cs + 0.5);
+            const maxX = Math.floor((x + r) / cs + 0.5);
+            const minZ = Math.floor((z - r) / cs + 0.5);
+            const maxZ = Math.floor((z + r) / cs + 0.5);
+            for (let gz = minZ; gz <= maxZ; gz++) {
+                for (let gx = minX; gx <= maxX; gx++) {
+                    if (gz < 0 || gz >= CONFIG.mazeSize || gx < 0 || gx >= CONFIG.mazeSize) return false;
+                    const key = `${gx},${gz}`;
+                    let cell = activeCells.get(key);
+                    let isWall = false;
+                    let isPillar = false;
+                    if (cell) {
+                        isWall = cell.isWall;
+                        isPillar = cell.isPillar || false;
+                    } else {
+                        if (gx === 0 || gx === CONFIG.mazeSize - 1 || gz === 0 || gz === CONFIG.mazeSize - 1) {
+                            isWall = true;
+                        } else {
+                            const pillarZone = isPillarCell(gx, gz);
+                            isWall = pillarZone ? true : (Math.random() < 0.38);
+                            isPillar = pillarZone;
+                        }
+                    }
+                    if (isWall) {
+                        if (isPillar) {
+                            const pillarRadius = 0.4;
+                            const cx = gx * cs;
+                            const cz = gz * cs;
+                            const dx = x - cx;
+                            const dz = z - cz;
+                            const dist = Math.sqrt(dx * dx + dz * dz);
+                            if (dist < pillarRadius + r) return false;
+                        } else {
+                            const wMinX = gx * cs - cs / 2;
+                            const wMaxX = gx * cs + cs / 2;
+                            const wMinZ = gz * cs - cs / 2;
+                            const wMaxZ = gz * cs + cs / 2;
+                            const cx = Math.max(wMinX, Math.min(x, wMaxX));
+                            const cz = Math.max(wMinZ, Math.min(z, wMaxZ));
+                            const dx = x - cx,
+                                dz = z - cz;
+                            if (dx * dx + dz * dz < r * r) return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+
+        // ==================== 怪物与获胜 ====================
+        function updateMonsters(dt) {
+            // ★ 新增：根据玩家是否在脏区块来决定怪物可见性
+            const showMonsters = isPlayerInDirtyBlock();
+            const playerPos = camera.position;
+            const monsterSpeed = 3.2 * CONFIG.speed * 0.5 * dt;
+            for (const [id, monster] of monsters) {
+                // 设置可见性
+                monster.mesh.visible = showMonsters;
+                
+                const dx = playerPos.x - monster.x;
+                const dz = playerPos.z - monster.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist < 0.7) {
+                    gameOver(false);
+                    return;
+                }
+                if (dist > 0.1) {
+                    const mx = (dx / dist) * monsterSpeed;
+                    const mz = (dz / dist) * monsterSpeed;
+                    const newX = monster.x + mx;
+                    const newZ = monster.z + mz;
+                    const newGX = Math.floor(newX / CONFIG.cellSize + 0.5);
+                    const newGZ = Math.floor(newZ / CONFIG.cellSize + 0.5);
+                    if (!isDirtyCell(newGX, newGZ)) {
+                        scene.remove(monster.mesh);
+                        monsters.delete(id);
+                        if (extraMonsters.includes(id)) extraMonsters = extraMonsters.filter(x => x !== id);
+                        continue;
+                    }
+                    if (canMoveTo(newX, newZ, 0.25)) {
+                        monster.x = newX;
+                        monster.z = newZ;
+                        monster.mesh.position.set(newX, CONFIG.cameraHeight, newZ);
+                    }
+                }
+            }
+        }
+
+        function checkWin() {
+            const cs = CONFIG.cellSize;
+            for (const [key, cell] of activeCells) {
+                if (cell.hasManhole && cell.mesh) {
+                    const [gx, gz] = key.split(',').map(Number);
+                    const mx = gx * cs;
+                    const mz = gz * cs;
+                    const dx = camera.position.x - mx;
+                    const dz = camera.position.z - mz;
+                    if (dx * dx + dz * dz < 0.6 * 0.6) {
+                        gameOver(true);
+                        return;
+                    }
+                }
+            }
+        }
+
+        function gameOver(win) {
+            appState = 'result';
+            bgmAudio.pause();
+            wasMoving = false;
+            resultText.textContent = win ? '你成功逃脱了后室！' : '你被怪物抓住了...';
+            resultText.style.color = win ? '#0f0' : '#f00';
+            resultScreen.style.display = 'flex';
+        }
+
+        // ==================== 理智计时器系统 ====================
+        function updateSanity(dt) {
+            const inDirty = isPlayerInDirtyBlock();
+            if (inDirty) {
+                sanityTime += dt;
+                if (!sanityTriggered && sanityTime >= 60.0) {
+                    sanityTriggered = true;
+                    redFilterStrength = 1.0;
+                    spawnExtraMonsters();
+                }
+                redFilterRecovery = 0;
+            } else {
+                if (sanityTriggered) {
+                    redFilterRecovery += dt;
+                    if (redFilterRecovery >= RED_FILTER_RECOVERY_TIME) {
+                        clearExtraMonsters();
+                        sanityTriggered = false;
+                        redFilterStrength = 0.0;
+                        redFilterRecovery = 0;
+                    } else {
+                        redFilterStrength = Math.max(0.0, 1.0 - redFilterRecovery / RED_FILTER_RECOVERY_TIME);
+                    }
+                } else {
+                    sanityTime = 0;
+                    redFilterStrength = 0.0;
+                    redFilterRecovery = 0;
+                }
+            }
+            if (sharedWallMat) {
+                sharedWallMat.color.setRGB(1.0 + redFilterStrength * 0.8, 1.0, 1.0);
+                sharedWallMatDirty.color.setRGB(1.0 + redFilterStrength * 0.8, 1.0, 1.0);
+            }
+            let overlayOpacity = 0;
+            let overlayColor = 'rgba(0,0,0,';
+            if (sanityTime < 60) {
+                overlayOpacity = (sanityTime / 60) * 0.9;
+                overlayColor = 'rgba(0,0,0,';
+            } else {
+                overlayOpacity = 0.9;
+                overlayColor = 'rgba(255,0,0,';
+            }
+            if (overlayOpacity > 0) {
+                sanityOverlay.style.opacity = overlayOpacity;
+                sanityOverlay.style.background = `radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0) 30%, ${overlayColor}${overlayOpacity}) 100%)`;
+            } else {
+                sanityOverlay.style.opacity = 0;
+            }
+        }
+
+        function spawnExtraMonsters() {
+            const cs = CONFIG.cellSize;
+            const playerPos = camera.position;
+            for (let i = 0; i < 5; i++) {
+                let attempts = 0;
+                let placed = false;
+                while (!placed && attempts < 30) {
+                    attempts++;
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = 10 + Math.random() * 20;
+                    const targetX = playerPos.x + Math.cos(angle) * radius;
+                    const targetZ = playerPos.z + Math.sin(angle) * radius;
+                    const gx = Math.floor(targetX / cs + 0.5);
+                    const gz = Math.floor(targetZ / cs + 0.5);
+                    if (gx < 1 || gx >= CONFIG.mazeSize - 1 || gz < 1 || gz >= CONFIG.mazeSize - 1) continue;
+                    if (!isDirtyCell(gx, gz)) continue;
+                    if (!canMoveTo(targetX, targetZ, 0.25)) continue;
+                    const spriteMat = new THREE.SpriteMaterial({ map: textures.smiler, depthWrite: false });
+                    const sprite = new THREE.Sprite(spriteMat);
+                    sprite.position.set(targetX, CONFIG.cameraHeight, targetZ);
+                    sprite.scale.set(1.6, 1.6, 1.6);
+                    scene.add(sprite);
+                    const id = `extra_${Date.now()}_${Math.random()}`;
+                    monsters.set(id, { mesh: sprite, x: targetX, z: targetZ });
+                    extraMonsters.push(id);
+                    placed = true;
+                }
+            }
+        }
+
+        function clearExtraMonsters() {
+            for (const id of extraMonsters) {
+                const monster = monsters.get(id);
+                if (monster) {
+                    scene.remove(monster.mesh);
+                    monsters.delete(id);
+                }
+            }
+            extraMonsters = [];
+        }
+
+        // ==================== 输入控制 ====================
+        let joystickTouchId = null;
+        joystickEl.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const touch = e.changedTouches[0];
+            joystickTouchId = touch.identifier;
+            const rect = joystickEl.getBoundingClientRect();
+            joystick.active = true;
+            joystick.originX = rect.left + rect.width / 2;
+            joystick.originY = rect.top + rect.height / 2;
+            updateJoystick(touch.clientX, touch.clientY);
+        }, { passive: false });
+        joystickEl.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            for (let t of e.changedTouches) {
+                if (t.identifier === joystickTouchId) {
+                    updateJoystick(t.clientX, t.clientY);
+                    break;
+                }
+            }
+        }, { passive: false });
+        joystickEl.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            for (let t of e.changedTouches) {
+                if (t.identifier === joystickTouchId) {
+                    joystick.active = false;
+                    joystickTouchId = null;
+                    joystick.dx = 0;
+                    joystick.dy = 0;
+                    knobEl.style.transform = 'translate(0px, 0px)';
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        function updateJoystick(x, y) {
+            let dx = x - joystick.originX;
+            let dy = y - joystick.originY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > joystick.maxR) { const s = joystick.maxR / dist;
+                dx *= s;
+                dy *= s; }
+            joystick.dx = dx / joystick.maxR;
+            joystick.dy = dy / joystick.maxR;
+            knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+        }
+
+        backBtn.addEventListener('touchstart', (e) => { e.preventDefault();
+            stopGame(); }, { passive: false });
+        backBtn.addEventListener('mousedown', (e) => { if (e.button === 0) stopGame(); });
+
+        let lookTouchId = null;
+        document.addEventListener('touchstart', (e) => {
+            if (appState !== 'game') return;
+            if (e.target.closest('#joystick')) return;
+            for (let t of e.changedTouches) {
+                if (lookTouchId === null) {
+                    lookTouchId = t.identifier;
+                    lookInput.active = true;
+                    lookInput.lastX = t.clientX;
+                    lookInput.lastY = t.clientY;
+                }
+            }
+        }, { passive: false });
+        document.addEventListener('touchmove', (e) => {
+            if (appState !== 'game' || !lookInput.active) return;
+            for (let t of e.changedTouches) {
+                if (t.identifier === lookTouchId) {
+                    e.preventDefault();
+                    let dx = t.clientX - lookInput.lastX;
+                    let dy = t.clientY - lookInput.lastY;
+                    if (isPortrait) {
+                        const temp = dx;
+                        dx = dy;
+                        dy = -temp;
+                    }
+                    const sens = CONFIG.sens * 0.0025;
+                    camera.rotation.y -= dx * sens;
+                    camera.rotation.x -= dy * sens;
+                    camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+                    lookInput.lastX = t.clientX;
+                    lookInput.lastY = t.clientY;
+                    break;
+                }
+            }
+        }, { passive: false });
+        document.addEventListener('touchend', (e) => {
+            for (let t of e.changedTouches) {
+                if (t.identifier === lookTouchId) { lookInput.active = false;
+                    lookTouchId = null; break; }
+            }
+        });
+
+        let mouseLook = false;
+        document.addEventListener('mousedown', (e) => {
+            if (appState !== 'game') return;
+            if (e.target === interactBtn) return;
+            if (e.clientX > window.innerWidth * 0.5 && e.button === 0) {
+                mouseLook = true;
+                lookInput.lastX = e.clientX;
+                lookInput.lastY = e.clientY;
+            }
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (appState !== 'game' || !mouseLook) return;
+            let dx = e.clientX - lookInput.lastX;
+            let dy = e.clientY - lookInput.lastY;
+            if (isPortrait) {
+                const temp = dx;
+                dx = dy;
+                dy = -temp;
+            }
+            const sens = CONFIG.sens * 0.0025;
+            camera.rotation.y -= dx * sens;
+            camera.rotation.x -= dy * sens;
+            camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+            lookInput.lastX = e.clientX;
+            lookInput.lastY = e.clientY;
+        });
+        document.addEventListener('mouseup', () => { mouseLook = false; });
+        document.addEventListener('keydown', (e) => { if (appState === 'game') pressedKeys.add(e.code); });
+        document.addEventListener('keyup', (e) => { pressedKeys.delete(e.code); });
+
+        // ==================== 移动逻辑 ====================
+        function updateKeyboardMovement(dt) {
+            if (appState !== 'game') return;
+            const speed = 3.2 * CONFIG.speed * dt;
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            forward.y = 0;
+            forward.normalize();
+            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            right.y = 0;
+            right.normalize();
+            let mx = 0,
+                mz = 0;
+            if (pressedKeys.has('KeyW')) { mx += forward.x;
+                mz += forward.z; }
+            if (pressedKeys.has('KeyS')) { mx -= forward.x;
+                mz -= forward.z; }
+            if (pressedKeys.has('KeyD')) { mx += right.x;
+                mz += right.z; }
+            if (pressedKeys.has('KeyA')) { mx -= right.x;
+                mz -= right.z; }
+            if (mx !== 0 || mz !== 0) {
+                const len = Math.sqrt(mx * mx + mz * mz);
+                mx /= len;
+                mz /= len;
+                const newX = camera.position.x + mx * speed;
+                const newZ = camera.position.z + mz * speed;
+                if (canMoveTo(newX, camera.position.z)) camera.position.x = newX;
+                if (canMoveTo(camera.position.x, newZ)) camera.position.z = newZ;
+            }
+        }
+
+        function updateWalkEffect(dt, isMoving) {
+            if (isMoving && appState === 'game') {
+                walkTime += dt * 8;
+                camera.position.y = CONFIG.cameraHeight + Math.sin(walkTime) * 0.04;
+                camera.rotation.z = Math.sin(walkTime * 0.5) * 0.008;
+            } else {
+                camera.position.y = CONFIG.cameraHeight;
+                camera.rotation.z = 0;
+            }
+        }
+
+        // ==================== 动态雾/光源/音效/水面 ====================
+        function updateAtmosphere(dt) {
+            const inDirty = isPlayerInDirtyBlock();
+            const targetColor = inDirty ? new THREE.Color(0x000000) : new THREE.Color(0xffffff);
+            currentFogColor.lerp(targetColor, dt * 2.0);
+            if (scene.fog) {
+                scene.fog.color.copy(currentFogColor);
+                scene.fog.density = inDirty ? 0.18 : 0.08;
+            }
+            if (inDirty) {
+                scene.background = new THREE.Color(0x000000);
+            } else {
+                scene.background = new THREE.Color(0xffffff);
+            }
+            if (playerLight) {
+                playerLight.visible = inDirty;
+                if (inDirty) playerLight.position.copy(camera.position);
+            }
+            if (bgmAudio) {
+                if (inDirty) {
+                    bgmAudio.volume = 0.3;
+                    bgmAudio.playbackRate = 0.8;
+                } else {
+                    bgmAudio.volume = 1.0;
+                    bgmAudio.playbackRate = 1.0;
+                }
+            }
+            if (waterMesh) {
+                waterMesh.position.x = camera.position.x;
+                waterMesh.position.z = camera.position.z;
+                waterMesh.position.y = CONFIG.cameraHeight / 2;
+            }
+            let targetDirty = inDirty ? 1.0 : 0.0;
+            currentDirtyLevel += (targetDirty - currentDirtyLevel) * dt * 2.0;
+            if (waterMat) {
+                waterMat.uniforms.dirtyLevel.value = currentDirtyLevel;
+                waterMat.uniforms.fogColor.value.copy(currentFogColor);
+                waterMat.uniforms.fogDensity.value = scene.fog ? scene.fog.density : 0.08;
+            }
+        }
+
+        // ==================== 游戏循环 ====================
+        function updateFPS() {
+            if (!CONFIG.showFps) { fpsDisplay.style.display = 'none'; return; }
+            fpsDisplay.style.display = 'block';
+            fpsFrameCount++;
+            const now = performance.now();
+            if (now - fpsLastTime >= 1000) {
+                fpsDisplay.textContent = Math.round(fpsFrameCount * 1000 / (now - fpsLastTime)) + ' FPS';
+                fpsFrameCount = 0;
+                fpsLastTime = now;
+            }
+        }
+
+        function update(dt) {
+            updateKeyboardMovement(dt);
+            let isMoving = false;
+            let jx = joystick.dx;
+            let jy = joystick.dy;
+            if (isPortrait) {
+                const temp = jx;
+                jx = jy;
+                jy = -temp;
+            }
+            if (joystick.active && (jx !== 0 || jy !== 0)) {
+                isMoving = true;
+                const speed = 3.2 * CONFIG.speed * dt;
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+                forward.y = 0;
+                forward.normalize();
+                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+                right.y = 0;
+                right.normalize();
+                const moveX = (forward.x * -jy + right.x * jx) * speed;
+                const moveZ = (forward.z * -jy + right.z * jx) * speed;
+                const newX = camera.position.x + moveX;
+                const newZ = camera.position.z + moveZ;
+                if (canMoveTo(newX, camera.position.z)) camera.position.x = newX;
+                if (canMoveTo(camera.position.x, newZ)) camera.position.z = newZ;
+            }
+            if (pressedKeys.has('KeyW') || pressedKeys.has('KeyS') || pressedKeys.has('KeyA') || pressedKeys.has('KeyD')) {
+                isMoving = true;
+            }
+            updateWalkEffect(dt, isMoving);
+            if (appState === 'game') {
+                updateWorld();
+                updateMonsters(dt);
+                checkWin();
+                updateSanity(dt);
+                updateAtmosphere(dt);
+                if (waterMat) waterMat.uniforms.time.value += dt;
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.15);
+            if (appState === 'menu') {
+                if (camera) {
+                    camera.rotation.y += 0.12 * dt;
+                    renderer.render(scene, camera);
+                }
+            } else if (appState === 'game') {
+                update(dt);
+                updateFPS();
+                renderer.render(scene, camera);
+            } else if (appState === 'result') {
+                if (camera) renderer.render(scene, camera);
+            }
+        }
+
+        // ==================== 游戏状态 ====================
+        function startGame() {
+            if (!texturesLoaded) return;
+            menu.style.display = 'none';
+            gameUI.style.display = 'block';
+            joystickEl.style.display = 'block';
+            backBtn.style.display = 'flex';
+            resultScreen.style.display = 'none';
+            appState = 'game';
+            initSuperBlocks();
+            clearWorld();
+            buildBaseScene();
+            updateWorld();
+            createWater();
+            scene.background = new THREE.Color(0xffffff);
+            scene.fog = new THREE.FogExp2(0xffffff, 0.08);
+            bgmAudio.muted = false;
+            bgmAudio.volume = 1.0;
+            bgmAudio.playbackRate = 1.0;
+            bgmAudio.play().catch(() => {});
+            sanityOverlay.style.opacity = 0;
+            resizeRenderer();
+        }
+
+        function stopGame() {
+            appState = 'menu';
+            menu.style.display = 'flex';
+            gameUI.style.display = 'none';
+            joystickEl.style.display = 'none';
+            backBtn.style.display = 'none';
+            fpsDisplay.style.display = 'none';
+            resultScreen.style.display = 'none';
+            bgmAudio.pause();
+            wasMoving = false;
+            clearWorld();
+            if (playerLight) playerLight.visible = false;
+            scene.background = new THREE.Color(0xffffff);
+            scene.fog = null;
+            currentFogColor.set(0xffffff);
+            currentDirtyLevel = 0.0;
+            camera.position.set(0, CONFIG.cameraHeight, 0);
+            camera.rotation.set(0, 0, 0);
+            sanityOverlay.style.opacity = 0;
+            buildBaseScene();
+            updateWorld();
+            resizeRenderer();
+        }
+
+        // ==================== 翻转屏幕功能 ====================
+        function toggleFlipScreen() {
+            isPortrait = !isPortrait;
+            appContainer.classList.toggle('portrait', isPortrait);
+            btnFlipScreen.textContent = isPortrait ? '横屏模式' : '翻转屏幕';
+            requestAnimationFrame(() => {
+                resizeRenderer();
+            });
+        }
+
+        document.getElementById('btnStart').addEventListener('click', startGame);
+        document.getElementById('btnStart').addEventListener('touchstart', (e) => { e.preventDefault();
+            startGame(); }, { passive: false });
+        btnResultBack.addEventListener('click', stopGame);
+        btnResultBack.addEventListener('touchstart', (e) => { e.preventDefault();
+            stopGame(); }, { passive: false });
+        btnFlipScreen.addEventListener('click', toggleFlipScreen);
+        btnFlipScreen.addEventListener('touchstart', (e) => { e.preventDefault();
+            toggleFlipScreen(); }, { passive: false });
+
+        // ==================== 启动 ====================
+        window.addEventListener('load', () => {
+            initThree();
+            Promise.all([
+                loadTexture('wall', 'https://smallkun0.github.io/Grass/Level%2037/Wall.jpg'),
+                loadTexture('dirtyWall', 'https://smallkun0.github.io/Grass/Level%2037/Dirty_Wall.jpg'),
+                loadTexture('smiler', 'https://smallkun0.github.io/Grass/Backrooms/Smiler.png'),
+                loadTexture('water', 'https://smallkun0.github.io/Grass/Level%2037/Water.gif')
+            ]).then(() => {
+                texturesLoaded = true;
+                initSharedResources();
+                initSuperBlocks();
+                const cs = CONFIG.cellSize;
+                const ms = CONFIG.mazeSize;
+                const spawn = findSafeSpawn();
+                camera.position.set(spawn.gx * cs, CONFIG.cameraHeight, spawn.gz * cs);
+                camera.rotation.set(0, 0, 0);
+                buildBaseScene();
+                updateWorld();
+                createWater();
+                clock.start();
+                animate();
+                document.getElementById('loadingText').style.display = 'none';
+                resizeRenderer();
+                btnFlipScreen.textContent = '翻转屏幕';
+            });
+        });
+    </script>
+</body>
+</html>
