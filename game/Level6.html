@@ -1,0 +1,2053 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Level 6</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            touch-action: none;
+            background: #000;
+        }
+        #menu {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 40px;
+            position: absolute;
+            z-index: 100;
+            pointer-events: none;
+        }
+        .menu-btn {
+            width: 260px;
+            height: 80px;
+            border: 5px solid rgba(255, 255, 255, .9);
+            background: rgba(0, 0, 0, .45);
+            color: #fff;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .15s;
+            letter-spacing: 4px;
+            pointer-events: auto;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, .8);
+            flex-direction: column;
+            line-height: 1.2;
+            padding: 6px 12px;
+            border-radius: 4px;
+        }
+        .menu-btn:active {
+            background: rgba(0, 0, 0, .7);
+            transform: scale(.96);
+        }
+        .menu-btn-sm {
+            width: 200px;
+            height: 56px;
+            font-size: 20px;
+            border-width: 3px;
+            letter-spacing: 2px;
+            margin-top: -4px;
+        }
+        #gameUI {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 50;
+            pointer-events: none;
+        }
+        #gameUI>* {
+            pointer-events: auto;
+        }
+        #joystick {
+            position: absolute;
+            border: 3px solid rgba(255, 255, 255, .4);
+            border-radius: 50%;
+            background: rgba(255, 255, 255, .1);
+            display: none;
+            touch-action: none;
+            left: 3%;
+            bottom: 14%;
+            width: 260px;
+            height: 260px;
+            max-width: 38vw;
+            max-height: 38vw;
+        }
+        #joystick-knob {
+            position: absolute;
+            width: 42%;
+            height: 42%;
+            background: rgba(255, 255, 255, .65);
+            border-radius: 50%;
+            left: 29%;
+            top: 29%;
+            pointer-events: none;
+        }
+        #backBtn {
+            position: absolute;
+            left: 5%;
+            top: 5%;
+            width: 110px;
+            height: 68px;
+            border: 2px solid rgba(255, 255, 255, .8);
+            background: rgba(0, 0, 0, .55);
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            letter-spacing: 1px;
+            border-radius: 4px;
+            z-index: 52;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 24px;
+            height: 24px;
+            pointer-events: none;
+            z-index: 55;
+            opacity: .85;
+        }
+        #crosshair-v {
+            position: absolute;
+            top: 0;
+            left: 11px;
+            width: 2px;
+            height: 24px;
+            background: #fff;
+        }
+        #crosshair-h {
+            position: absolute;
+            top: 11px;
+            left: 0;
+            width: 24px;
+            height: 2px;
+            background: #fff;
+        }
+        #crosshair-c {
+            position: absolute;
+            top: 11px;
+            left: 11px;
+            width: 2px;
+            height: 2px;
+            background: #fff;
+        }
+        #fpsDisplay {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #0f0;
+            font-size: 16px;
+            font-weight: bold;
+            font-family: monospace;
+            text-shadow: 0 0 4px #000;
+            display: none;
+            pointer-events: none;
+            z-index: 60;
+        }
+        #resultScreen {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, .9);
+            z-index: 200;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+            pointer-events: none;
+        }
+        #resultText {
+            font-size: 46px;
+            font-weight: bold;
+            color: #fff;
+            letter-spacing: 8px;
+            text-shadow: 0 2px 16px rgba(0, 0, 0, .9);
+        }
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #sanityOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 80;
+            background: radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.8) 100%);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        #appContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            transform-origin: center center;
+            transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                height 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            background: #000;
+            z-index: 1;
+        }
+        #appContainer.portrait {
+            width: 100vh;
+            height: 100vw;
+            transform: rotate(90deg);
+            transform-origin: center center;
+            margin-left: calc((100vw - 100vh) / 2);
+            margin-top: calc((100vh - 100vw) / 2);
+        }
+        #appContainer>* {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #appContainer.portrait #menu .menu-btn {
+            width: 200px;
+            height: 64px;
+            font-size: 22px;
+        }
+        #appContainer.portrait #menu .menu-btn-sm {
+            width: 160px;
+            height: 48px;
+            font-size: 18px;
+        }
+        #appContainer.portrait #joystick {
+            width: 220px;
+            height: 220px;
+            left: 2%;
+            bottom: 8%;
+        }
+        @media (max-width: 600px) {
+            .menu-btn {
+                width: 200px;
+                height: 64px;
+                font-size: 22px;
+            }
+            .menu-btn-sm {
+                width: 160px;
+                height: 48px;
+                font-size: 17px;
+            }
+            #joystick {
+                width: 200px;
+                height: 200px;
+                left: 2%;
+                bottom: 10%;
+            }
+        }
+        #sprayBtn {
+            position: absolute;
+            right: 5%;
+            bottom: 50%;
+            width: 80px;
+            height: 80px;
+            border: 2px solid rgba(255,255,255,.8);
+            background: rgba(0,0,0,.55);
+            color: #fff;
+            font-size: 12px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 52;
+            font-weight: bold;
+            letter-spacing: 1px;
+            user-select: none;
+            -webkit-user-select: none;
+            text-align: center;
+        }
+        #sprayBtn:active {
+            background: rgba(255,255,255,.3);
+        }
+        #blackFilter {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 79;
+            background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.7) 100%);
+        }
+        /* VR教学界面改为纯文本 */
+        #vrTutorial {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 300;
+            pointer-events: auto;
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+            font-size: 18px;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        #vrTutorial .instruction {
+            margin: 20px 0;
+        }
+        #tutLearn {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,255,0,0.7);
+            color: #000;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            z-index: 310;
+        }
+        /* 条款界面 */
+        #termsOverlay {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 500;
+            background: #000;
+            color: #fff;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        #termsText {
+            background: #0000ff;
+            color: #fff;
+            padding: 15px 25px;
+            font-size: 18px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            cursor: pointer;
+            display: inline-block;
+        }
+        #termsCheckbox {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        #termsEnterBtn {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            margin-top: 30px;
+            opacity: 0.5;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+        #termsEnterBtn.enabled {
+            opacity: 1;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="appContainer">
+        <div id="menu">
+            <div style="position:absolute;top:40px;left:50%;transform:translateX(-50%);font-size:48px;font-weight:bold;color:#fff;letter-spacing:12px;text-shadow:0 2px 12px rgba(0,0,0,.9);">熄灯</div>
+            <div class="menu-btn" id="btnStart">开始游戏</div>
+            <div class="menu-btn menu-btn-sm" id="btnFlipScreen">翻转屏幕</div>
+            <div class="menu-btn menu-btn-sm" id="btnVR">VR模式    测试版</div>
+            <div id="loadingText" style="font-size:18px;color:#fff;opacity:.85;text-shadow:0 1px 4px rgba(0,0,0,.8);letter-spacing:2px;margin-top:-4px;">正在生成中，可能需要等待十几秒时间</div>
+            <div style="position:absolute;bottom:16px;right:20px;font-size:13px;color:#fff;font-weight:bold;letter-spacing:1px;opacity:.7;text-shadow:0 1px 4px rgba(0,0,0,.8);">🏀坤坤工作室</div>
+        </div>
+
+        <!-- VR教学界面 -->
+        <div id="vrTutorial">
+            <div class="instruction">滑动左半边屏幕控制角色</div>
+            <div class="instruction">滑动右半边屏幕控制视角</div>
+            <div class="instruction">单击右半边屏幕开关粒子发射状态</div>
+            <button id="tutLearn">学会了（点击正式进入游戏）</button>
+        </div>
+
+        <!-- 条款界面 -->
+        <div id="termsOverlay">
+            <div id="termsText">点击此文本查看具体事项</div>
+            <div style="margin-top:20px;">
+                <input type="checkbox" id="termsCheckbox">
+                <label for="termsCheckbox" style="font-size:18px;">此游戏的内容不同以往</label>
+            </div>
+            <button id="termsEnterBtn" disabled>勾选进入</button>
+        </div>
+
+        <div id="gameUI">
+            <div id="joystick"><div id="joystick-knob"></div></div>
+            <div id="backBtn">返回主菜单</div>
+            <div id="crosshair"><div id="crosshair-v"></div><div id="crosshair-h"></div><div id="crosshair-c"></div></div>
+            <div id="fpsDisplay">0 FPS</div>
+            <div id="sprayBtn">点击发射粒子</div>
+            <div id="blackFilter"></div>
+        </div>
+        <div id="sanityOverlay"></div>
+        <div id="resultScreen">
+            <div id="resultText"></div>
+            <div class="menu-btn" id="btnResultBack" style="pointer-events:auto;width:220px;height:70px;font-size:24px;">返回主菜单</div>
+        </div>
+        <div id="canvas-container"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // ==================== 配置 ====================
+        const CONFIG = {
+            mazeSize: 100,
+            cellSize: 2.2,
+            wallHeight: 2.56,
+            cameraHeight: 1.6,
+            fov: 75,
+            sens: 2.34,
+            speed: 1.0,
+            viewRadius: 14,
+            showFps: false
+        };
+
+        // ==================== 大区块系统 ====================
+        const SUPER_BLOCK_SIZE = 10;
+        const SUPER_BLOCK_COUNT = Math.floor(CONFIG.mazeSize / SUPER_BLOCK_SIZE);
+        const dirtyBlocks = new Set();
+        const pillarBlocks = new Set();
+
+        function initSuperBlocks() {
+            dirtyBlocks.clear();
+            pillarBlocks.clear();
+            for (let sbz = 0; sbz < SUPER_BLOCK_COUNT; sbz++) {
+                for (let sbx = 0; sbx < SUPER_BLOCK_COUNT; sbx++) {
+                    if (Math.random() < 0.6) dirtyBlocks.add(`${sbx},${sbz}`);
+                    if (Math.random() < 0.4) pillarBlocks.add(`${sbx},${sbz}`);
+                }
+            }
+        }
+
+        function getSuperBlock(gx, gz) {
+            return `${Math.floor(gx / SUPER_BLOCK_SIZE)},${Math.floor(gz / SUPER_BLOCK_SIZE)}`;
+        }
+
+        function isDirtyCell(gx, gz) {
+            return dirtyBlocks.has(getSuperBlock(gx, gz));
+        }
+
+        function isPillarCell(gx, gz) {
+            return pillarBlocks.has(getSuperBlock(gx, gz));
+        }
+
+        function isPlayerInDirtyBlock() {
+            const gx = Math.floor(camera.position.x / CONFIG.cellSize + 0.5);
+            const gz = Math.floor(camera.position.z / CONFIG.cellSize + 0.5);
+            return isDirtyCell(gx, gz);
+        }
+
+        function findSafeSpawn() {
+            const ms = CONFIG.mazeSize;
+            const cx = Math.floor(ms / 2);
+            const cz = Math.floor(ms / 2);
+            if (!isDirtyCell(cx, cz)) return { gx: cx, gz: cz };
+            for (let r = 1; r < ms; r++) {
+                for (let dz = -r; dz <= r; dz++) {
+                    for (let dx = -r; dx <= r; dx++) {
+                        if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
+                        const nx = cx + dx;
+                        const nz = cz + dz;
+                        if (nx < 1 || nx >= ms - 1 || nz < 1 || nz >= ms - 1) continue;
+                        if (!isDirtyCell(nx, nz)) return { gx: nx, gz: nz };
+                    }
+                }
+            }
+            return { gx: cx, gz: cz };
+        }
+
+        // ==================== 核心变量 ====================
+        let scene, camera, renderer;
+        let appState = 'menu';
+        let clock = new THREE.Clock();
+        let fpsFrameCount = 0,
+            fpsLastTime = 0;
+        let joystick = { active: false, dx: 0, dy: 0, originX: 0, originY: 0, maxR: 43 };
+        let lookInput = { active: false, lastX: 0, lastY: 0 };
+        let pressedKeys = new Set();
+        const menu = document.getElementById('menu');
+        const gameUI = document.getElementById('gameUI');
+        const fpsDisplay = document.getElementById('fpsDisplay');
+        const joystickEl = document.getElementById('joystick');
+        const knobEl = document.getElementById('joystick-knob');
+        const backBtn = document.getElementById('backBtn');
+        const resultScreen = document.getElementById('resultScreen');
+        const resultText = document.getElementById('resultText');
+        const btnResultBack = document.getElementById('btnResultBack');
+        const sanityOverlay = document.getElementById('sanityOverlay');
+        const appContainer = document.getElementById('appContainer');
+        const btnFlipScreen = document.getElementById('btnFlipScreen');
+        const sprayBtn = document.getElementById('sprayBtn');
+        const btnVR = document.getElementById('btnVR');
+        const vrTutorial = document.getElementById('vrTutorial');
+        const tutLearn = document.getElementById('tutLearn');
+        const termsOverlay = document.getElementById('termsOverlay');
+        const termsText = document.getElementById('termsText');
+        const termsCheckbox = document.getElementById('termsCheckbox');
+        const termsEnterBtn = document.getElementById('termsEnterBtn');
+        const crosshair = document.getElementById('crosshair');
+
+        let isPortrait = false;
+        let isVRMode = false;
+        let monsterSpawnTimer = 0;
+        let lastMoveTime = 0;
+        let hasSpawnedIdle = false;
+        let pendingVR = false; // 判断是否VR模式启动
+
+        // ==================== 理智计时器变量 ====================
+        let sanityTime = 0;
+
+        // ==================== 动态数据 ====================
+        const activeCells = new Map();
+        let monsters = new Map();
+        let sharedWallGeo = null;
+        let sharedWallMat = null;
+        let sharedWallMatDirty = null;
+        let sharedPillarGeo = null;
+        let sharedFloorGeo = null;
+        let sharedFloorMat = null;
+        let sharedFloorMatDirty = null;
+        let sharedCeilGeo = null;
+        let sharedCeilMat = null;
+        let sharedCeilMatDirty = null;
+        let manholeGeo = null;
+        let manholeMat = null;
+        let texturesLoaded = false;
+        let wasMoving = false;
+
+        // 动态光源
+        let playerLight = null;
+        let ambientLight = null;
+        // 行走晃动
+        let walkTime = 0;
+        // 雾颜色渐变
+        let currentFogColor = new THREE.Color(0x000000);
+        // 脏区块渐变程度
+        let currentDirtyLevel = 0.0;
+
+        // 地板/天花板网格数组
+        let floorMeshes = [];
+        let ceilMeshes = [];
+
+        // 喷漆相关
+        let isSpraying = false;
+        let lastSprayTime = 0;
+        let sprayColorIndex = 0;
+        const sprayColors = [0xff0000, 0xffa500, 0xffff00, 0x00ff00, 0x0000ff, 0x800080, 0xffffff];
+        let sprayMarks = [];
+        let exitSprayMarks = [];
+
+        // Eye 怪物
+        let eyeMonster = null;
+        let eyeDir = { x: 1, z: 0 };
+        let eyeSpeed = 1.5;
+        let eyeTarget = null;
+        let eyeState = 'moving';
+        let eyeTimer = 0;
+
+        // 雷达 HUD
+        let hudGroup = null;
+        let hudPanel = null;
+        let radarRedDot = null;
+        const RADAR_RANGE = 30;
+
+        // VR触摸相关
+        let vrMoveTouchId = null;
+        let vrLookTouchId = null;
+        let vrMoveOriginX = 0, vrMoveOriginY = 0;
+        let vrLookLastX = 0, vrLookLastY = 0;
+        let vrLastClickTime = 0;
+        let vrClickCount = 0;
+
+        // 音频
+        let bgmAudio = null;
+        let audioCtx = null;
+
+        // ==================== 纹理加载 ====================
+        const textures = {};
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.setCrossOrigin('anonymous');
+
+        function loadTexture(name, url) {
+            return new Promise((resolve) => {
+                textureLoader.load(url, (tex) => {
+                    tex.wrapS = THREE.RepeatWrapping;
+                    tex.wrapT = THREE.RepeatWrapping;
+                    tex.magFilter = THREE.LinearFilter;
+                    tex.minFilter = THREE.LinearMipmapLinearFilter;
+                    tex.generateMipmaps = true;
+                    textures[name] = tex;
+                    resolve();
+                }, undefined, () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 64;
+                    canvas.height = 64;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, 0, 64, 64);
+                    const fallback = new THREE.CanvasTexture(canvas);
+                    fallback.wrapS = THREE.RepeatWrapping;
+                    fallback.wrapT = THREE.RepeatWrapping;
+                    fallback.magFilter = THREE.LinearFilter;
+                    fallback.minFilter = THREE.LinearMipmapLinearFilter;
+                    fallback.generateMipmaps = true;
+                    textures[name] = fallback;
+                    resolve();
+                });
+            });
+        }
+
+        // ==================== 初始化 Three.js ====================
+        function initThree() {
+            if (renderer) return;
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+            camera = new THREE.PerspectiveCamera(CONFIG.fov, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, CONFIG.cameraHeight, 0);
+            camera.rotation.order = 'YXZ';
+            renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            window.addEventListener('resize', () => {
+                resizeRenderer();
+            });
+            playerLight = new THREE.PointLight(0xffaa00, 0.6, 8.8);
+            playerLight.visible = true;
+            scene.add(playerLight);
+            ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+            scene.add(ambientLight);
+
+            createRadarHUD();
+        }
+
+        function resizeRenderer() {
+            const container = document.getElementById('canvas-container');
+            if (!container) return;
+            const w = container.clientWidth || window.innerWidth;
+            const h = container.clientHeight || window.innerHeight;
+            if (w === 0 || h === 0) return;
+            renderer.setSize(w, h);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+        }
+
+        // ==================== 创建雷达HUD ====================
+        function createRadarHUD() {
+            if (hudGroup) return;
+            hudGroup = new THREE.Group();
+            scene.add(hudGroup);
+
+            hudPanel = new THREE.Group();
+            hudGroup.add(hudPanel);
+
+            const radarRadius = 0.6;
+
+            const bgGeo = new THREE.CircleGeometry(radarRadius, 64);
+            const bgMat = new THREE.MeshBasicMaterial({ color: 0x001100, side: THREE.DoubleSide });
+            const bg = new THREE.Mesh(bgGeo, bgMat);
+            bg.rotation.x = -Math.PI / 2;
+            bg.position.y = 0.001;
+            hudPanel.add(bg);
+
+            const borderGeo = new THREE.RingGeometry(radarRadius - 0.004, radarRadius + 0.004, 64);
+            const borderMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.DoubleSide });
+            const border = new THREE.Mesh(borderGeo, borderMat);
+            border.rotation.x = -Math.PI / 2;
+            border.position.y = 0.002;
+            hudPanel.add(border);
+
+            for (let i = 1; i <= 4; i++) {
+                const r = (radarRadius / 4) * i;
+                const ringGeo = new THREE.RingGeometry(r - 0.002, r + 0.002, 64);
+                const ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.DoubleSide });
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.rotation.x = -Math.PI / 2;
+                ring.position.y = 0.003;
+                hudPanel.add(ring);
+            }
+
+            const lineMat = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+            const hLine = new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(-radarRadius, 0, 0),
+                    new THREE.Vector3(radarRadius, 0, 0)
+                ]), lineMat
+            );
+            const vLine = new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0, 0, -radarRadius),
+                    new THREE.Vector3(0, 0, radarRadius)
+                ]), lineMat
+            );
+            hudPanel.add(hLine, vLine);
+
+            const diagMat = new THREE.LineBasicMaterial({ color: 0x00ff00, opacity: 0.5, transparent: true });
+            const d1 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-radarRadius*0.707, 0, -radarRadius*0.707),
+                new THREE.Vector3(radarRadius*0.707, 0, radarRadius*0.707)
+            ]), diagMat);
+            const d2 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(-radarRadius*0.707, 0, radarRadius*0.707),
+                new THREE.Vector3(radarRadius*0.707, 0, -radarRadius*0.707)
+            ]), diagMat);
+            hudPanel.add(d1, d2);
+
+            const greenDot = new THREE.Mesh(
+                new THREE.SphereGeometry(0.03, 16, 16),
+                new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+            );
+            greenDot.position.y = 0.01;
+            hudPanel.add(greenDot);
+
+            const glow = new THREE.Mesh(
+                new THREE.CircleGeometry(0.07, 32),
+                new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.DoubleSide, transparent: true, opacity: 0.5 })
+            );
+            glow.rotation.x = -Math.PI / 2;
+            glow.position.y = 0.012;
+            hudPanel.add(glow);
+
+            radarRedDot = new THREE.Mesh(
+                new THREE.SphereGeometry(0.02, 12, 12),
+                new THREE.MeshBasicMaterial({ color: 0xff0000 })
+            );
+            radarRedDot.position.y = 0.01;
+            hudPanel.add(radarRedDot);
+
+            const scanLine = new THREE.Line(
+                new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(0, 0, 0),
+                    new THREE.Vector3(radarRadius, 0, 0)
+                ]),
+                new THREE.LineBasicMaterial({ color: 0x00ff00 })
+            );
+            scanLine.position.y = 0.005;
+            hudPanel.add(scanLine);
+            hudPanel.userData.scanLine = scanLine;
+
+            hudGroup.position.set(0, 0, 0);
+        }
+
+        // ==================== 共享资源 ====================
+        function initSharedResources() {
+            const cs = CONFIG.cellSize;
+            const wh = CONFIG.wallHeight;
+            const superSize = SUPER_BLOCK_SIZE;
+            sharedWallGeo = new THREE.BoxGeometry(cs, wh, cs);
+            sharedPillarGeo = new THREE.CylinderGeometry(0.4, 0.4, wh, 12);
+
+            sharedWallMat = new THREE.MeshLambertMaterial({ map: textures.wall, color: 0xffffff });
+            textures.wall.repeat.set(1, wh / cs);
+            sharedWallMatDirty = new THREE.MeshLambertMaterial({ map: textures.dirtyWall, color: 0xffffff });
+            textures.dirtyWall.repeat.set(1, wh / cs);
+
+            const floorTexClean = textures.floor.clone();
+            floorTexClean.needsUpdate = true;
+            floorTexClean.repeat.set(superSize, superSize);
+            sharedFloorMat = new THREE.MeshLambertMaterial({ map: floorTexClean, color: 0xffffff });
+
+            const floorTexDirty = textures.dirtyWall.clone();
+            floorTexDirty.needsUpdate = true;
+            floorTexDirty.repeat.set(superSize, superSize);
+            sharedFloorMatDirty = new THREE.MeshLambertMaterial({ map: floorTexDirty, color: 0xffffff });
+
+            const ceilTexClean = textures.topFloor.clone();
+            ceilTexClean.needsUpdate = true;
+            ceilTexClean.repeat.set(superSize, superSize);
+            sharedCeilMat = new THREE.MeshLambertMaterial({ map: ceilTexClean, color: 0xffffff });
+
+            const ceilTexDirty = textures.dirtyWall.clone();
+            ceilTexDirty.needsUpdate = true;
+            ceilTexDirty.repeat.set(superSize, superSize);
+            sharedCeilMatDirty = new THREE.MeshLambertMaterial({ map: ceilTexDirty, color: 0xffffff });
+
+            sharedFloorGeo = new THREE.PlaneGeometry(superSize * cs, superSize * cs);
+            sharedCeilGeo = new THREE.PlaneGeometry(superSize * cs, superSize * cs);
+
+            const manholeCanvas = document.createElement('canvas');
+            manholeCanvas.width = 128;
+            manholeCanvas.height = 128;
+            const mctx = manholeCanvas.getContext('2d');
+            mctx.fillStyle = '#000000';
+            mctx.fillRect(0, 0, 128, 128);
+            const manholeTex = new THREE.CanvasTexture(manholeCanvas);
+            manholeGeo = new THREE.CircleGeometry(cs * 0.35, 32);
+            manholeMat = new THREE.MeshBasicMaterial({ map: manholeTex, color: 0x000000 });
+        }
+
+        // ==================== 构建基础场景 ====================
+        function buildBaseScene() {
+            const cs = CONFIG.cellSize;
+            const ms = CONFIG.mazeSize;
+            for (const mesh of floorMeshes) scene.remove(mesh);
+            for (const mesh of ceilMeshes) scene.remove(mesh);
+            floorMeshes = [];
+            ceilMeshes = [];
+            for (let sbz = 0; sbz < SUPER_BLOCK_COUNT; sbz++) {
+                for (let sbx = 0; sbx < SUPER_BLOCK_COUNT; sbx++) {
+                    const isDirty = dirtyBlocks.has(`${sbx},${sbz}`);
+                    const fMat = isDirty ? sharedFloorMatDirty : sharedFloorMat;
+                    const fMesh = new THREE.Mesh(sharedFloorGeo, fMat);
+                    fMesh.rotation.x = -Math.PI / 2;
+                    fMesh.position.set((sbx * SUPER_BLOCK_SIZE + SUPER_BLOCK_SIZE / 2) * cs, 0, (sbz * SUPER_BLOCK_SIZE +
+                        SUPER_BLOCK_SIZE / 2) * cs);
+                    fMesh.frustumCulled = false;
+                    scene.add(fMesh);
+                    floorMeshes.push(fMesh);
+                    const cMat = isDirty ? sharedCeilMatDirty : sharedCeilMat;
+                    const cMesh = new THREE.Mesh(sharedCeilGeo, cMat);
+                    cMesh.rotation.x = Math.PI / 2;
+                    cMesh.position.set((sbx * SUPER_BLOCK_SIZE + SUPER_BLOCK_SIZE / 2) * cs, CONFIG.wallHeight - 0.02, (
+                        sbz * SUPER_BLOCK_SIZE + SUPER_BLOCK_SIZE / 2) * cs);
+                    cMesh.frustumCulled = false;
+                    scene.add(cMesh);
+                    ceilMeshes.push(cMesh);
+                }
+            }
+            const spawn = findSafeSpawn();
+            camera.position.set(spawn.gx * cs, CONFIG.cameraHeight, spawn.gz * cs);
+            camera.rotation.set(0, 0, 0);
+        }
+
+        // ==================== 清理世界 ====================
+        function clearWorld() {
+            for (const [key, cell] of activeCells) {
+                if (cell.mesh) scene.remove(cell.mesh);
+            }
+            activeCells.clear();
+            for (const [id, monster] of monsters) {
+                scene.remove(monster.mesh);
+            }
+            monsters.clear();
+            for (const mesh of floorMeshes) scene.remove(mesh);
+            for (const mesh of ceilMeshes) scene.remove(mesh);
+            floorMeshes = [];
+            ceilMeshes = [];
+            for (const mark of sprayMarks) scene.remove(mark);
+            sprayMarks = [];
+            exitSprayMarks = [];
+            sanityTime = 0;
+            monsterSpawnTimer = 0;
+            lastMoveTime = 0;
+            hasSpawnedIdle = false;
+
+            if (eyeMonster) {
+                scene.remove(eyeMonster);
+                eyeMonster = null;
+            }
+            eyeTarget = null;
+            eyeState = 'moving';
+            eyeTimer = 0;
+        }
+
+        // ==================== 动态世界生成 ====================
+        function updateWorld() {
+            if (!texturesLoaded || !sharedWallGeo) return;
+            const cs = CONFIG.cellSize;
+            const pgx = Math.floor(camera.position.x / cs + 0.5);
+            const pgz = Math.floor(camera.position.z / cs + 0.5);
+            const R = CONFIG.viewRadius;
+            const needed = new Set();
+            for (let dz = -R; dz <= R; dz++) {
+                for (let dx = -R; dx <= R; dx++) {
+                    if (dx * dx + dz * dz > R * R) continue;
+                    const gx = pgx + dx;
+                    const gz = pgz + dz;
+                    if (gx < 0 || gx >= CONFIG.mazeSize || gz < 0 || gz >= CONFIG.mazeSize) continue;
+                    needed.add(`${gx},${gz}`);
+                }
+            }
+            for (const [key, cell] of activeCells) {
+                if (!needed.has(key)) {
+                    if (cell.mesh) scene.remove(cell.mesh);
+                    activeCells.delete(key);
+                }
+            }
+            const monsterMaxDist = R * cs;
+            for (const [id, monster] of monsters) {
+                const mdx = monster.x - camera.position.x;
+                const mdz = monster.z - camera.position.z;
+                if (mdx * mdx + mdz * mdz > monsterMaxDist * monsterMaxDist) {
+                    scene.remove(monster.mesh);
+                    monsters.delete(id);
+                }
+            }
+            for (const key of needed) {
+                if (activeCells.has(key)) continue;
+                const [gx, gz] = key.split(',').map(Number);
+                let isWall = false;
+                let hasManhole = false;
+                let hasMonster = false;
+                const dirty = isDirtyCell(gx, gz);
+                const pillar = isPillarCell(gx, gz);
+                if (gx === 0 || gx === CONFIG.mazeSize - 1 || gz === 0 || gz === CONFIG.mazeSize - 1) {
+                    isWall = true;
+                } else if (Math.abs(gx - pgx) <= 1 && Math.abs(gz - pgz) <= 1) {
+                    isWall = false;
+                } else {
+                    if (pillar) isWall = true;
+                    else isWall = Math.random() < 0.38;
+                }
+                let mesh = null;
+                if (isWall) {
+                    const mat = dirty ? sharedWallMatDirty : sharedWallMat;
+                    mesh = new THREE.Mesh(sharedWallGeo, mat);
+                    mesh.position.set(gx * cs, CONFIG.wallHeight / 2, gz * cs);
+                    mesh.frustumCulled = false;
+                    scene.add(mesh);
+                } else {
+                    const roll = Math.random();
+                    if (dirty && gx > 1 && gx < CONFIG.mazeSize - 2 && gz > 1 && gz < CONFIG.mazeSize - 2 && roll < 0.03) {
+                        hasManhole = true;
+                        mesh = new THREE.Mesh(manholeGeo, manholeMat);
+                        mesh.rotation.x = -Math.PI / 2;
+                        mesh.position.set(gx * cs, 0.02, gz * cs);
+                        mesh.frustumCulled = false;
+                        scene.add(mesh);
+                    } else if (dirty && roll < 0.07) {
+                        hasMonster = true;
+                        const spriteMat = new THREE.SpriteMaterial({ map: textures.smiler, depthWrite: false, transparent: true });
+                        const sprite = new THREE.Sprite(spriteMat);
+                        sprite.position.set(gx * cs, CONFIG.cameraHeight, gz * cs);
+                        sprite.scale.set(1.6, 1.6, 1.6);
+                        sprite.frustumCulled = false;
+                        scene.add(sprite);
+                        monsters.set(`m_${gx}_${gz}_${Date.now()}_${Math.floor(Math.random() * 10000)}`, {
+                            mesh: sprite,
+                            x: gx * cs,
+                            z: gz * cs
+                        });
+                    }
+                }
+                activeCells.set(key, { isWall, isPillar: false, hasManhole, hasMonster, mesh });
+            }
+        }
+
+        // ==================== 碰撞检测 ====================
+        function canMoveTo(x, z, radius) {
+            const r = radius || 0.35;
+            const cs = CONFIG.cellSize;
+            const minX = Math.floor((x - r) / cs + 0.5);
+            const maxX = Math.floor((x + r) / cs + 0.5);
+            const minZ = Math.floor((z - r) / cs + 0.5);
+            const maxZ = Math.floor((z + r) / cs + 0.5);
+            for (let gz = minZ; gz <= maxZ; gz++) {
+                for (let gx = minX; gx <= maxX; gx++) {
+                    if (gz < 0 || gz >= CONFIG.mazeSize || gx < 0 || gx >= CONFIG.mazeSize) return false;
+                    const key = `${gx},${gz}`;
+                    let cell = activeCells.get(key);
+                    let isWall = false;
+                    if (cell) {
+                        isWall = cell.isWall;
+                    } else {
+                        if (gx === 0 || gx === CONFIG.mazeSize - 1 || gz === 0 || gz === CONFIG.mazeSize - 1) {
+                            isWall = true;
+                        } else {
+                            const pillarZone = isPillarCell(gx, gz);
+                            isWall = pillarZone ? true : (Math.random() < 0.38);
+                        }
+                    }
+                    if (isWall) {
+                        const wMinX = gx * cs - cs / 2;
+                        const wMaxX = gx * cs + cs / 2;
+                        const wMinZ = gz * cs - cs / 2;
+                        const wMaxZ = gz * cs + cs / 2;
+                        const cx = Math.max(wMinX, Math.min(x, wMaxX));
+                        const cz = Math.max(wMinZ, Math.min(z, wMaxZ));
+                        const dx = x - cx,
+                            dz = z - cz;
+                        if (dx * dx + dz * dz < r * r) return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        // ==================== 怪物与获胜 ====================
+        function updateMonsters(dt) {
+            const showMonsters = true;
+            const playerPos = camera.position;
+            for (const [id, monster] of monsters) {
+                monster.mesh.visible = showMonsters;
+                const dx = playerPos.x - monster.x;
+                const dz = playerPos.z - monster.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist < 0.7) {
+                    gameOver(false);
+                    return;
+                }
+            }
+        }
+
+        // ==================== Eye 怪物更新 ====================
+        function updateEye(dt) {
+            if (!eyeMonster) return;
+            const cs = CONFIG.cellSize;
+
+            if (eyeState === 'moving') {
+                if (!eyeTarget) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = 15 + Math.random() * 20;
+                    const targetX = camera.position.x + Math.cos(angle) * dist * cs;
+                    const targetZ = camera.position.z + Math.sin(angle) * dist * cs;
+                    eyeTarget = { x: targetX, z: targetZ };
+                    eyeTimer = 10;
+                }
+                const dx = eyeTarget.x - eyeMonster.position.x;
+                const dz = eyeTarget.z - eyeMonster.position.z;
+                const dist = Math.sqrt(dx*dx + dz*dz);
+                const speed = dist / Math.max(eyeTimer, 0.01);
+                if (dist < 0.1) {
+                    eyeState = 'waiting';
+                    eyeTimer = 5;
+                    eyeTarget = null;
+                } else {
+                    eyeMonster.position.x += (dx/dist) * speed * dt;
+                    eyeMonster.position.z += (dz/dist) * speed * dt;
+                    eyeTimer -= dt;
+                    if (eyeTimer <= 0) {
+                        eyeState = 'waiting';
+                        eyeTimer = 5;
+                        eyeTarget = null;
+                    }
+                }
+            } else if (eyeState === 'waiting') {
+                eyeTimer -= dt;
+                if (eyeTimer <= 0) {
+                    eyeState = 'moving';
+                }
+            }
+
+            const pdx = camera.position.x - eyeMonster.position.x;
+            const pdz = camera.position.z - eyeMonster.position.z;
+            if (pdx * pdx + pdz * pdz < 0.5 * 0.5) {
+                gameOver(false);
+            }
+        }
+
+        function spawnEye() {
+            if (eyeMonster) return;
+            const spriteMat = new THREE.SpriteMaterial({ map: textures.eye, depthWrite: false, transparent: true });
+            eyeMonster = new THREE.Sprite(spriteMat);
+            eyeMonster.scale.set(1.5, 1, 1);
+            const cs = CONFIG.cellSize;
+            for (let i = 0; i < 50; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 10 + Math.random() * 15;
+                const x = camera.position.x + Math.cos(angle) * dist * cs;
+                const z = camera.position.z + Math.sin(angle) * dist * cs;
+                const gx = Math.floor(x / cs);
+                const gz = Math.floor(z / cs);
+                if (gx < 1 || gx >= CONFIG.mazeSize - 1 || gz < 1 || gz >= CONFIG.mazeSize - 1) continue;
+                eyeMonster.position.set(x, CONFIG.cameraHeight, z);
+                scene.add(eyeMonster);
+                eyeState = 'moving';
+                eyeTimer = 10;
+                eyeTarget = null;
+                return;
+            }
+        }
+
+        // ==================== 每10秒刷新2个Smiler ====================
+        function spawnTimedMonsters() {
+            const cs = CONFIG.cellSize;
+            const playerPos = camera.position;
+            for (let i = 0; i < 2; i++) {
+                let attempts = 0;
+                let placed = false;
+                while (!placed && attempts < 30) {
+                    attempts++;
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = 10 + Math.random() * 5;
+                    const targetX = playerPos.x + Math.cos(angle) * radius;
+                    const targetZ = playerPos.z + Math.sin(angle) * radius;
+                    const gx = Math.floor(targetX / cs + 0.5);
+                    const gz = Math.floor(targetZ / cs + 0.5);
+                    if (gx < 1 || gx >= CONFIG.mazeSize - 1 || gz < 1 || gz >= CONFIG.mazeSize - 1) continue;
+                    if (!canMoveTo(targetX, targetZ, 0.25)) continue;
+                    const spriteMat = new THREE.SpriteMaterial({ map: textures.smiler, depthWrite: false, transparent: true });
+                    const sprite = new THREE.Sprite(spriteMat);
+                    sprite.position.set(targetX, CONFIG.cameraHeight, targetZ);
+                    sprite.scale.set(1.6, 1.6, 1.6);
+                    sprite.frustumCulled = false;
+                    scene.add(sprite);
+                    const id = `timed_${Date.now()}_${Math.random()}`;
+                    monsters.set(id, { mesh: sprite, x: targetX, z: targetZ });
+                    placed = true;
+                }
+            }
+        }
+
+        // ==================== 静止3秒刷新怪物 ====================
+        function spawnIdleMonster() {
+            const cs = CONFIG.cellSize;
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            forward.y = 0;
+            forward.normalize();
+            const back = forward.clone().multiplyScalar(-1);
+            for (let dist = 2; dist <= 6; dist += 0.5) {
+                const targetX = camera.position.x + back.x * dist;
+                const targetZ = camera.position.z + back.z * dist;
+                if (canMoveTo(targetX, targetZ, 0.25)) {
+                    const spriteMat = new THREE.SpriteMaterial({ map: textures.smiler, depthWrite: false, transparent: true });
+                    const sprite = new THREE.Sprite(spriteMat);
+                    sprite.position.set(targetX, CONFIG.cameraHeight, targetZ);
+                    sprite.scale.set(1.6, 1.6, 1.6);
+                    sprite.frustumCulled = false;
+                    scene.add(sprite);
+                    const id = `idle_${Date.now()}_${Math.random()}`;
+                    monsters.set(id, { mesh: sprite, x: targetX, z: targetZ });
+                    break;
+                }
+            }
+        }
+
+        // ==================== 准星对准怪物渐消失 ====================
+        function updateMonsterDisappear() {
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const monsterMeshes = [];
+            for (const [id, monster] of monsters) {
+                monsterMeshes.push(monster.mesh);
+            }
+            if (monsterMeshes.length === 0) return;
+            const intersects = raycaster.intersectObjects(monsterMeshes, true);
+            const hitSet = new Set();
+            for (const hit of intersects) {
+                hitSet.add(hit.object);
+            }
+            for (const [id, monster] of monsters) {
+                if (hitSet.has(monster.mesh)) {
+                    monster.mesh.material.opacity = Math.max(0, monster.mesh.material.opacity - 0.03);
+                    if (monster.mesh.material.opacity <= 0) {
+                        scene.remove(monster.mesh);
+                        monsters.delete(id);
+                    }
+                }
+            }
+        }
+
+        // ==================== 检查胜利 ====================
+        function checkWin() {
+            const cs = CONFIG.cellSize;
+            for (const [key, cell] of activeCells) {
+                if (cell.hasManhole && cell.mesh) {
+                    const [gx, gz] = key.split(',').map(Number);
+                    const mx = gx * cs;
+                    const mz = gz * cs;
+                    const dx = camera.position.x - mx;
+                    const dz = camera.position.z - mz;
+                    if (dx * dx + dz * dz < 0.6 * 0.6) {
+                        let count = 0;
+                        for (const mark of exitSprayMarks) {
+                            const md = Math.sqrt((mark.position.x - mx) ** 2 + (mark.position.z - mz) ** 2);
+                            if (md < cs * 0.5) count++;
+                        }
+                        if (count >= 5) {
+                            gameOver(true);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        function gameOver(win) {
+            appState = 'result';
+            wasMoving = false;
+            resultText.textContent = win ? '你成功逃脱了后室！' : '你被怪物抓住了...';
+            resultText.style.color = win ? '#0f0' : '#f00';
+            resultScreen.style.display = 'flex';
+        }
+
+        // ==================== 理智计时器系统 ====================
+        function updateSanity(dt) {
+            const inDirty = isPlayerInDirtyBlock();
+            if (inDirty) {
+                sanityTime += dt;
+            } else {
+                sanityTime = 0;
+            }
+            let overlayOpacity = Math.min(0.9, (sanityTime / 60) * 0.9);
+            if (overlayOpacity > 0) {
+                sanityOverlay.style.opacity = overlayOpacity;
+                sanityOverlay.style.background = `radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,${overlayOpacity}) 100%)`;
+            } else {
+                sanityOverlay.style.opacity = 0;
+            }
+        }
+
+        // ==================== 输入控制 ====================
+        let joystickTouchId = null;
+        joystickEl.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const touch = e.changedTouches[0];
+            joystickTouchId = touch.identifier;
+            const rect = joystickEl.getBoundingClientRect();
+            joystick.active = true;
+            joystick.originX = rect.left + rect.width / 2;
+            joystick.originY = rect.top + rect.height / 2;
+            updateJoystick(touch.clientX, touch.clientY);
+        }, { passive: false });
+        joystickEl.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            for (let t of e.changedTouches) {
+                if (t.identifier === joystickTouchId) {
+                    updateJoystick(t.clientX, t.clientY);
+                    break;
+                }
+            }
+        }, { passive: false });
+        joystickEl.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            for (let t of e.changedTouches) {
+                if (t.identifier === joystickTouchId) {
+                    joystick.active = false;
+                    joystickTouchId = null;
+                    joystick.dx = 0;
+                    joystick.dy = 0;
+                    knobEl.style.transform = 'translate(0px, 0px)';
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        function updateJoystick(x, y) {
+            let dx = x - joystick.originX;
+            let dy = y - joystick.originY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > joystick.maxR) { const s = joystick.maxR / dist;
+                dx *= s;
+                dy *= s; }
+            joystick.dx = dx / joystick.maxR;
+            joystick.dy = dy / joystick.maxR;
+            knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+        }
+
+        backBtn.addEventListener('touchstart', (e) => { e.preventDefault();
+            stopGame(); }, { passive: false });
+        backBtn.addEventListener('mousedown', (e) => { if (e.button === 0) stopGame(); });
+
+        let lookTouchId = null;
+        document.addEventListener('touchstart', (e) => {
+            if (appState !== 'game') return;
+            if (isVRMode) {
+                const touch = e.changedTouches[0];
+                const area = getVRArea(touch.clientX, touch.clientY);
+                if (area === 'move' && vrMoveTouchId === null) {
+                    vrMoveTouchId = touch.identifier;
+                    vrMoveOriginX = touch.clientX;
+                    vrMoveOriginY = touch.clientY;
+                    joystick.active = true;
+                    joystick.originX = touch.clientX;
+                    joystick.originY = touch.clientY;
+                    joystick.dx = 0; joystick.dy = 0;
+                } else if (area === 'look' && vrLookTouchId === null) {
+                    vrLookTouchId = touch.identifier;
+                    vrLookActive = true;
+                    vrLookLastX = touch.clientX;
+                    vrLookLastY = touch.clientY;
+                    const now = performance.now();
+                    if (now - vrLastClickTime < 400) {
+                        vrClickCount++;
+                        if (vrClickCount >= 2) {
+                            isSpraying = !isSpraying;
+                            vrClickCount = 0;
+                        }
+                    } else {
+                        vrClickCount = 1;
+                    }
+                    vrLastClickTime = now;
+                }
+                return;
+            }
+            if (e.target.closest('#joystick')) return;
+            for (let t of e.changedTouches) {
+                if (lookTouchId === null) {
+                    lookTouchId = t.identifier;
+                    lookInput.active = true;
+                    lookInput.lastX = t.clientX;
+                    lookInput.lastY = t.clientY;
+                }
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchmove', (e) => {
+            if (appState !== 'game') return;
+            if (isVRMode) {
+                for (let t of e.changedTouches) {
+                    if (t.identifier === vrMoveTouchId) {
+                        e.preventDefault();
+                        const dx = t.clientX - vrMoveOriginX;
+                        const dy = t.clientY - vrMoveOriginY;
+                        const maxR = 43;
+                        let nx = dx, ny = dy;
+                        const dist = Math.sqrt(nx*nx + ny*ny);
+                        if (dist > maxR) { nx = nx * maxR / dist; ny = ny * maxR / dist; }
+                        joystick.dx = nx / maxR;
+                        joystick.dy = ny / maxR;
+                        knobEl.style.transform = `translate(${nx}px, ${ny}px)`;
+                    } else if (t.identifier === vrLookTouchId) {
+                        e.preventDefault();
+                        let dx = t.clientX - vrLookLastX;
+                        let dy = t.clientY - vrLookLastY;
+                        if (isPortrait) {
+                            const temp = dx;
+                            dx = dy;
+                            dy = -temp;
+                        }
+                        const sens = CONFIG.sens * 0.0025;
+                        camera.rotation.y -= dx * sens;
+                        camera.rotation.x -= dy * sens;
+                        camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+                        vrLookLastX = t.clientX;
+                        vrLookLastY = t.clientY;
+                    }
+                }
+                return;
+            }
+            if (!lookInput.active) return;
+            for (let t of e.changedTouches) {
+                if (t.identifier === lookTouchId) {
+                    e.preventDefault();
+                    let dx = t.clientX - lookInput.lastX;
+                    let dy = t.clientY - lookInput.lastY;
+                    if (isPortrait) {
+                        const temp = dx;
+                        dx = dy;
+                        dy = -temp;
+                    }
+                    const sens = CONFIG.sens * 0.0025;
+                    camera.rotation.y -= dx * sens;
+                    camera.rotation.x -= dy * sens;
+                    camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+                    lookInput.lastX = t.clientX;
+                    lookInput.lastY = t.clientY;
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        document.addEventListener('touchend', (e) => {
+            if (appState !== 'game') return;
+            if (isVRMode) {
+                for (let t of e.changedTouches) {
+                    if (t.identifier === vrMoveTouchId) {
+                        vrMoveTouchId = null;
+                        joystick.active = false;
+                        joystick.dx = 0; joystick.dy = 0;
+                        knobEl.style.transform = 'translate(0px, 0px)';
+                    } else if (t.identifier === vrLookTouchId) {
+                        vrLookTouchId = null;
+                        vrLookActive = false;
+                    }
+                }
+                return;
+            }
+            for (let t of e.changedTouches) {
+                if (t.identifier === lookTouchId) { lookInput.active = false;
+                    lookTouchId = null; break; }
+            }
+        });
+
+        function getVRArea(x, y) {
+            let leftX = x < window.innerWidth / 2;
+            if (isPortrait) {
+                return y < window.innerHeight / 2 ? 'move' : 'look';
+            } else {
+                return leftX ? 'move' : 'look';
+            }
+        }
+
+        let mouseLook = false;
+        document.addEventListener('mousedown', (e) => {
+            if (appState !== 'game') return;
+            if (isVRMode) {
+                const area = getVRArea(e.clientX, e.clientY);
+                if (area === 'move') {
+                    joystick.active = true;
+                    joystick.originX = e.clientX;
+                    joystick.originY = e.clientY;
+                    joystick.dx = 0; joystick.dy = 0;
+                    vrMoveTouchId = 'mouse_move';
+                } else if (area === 'look') {
+                    mouseLook = true;
+                    lookInput.lastX = e.clientX;
+                    lookInput.lastY = e.clientY;
+                    const now = performance.now();
+                    if (now - vrLastClickTime < 400) {
+                        vrClickCount++;
+                        if (vrClickCount >= 2) {
+                            isSpraying = !isSpraying;
+                            vrClickCount = 0;
+                        }
+                    } else {
+                        vrClickCount = 1;
+                    }
+                    vrLastClickTime = now;
+                }
+                return;
+            }
+            if (e.clientX > window.innerWidth * 0.5 && e.button === 0) {
+                mouseLook = true;
+                lookInput.lastX = e.clientX;
+                lookInput.lastY = e.clientY;
+            }
+        });
+        document.addEventListener('mousemove', (e) => {
+            if (appState !== 'game') return;
+            if (isVRMode) {
+                if (joystick.active && vrMoveTouchId === 'mouse_move') {
+                    const dx = e.clientX - joystick.originX;
+                    const dy = e.clientY - joystick.originY;
+                    const maxR = 43;
+                    let nx = dx, ny = dy;
+                    const dist = Math.sqrt(nx*nx + ny*ny);
+                    if (dist > maxR) { nx = nx * maxR / dist; ny = ny * maxR / dist; }
+                    joystick.dx = nx / maxR;
+                    joystick.dy = ny / maxR;
+                } else if (mouseLook) {
+                    let dx = e.clientX - lookInput.lastX;
+                    let dy = e.clientY - lookInput.lastY;
+                    if (isPortrait) {
+                        const temp = dx;
+                        dx = dy;
+                        dy = -temp;
+                    }
+                    const sens = CONFIG.sens * 0.0025;
+                    camera.rotation.y -= dx * sens;
+                    camera.rotation.x -= dy * sens;
+                    camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+                    lookInput.lastX = e.clientX;
+                    lookInput.lastY = e.clientY;
+                }
+                return;
+            }
+            if (!mouseLook) return;
+            let dx = e.clientX - lookInput.lastX;
+            let dy = e.clientY - lookInput.lastY;
+            if (isPortrait) {
+                const temp = dx;
+                dx = dy;
+                dy = -temp;
+            }
+            const sens = CONFIG.sens * 0.0025;
+            camera.rotation.y -= dx * sens;
+            camera.rotation.x -= dy * sens;
+            camera.rotation.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, camera.rotation.x));
+            lookInput.lastX = e.clientX;
+            lookInput.lastY = e.clientY;
+        });
+        document.addEventListener('mouseup', () => {
+            if (isVRMode) {
+                if (vrMoveTouchId === 'mouse_move') {
+                    joystick.active = false;
+                    joystick.dx = 0; joystick.dy = 0;
+                    vrMoveTouchId = null;
+                }
+                mouseLook = false;
+                return;
+            }
+            mouseLook = false;
+        });
+        document.addEventListener('keydown', (e) => {
+            if (appState === 'game') {
+                pressedKeys.add(e.code);
+                if (e.code === 'KeyF') {
+                    isSpraying = !isSpraying;
+                }
+            }
+        });
+        document.addEventListener('keyup', (e) => { pressedKeys.delete(e.code); });
+
+        // ==================== 喷漆系统 ====================
+        sprayBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            isSpraying = !isSpraying;
+        }, { passive: false });
+        sprayBtn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        }, { passive: false });
+        sprayBtn.addEventListener('mousedown', (e) => {
+            if (e.button === 0) { isSpraying = !isSpraying; }
+        });
+
+        function updateSpray(dt) {
+            if (!isSpraying) return;
+            const now = performance.now() / 1000;
+            const interval = 0.04;
+            if (now - lastSprayTime < interval) return;
+            lastSprayTime = now;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const renderObjects = [];
+            for (const [key, cell] of activeCells) {
+                if (cell.mesh) renderObjects.push(cell.mesh);
+            }
+            for (const mesh of floorMeshes) renderObjects.push(mesh);
+            for (const mesh of ceilMeshes) renderObjects.push(mesh);
+            const intersects = raycaster.intersectObjects(renderObjects);
+            if (intersects.length === 0) return;
+            const hit = intersects[0];
+            const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
+            const radius = 0.1;
+            const geometry = new THREE.CircleGeometry(radius, 16);
+            let markColor;
+            let isExit = false;
+            for (const [key, cell] of activeCells) {
+                if (cell.hasManhole && cell.mesh === hit.object) {
+                    isExit = true;
+                    break;
+                }
+            }
+            if (isExit) {
+                markColor = 0xffffff;
+            } else {
+                markColor = sprayColors[sprayColorIndex];
+                sprayColorIndex = (sprayColorIndex + 1) % sprayColors.length;
+            }
+            const material = new THREE.MeshBasicMaterial({
+                color: markColor,
+                side: THREE.DoubleSide,
+                depthWrite: false,
+                transparent: true,
+                opacity: 0.9
+            });
+            const mark = new THREE.Mesh(geometry, material);
+            mark.position.copy(hit.point).add(normal.clone().multiplyScalar(0.01));
+            if (Math.abs(normal.y) > 0.9) {
+                mark.rotation.x = normal.y > 0 ? -Math.PI / 2 : Math.PI / 2;
+                mark.rotation.z = 0;
+            } else {
+                mark.lookAt(hit.point.clone().add(normal));
+            }
+            mark.frustumCulled = false;
+            scene.add(mark);
+            sprayMarks.push(mark);
+            if (isExit) {
+                exitSprayMarks.push(mark);
+            }
+
+            if (sprayMarks.length > 700) {
+                const oldMark = sprayMarks.shift();
+                scene.remove(oldMark);
+                const idx = exitSprayMarks.indexOf(oldMark);
+                if (idx !== -1) exitSprayMarks.splice(idx, 1);
+            }
+        }
+
+        function cleanSprayMarks() {
+            const maxDist = CONFIG.viewRadius * CONFIG.cellSize * 1.2;
+            const camPos = camera.position;
+            for (let i = sprayMarks.length - 1; i >= 0; i--) {
+                const mark = sprayMarks[i];
+                const dx = mark.position.x - camPos.x;
+                const dz = mark.position.z - camPos.z;
+                if (dx * dx + dz * dz > maxDist * maxDist) {
+                    scene.remove(mark);
+                    sprayMarks.splice(i, 1);
+                    const idx = exitSprayMarks.indexOf(mark);
+                    if (idx !== -1) exitSprayMarks.splice(idx, 1);
+                }
+            }
+        }
+
+        // ==================== 移动逻辑 ====================
+        function updateKeyboardMovement(dt) {
+            if (appState !== 'game') return;
+            const speed = 3.2 * CONFIG.speed * dt;
+            const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            forward.y = 0;
+            forward.normalize();
+            const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            right.y = 0;
+            right.normalize();
+            let mx = 0,
+                mz = 0;
+            if (pressedKeys.has('KeyW')) { mx += forward.x;
+                mz += forward.z; }
+            if (pressedKeys.has('KeyS')) { mx -= forward.x;
+                mz -= forward.z; }
+            if (pressedKeys.has('KeyD')) { mx += right.x;
+                mz += right.z; }
+            if (pressedKeys.has('KeyA')) { mx -= right.x;
+                mz -= right.z; }
+            if (mx !== 0 || mz !== 0) {
+                const len = Math.sqrt(mx * mx + mz * mz);
+                mx /= len;
+                mz /= len;
+                const newX = camera.position.x + mx * speed;
+                const newZ = camera.position.z + mz * speed;
+                if (canMoveTo(newX, camera.position.z)) camera.position.x = newX;
+                if (canMoveTo(camera.position.x, newZ)) camera.position.z = newZ;
+                lastMoveTime = performance.now();
+                hasSpawnedIdle = false;
+            }
+        }
+
+        function updateWalkEffect(dt, isMoving) {
+            if (isMoving && appState === 'game') {
+                walkTime += dt * 8;
+                camera.position.y = CONFIG.cameraHeight + Math.sin(walkTime) * 0.08;
+                camera.rotation.z = Math.sin(walkTime * 0.5) * 0.016;
+                camera.rotation.x += Math.sin(walkTime * 0.8) * 0.005;
+                if (isVRMode) {
+                    // VR额外的上下晃动减半
+                    camera.rotation.x += Math.sin(walkTime * 1.2) * 0.01;
+                }
+            } else {
+                camera.position.y = CONFIG.cameraHeight;
+                camera.rotation.z = 0;
+            }
+        }
+
+        // ==================== 动态雾/光源 ====================
+        function updateAtmosphere(dt) {
+            scene.background = new THREE.Color(0x000000);
+            if (scene.fog) {
+                scene.fog.color.set(0x000000);
+                scene.fog.density = 0.24;
+            }
+            camera.far = 5 * CONFIG.cellSize;
+            camera.updateProjectionMatrix();
+            if (playerLight) {
+                playerLight.visible = true;
+                playerLight.position.copy(camera.position);
+            }
+            currentDirtyLevel = isPlayerInDirtyBlock() ? 1.0 : 0.0;
+        }
+
+        // ==================== 雷达HUD更新 ====================
+        function updateRadarHUD() {
+            if (!hudGroup) return;
+            let offset = new THREE.Vector3(1.6, -0.6, -2.2).applyQuaternion(camera.quaternion);
+            if (isVRMode && walkTime > 0) {
+                const shake = Math.sin(walkTime * 1.5) * 0.05;
+                offset.y += shake;
+                offset.x += Math.cos(walkTime * 1.2) * 0.02;
+            }
+            hudGroup.position.copy(camera.position).add(offset);
+            hudGroup.rotation.set(0, camera.rotation.y, 0);
+            if (radarRedDot && eyeMonster) {
+                const dx = eyeMonster.position.x - camera.position.x;
+                const dz = eyeMonster.position.z - camera.position.z;
+                const maxWorldDist = RADAR_RANGE * CONFIG.cellSize;
+                const radarRadius = 0.6;
+                const scale = radarRadius / maxWorldDist;
+                let rx = dx * scale;
+                let rz = dz * scale;
+                const len = Math.sqrt(rx*rx + rz*rz);
+                if (len > radarRadius) {
+                    rx = rx / len * radarRadius;
+                    rz = rz / len * radarRadius;
+                }
+                radarRedDot.position.set(rx, 0.01, rz);
+            }
+            const scanLine = hudPanel.userData.scanLine;
+            if (scanLine) {
+                scanLine.rotation.y = -camera.rotation.y;
+            }
+        }
+
+        // ==================== 游戏循环 ====================
+        function updateFPS() {
+            if (!CONFIG.showFps) { fpsDisplay.style.display = 'none'; return; }
+            fpsDisplay.style.display = 'block';
+            fpsFrameCount++;
+            const now = performance.now();
+            if (now - fpsLastTime >= 1000) {
+                fpsDisplay.textContent = Math.round(fpsFrameCount * 1000 / (now - fpsLastTime)) + ' FPS';
+                fpsFrameCount = 0;
+                fpsLastTime = now;
+            }
+        }
+
+        function update(dt) {
+            updateKeyboardMovement(dt);
+            let isMoving = false;
+            let jx = joystick.dx;
+            let jy = joystick.dy;
+            if (isPortrait) {
+                const temp = jx;
+                jx = jy;
+                jy = -temp;
+            }
+            if (joystick.active && (jx !== 0 || jy !== 0)) {
+                isMoving = true;
+                const speed = 3.2 * CONFIG.speed * dt;
+                const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+                forward.y = 0;
+                forward.normalize();
+                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+                right.y = 0;
+                right.normalize();
+                const moveX = (forward.x * -jy + right.x * jx) * speed;
+                const moveZ = (forward.z * -jy + right.z * jx) * speed;
+                const newX = camera.position.x + moveX;
+                const newZ = camera.position.z + moveZ;
+                if (canMoveTo(newX, camera.position.z)) camera.position.x = newX;
+                if (canMoveTo(camera.position.x, newZ)) camera.position.z = newZ;
+                lastMoveTime = performance.now();
+                hasSpawnedIdle = false;
+            }
+            if (pressedKeys.has('KeyW') || pressedKeys.has('KeyS') || pressedKeys.has('KeyA') || pressedKeys.has('KeyD')) {
+                isMoving = true;
+                lastMoveTime = performance.now();
+                hasSpawnedIdle = false;
+            }
+            updateWalkEffect(dt, isMoving);
+            if (appState === 'game') {
+                updateWorld();
+                updateMonsters(dt);
+                checkWin();
+                updateSanity(dt);
+                updateAtmosphere(dt);
+                updateSpray(dt);
+                cleanSprayMarks();
+                monsterSpawnTimer += dt;
+                if (monsterSpawnTimer >= 10) {
+                    monsterSpawnTimer -= 10;
+                    spawnTimedMonsters();
+                }
+                updateMonsterDisappear();
+                if (!isMoving && performance.now() - lastMoveTime > 3000 && !hasSpawnedIdle) {
+                    spawnIdleMonster();
+                    hasSpawnedIdle = true;
+                }
+                updateEye(dt);
+                updateRadarHUD();
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.15);
+            if (appState === 'menu') {
+                if (camera) {
+                    camera.rotation.y += 0.12 * dt;
+                    renderer.render(scene, camera);
+                }
+            } else if (appState === 'game') {
+                update(dt);
+                updateFPS();
+                renderer.render(scene, camera);
+            } else if (appState === 'result') {
+                if (camera) renderer.render(scene, camera);
+            }
+        }
+
+        // ==================== 音频系统 ====================
+        function initAudio() {
+            if (bgmAudio) return;
+            bgmAudio = new Audio('https://tymov2.a.kwimgs.com/upic/2023/01/25/02/BMjAyMzAxMjUwMjA1NTVfMzE0Mjk5OTg3Ml85NDUzMjY4ODE3Ml8wXzM=_b_B964f52890fc1654712986ed7e2a2ee6b.mp4?clientCacheKey=3xqfv8bxrpz2rj6_b.mp4&tt=b&di=b65c5032&bp=10000');
+            bgmAudio.loop = true;
+            bgmAudio.crossOrigin = 'anonymous';
+            bgmAudio.play().catch(() => {});
+            
+            if (!audioCtx) {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = audioCtx.createOscillator();
+                    osc.type = 'sawtooth';
+                    osc.frequency.value = 50;
+                    const gain = audioCtx.createGain();
+                    gain.gain.value = 0.05;
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start();
+                } catch(e) {}
+            }
+        }
+
+        function stopAudio() {
+            if (bgmAudio) {
+                bgmAudio.pause();
+                bgmAudio = null;
+            }
+            if (audioCtx) {
+                audioCtx.close();
+                audioCtx = null;
+            }
+        }
+
+        // ==================== 游戏状态 ====================
+        function startGame(vr = false) {
+            if (!texturesLoaded) return;
+            isVRMode = vr;
+            menu.style.display = 'none';
+            vrTutorial.style.display = 'none';
+            gameUI.style.display = 'block';
+            if (vr) {
+                joystickEl.style.display = 'none';
+                backBtn.style.display = 'none';
+                sprayBtn.style.display = 'none';
+                crosshair.style.display = 'none'; // VR隐藏十字准星
+                camera.fov = CONFIG.fov;
+                camera.updateProjectionMatrix();
+            } else {
+                joystickEl.style.display = 'block';
+                backBtn.style.display = 'flex';
+                sprayBtn.style.display = 'flex';
+                crosshair.style.display = 'block'; // 非VR显示
+                camera.fov = CONFIG.fov;
+                camera.updateProjectionMatrix();
+            }
+            resultScreen.style.display = 'none';
+            appState = 'game';
+            initSuperBlocks();
+            clearWorld();
+            buildBaseScene();
+            updateWorld();
+            spawnEye();
+            scene.background = new THREE.Color(0x000000);
+            scene.fog = new THREE.FogExp2(0x000000, 0.24);
+            camera.far = 5 * CONFIG.cellSize;
+            playerLight.visible = true;
+            playerLight.position.copy(camera.position);
+            if (ambientLight) ambientLight.intensity = 0.3;
+            sanityOverlay.style.opacity = 0;
+            isSpraying = false;
+            monsterSpawnTimer = 0;
+            lastMoveTime = performance.now();
+            hasSpawnedIdle = false;
+            resizeRenderer();
+            initAudio();
+        }
+
+        function stopGame() {
+            appState = 'menu';
+            menu.style.display = 'flex';
+            gameUI.style.display = 'none';
+            vrTutorial.style.display = 'none';
+            termsOverlay.style.display = 'none';
+            joystickEl.style.display = 'none';
+            backBtn.style.display = 'none';
+            sprayBtn.style.display = 'none';
+            fpsDisplay.style.display = 'none';
+            resultScreen.style.display = 'none';
+            wasMoving = false;
+            clearWorld();
+            if (playerLight) playerLight.visible = true;
+            scene.background = new THREE.Color(0x000000);
+            scene.fog = null;
+            camera.far = 1000;
+            currentFogColor.set(0x000000);
+            currentDirtyLevel = 0.0;
+            camera.position.set(0, CONFIG.cameraHeight, 0);
+            camera.rotation.set(0, 0, 0);
+            sanityOverlay.style.opacity = 0;
+            buildBaseScene();
+            updateWorld();
+            resizeRenderer();
+            isVRMode = false;
+            stopAudio();
+        }
+
+        // ==================== 条款界面逻辑 ====================
+        let requestedVR = false; // 标记是否通过VR按钮进入
+
+        function showTerms(vr) {
+            requestedVR = vr;
+            termsOverlay.style.display = 'flex';
+            termsCheckbox.checked = false;
+            termsEnterBtn.classList.remove('enabled');
+            termsEnterBtn.disabled = true;
+        }
+
+        termsText.addEventListener('click', () => {
+            window.open('https://smallkun0.github.io/Threeblock/Warning.html', '_blank');
+        });
+
+        termsCheckbox.addEventListener('change', () => {
+            if (termsCheckbox.checked) {
+                termsEnterBtn.classList.add('enabled');
+                termsEnterBtn.disabled = false;
+            } else {
+                termsEnterBtn.classList.remove('enabled');
+                termsEnterBtn.disabled = true;
+            }
+        });
+
+        termsEnterBtn.addEventListener('click', () => {
+            if (!termsCheckbox.checked) return;
+            termsOverlay.style.display = 'none';
+            if (requestedVR) {
+                vrTutorial.style.display = 'block';
+                menu.style.display = 'none';
+            } else {
+                startGame(false);
+            }
+        });
+        termsEnterBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!termsCheckbox.checked) return;
+            termsOverlay.style.display = 'none';
+            if (requestedVR) {
+                vrTutorial.style.display = 'block';
+                menu.style.display = 'none';
+            } else {
+                startGame(false);
+            }
+        }, { passive: false });
+
+        // 开始游戏按钮改为显示条款
+        document.getElementById('btnStart').addEventListener('click', () => {
+            if (!texturesLoaded) return;
+            showTerms(false);
+        });
+        document.getElementById('btnStart').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!texturesLoaded) return;
+            showTerms(false);
+        }, { passive: false });
+
+        // VR模式按钮改为显示条款
+        btnVR.addEventListener('click', () => {
+            if (!texturesLoaded) return;
+            showTerms(true);
+        });
+        btnVR.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (!texturesLoaded) return;
+            showTerms(true);
+        }, { passive: false });
+
+        // VR教学界面
+        tutLearn.addEventListener('click', () => {
+            vrTutorial.style.display = 'none';
+            startGame(true);
+        });
+        tutLearn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            vrTutorial.style.display = 'none';
+            startGame(true);
+        }, { passive: false });
+
+        btnResultBack.addEventListener('click', stopGame);
+        btnResultBack.addEventListener('touchstart', (e) => { e.preventDefault();
+            stopGame(); }, { passive: false });
+        btnFlipScreen.addEventListener('click', toggleFlipScreen);
+        btnFlipScreen.addEventListener('touchstart', (e) => { e.preventDefault();
+            toggleFlipScreen(); }, { passive: false });
+
+        // ==================== 翻转屏幕功能 ====================
+        function toggleFlipScreen() {
+            isPortrait = !isPortrait;
+            appContainer.classList.toggle('portrait', isPortrait);
+            btnFlipScreen.textContent = isPortrait ? '横屏模式' : '翻转屏幕';
+            requestAnimationFrame(() => {
+                resizeRenderer();
+            });
+        }
+
+        // ==================== 启动 ====================
+        window.addEventListener('load', () => {
+            initThree();
+            Promise.all([
+                loadTexture('wall', 'https://smallkun0.github.io/Grass/Level%201/Wall.jpg'),
+                loadTexture('smiler', 'https://smallkun0.github.io/Grass/Backrooms/Smiler.png'),
+                loadTexture('topFloor', 'https://smallkun0.github.io/Grass/Level%201/TopFloor.jpg'),
+                loadTexture('floor', 'https://smallkun0.github.io/Grass/Level%202/Floor.jpg'),
+                loadTexture('eye', 'https://smallkun0.github.io/Grass/Backrooms/Eye.png')
+            ]).then(() => {
+                const blackCanvas = document.createElement('canvas');
+                blackCanvas.width = 64;
+                blackCanvas.height = 64;
+                const blackCtx = blackCanvas.getContext('2d');
+                blackCtx.fillStyle = '#000000';
+                blackCtx.fillRect(0, 0, 64, 64);
+                const blackTex = new THREE.CanvasTexture(blackCanvas);
+                blackTex.wrapS = THREE.RepeatWrapping;
+                blackTex.wrapT = THREE.RepeatWrapping;
+                textures.dirtyWall = blackTex;
+
+                texturesLoaded = true;
+                initSharedResources();
+                initSuperBlocks();
+                const cs = CONFIG.cellSize;
+                const ms = CONFIG.mazeSize;
+                const spawn = findSafeSpawn();
+                camera.position.set(spawn.gx * cs, CONFIG.cameraHeight, spawn.gz * cs);
+                camera.rotation.set(0, 0, 0);
+                buildBaseScene();
+                updateWorld();
+                clock.start();
+                animate();
+                document.getElementById('loadingText').style.display = 'none';
+                resizeRenderer();
+                btnFlipScreen.textContent = '翻转屏幕';
+            });
+        });
+    </script>
+</body>
+</html>
