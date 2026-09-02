@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D Audio Demo - Three.js</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+        body { background: #0a0a1a; color: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; user-select: none; touch-action: none; }
+        #canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        #info { 
+            position: absolute; top: 16px; left: 16px; z-index: 10; 
+            background: rgba(10,10,30,0.8); padding: 14px 18px; border-radius: 12px; 
+            border: 1px solid rgba(0,217,255,0.2); backdrop-filter: blur(8px);
+            max-width: 320px; pointer-events: none;
+        }
+        #info h2 { margin-bottom: 6px; font-size: 17px; color: #00d9ff; }
+        #info p { margin-bottom: 4px; font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.5; }
+        .btn-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; pointer-events: auto; }
+        .btn-row button { 
+            padding: 8px 16px; font-size: 12px; cursor: pointer; 
+            background: linear-gradient(135deg, #e94560, #c73e54); color: white; 
+            border: none; border-radius: 6px; transition: all 0.2s;
+            font-weight: 600; letter-spacing: 0.5px; white-space: nowrap;
+        }
+        .btn-row button:hover { transform: scale(1.05); box-shadow: 0 4px 20px rgba(233,69,96,0.4); }
+        .btn-row button.secondary { background: linear-gradient(135deg, #0088aa, #006688); }
+        .btn-row button.secondary:hover { box-shadow: 0 4px 20px rgba(0,136,170,0.4); }
+        #pos { margin-top: 8px; font-size: 11px; color: #00d9ff; font-family: monospace; }
+        #fileName { margin-top: 4px; font-size: 10px; color: rgba(255,255,255,0.5); font-style: italic; }
+        #rightPanel {
+            position: absolute; top: 16px; right: 16px; z-index: 10;
+            display: flex; flex-direction: column; gap: 10px;
+            max-width: 200px;
+        }
+        .panel-box {
+            background: rgba(10,10,30,0.85); padding: 10px 14px; border-radius: 10px;
+            border: 1px solid rgba(233,69,96,0.3); backdrop-filter: blur(8px);
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .panel-box label {
+            display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer;
+            padding: 4px 6px; border-radius: 6px; transition: background 0.2s;
+        }
+        .panel-box label:hover { background: rgba(255,255,255,0.05); }
+        .panel-box input[type="radio"] { accent-color: #e94560; width: 16px; height: 16px; cursor: pointer; }
+        .mode-desc { font-size: 10px; color: rgba(255,255,255,0.4); margin-left: 24px; }
+        #speedControl { margin-top: 4px; }
+        #speedControl label {
+            font-size: 12px; color: rgba(255,255,255,0.7); display: block; margin-bottom: 6px;
+            padding: 0;
+        }
+        #speedSlider {
+            width: 100%; height: 6px; border-radius: 3px;
+            background: rgba(255,255,255,0.1); outline: none; cursor: pointer;
+            -webkit-appearance: none; appearance: none;
+        }
+        #speedSlider::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 18px; height: 18px; border-radius: 50%;
+            background: linear-gradient(135deg, #e94560, #c73e54);
+            cursor: pointer; border: 2px solid rgba(255,255,255,0.3);
+            box-shadow: 0 2px 8px rgba(233,69,96,0.4);
+        }
+        #speedSlider::-moz-range-thumb {
+            width: 18px; height: 18px; border-radius: 50%;
+            background: linear-gradient(135deg, #e94560, #c73e54);
+            cursor: pointer; border: 2px solid rgba(255,255,255,0.3);
+            box-shadow: 0 2px 8px rgba(233,69,96,0.4);
+        }
+        #speedValue {
+            text-align: center; font-size: 13px; color: #e94560;
+            font-weight: 600; margin-top: 4px; font-family: monospace;
+        }
+        #dpad {
+            position: absolute; bottom: 24px; left: 24px; z-index: 10;
+            width: 140px; height: 140px;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        #dpad.hidden { opacity: 0; pointer-events: none; transform: translateY(20px); }
+        .dpad-btn {
+            position: absolute; width: 44px; height: 44px;
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px; display: flex; align-items: center; justify-content: center;
+            font-size: 20px; color: rgba(255,255,255,0.7); cursor: pointer;
+            transition: all 0.15s; backdrop-filter: blur(4px);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .dpad-btn:active, .dpad-btn.active {
+            background: rgba(0,217,255,0.25); border-color: rgba(0,217,255,0.5);
+            color: #00d9ff; transform: scale(0.92);
+        }
+        .dpad-up { top: 0; left: 48px; }
+        .dpad-down { bottom: 0; left: 48px; }
+        .dpad-left { top: 48px; left: 0; }
+        .dpad-right { top: 48px; right: 0; }
+        .dpad-center {
+            position: absolute; top: 48px; left: 48px; width: 44px; height: 44px;
+            background: rgba(255,255,255,0.04); border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        #yControls {
+            position: absolute; bottom: 24px; right: 24px; z-index: 10;
+            display: flex; flex-direction: column; gap: 10px;
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        #yControls.hidden { opacity: 0; pointer-events: none; transform: translateY(20px); }
+        .y-btn {
+            width: 56px; height: 56px; border-radius: 50%;
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; color: rgba(255,255,255,0.7); cursor: pointer;
+            transition: all 0.15s; backdrop-filter: blur(4px);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .y-btn:active, .y-btn.active {
+            background: rgba(233,69,96,0.25); border-color: rgba(233,69,96,0.5);
+            color: #e94560; transform: scale(0.92);
+        }
+        #popup {
+            position: fixed; top: -220px; right: 20px; width: 200px;
+            background: rgba(20,20,40,0.95); border: 1px solid rgba(233,69,96,0.4);
+            border-radius: 14px; padding: 14px; z-index: 100;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+            transition: top 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+            backdrop-filter: blur(12px);
+        }
+        #popup.show { top: 90px; }
+        #popup img {
+            width: 100%; height: 130px; object-fit: cover; border-radius: 10px; display: block;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        #popup .popup-text {
+            margin-top: 10px; font-size: 12px; color: #ccc; text-align: center; line-height: 1.5;
+        }
+        #popup .close-btn {
+            position: absolute; top: 8px; right: 8px; width: 26px; height: 26px;
+            background: rgba(233,69,96,0.85); border: none; border-radius: 50%;
+            color: white; font-size: 14px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; line-height: 1;
+        }
+        #popup .close-btn:hover { background: #e94560; transform: scale(1.1); }
+        #dragHint {
+            position: absolute; bottom: 180px; left: 50%; transform: translateX(-50%);
+            font-size: 13px; color: rgba(255,255,255,0.4); pointer-events: none;
+            opacity: 0; transition: opacity 0.5s; text-align: center;
+        }
+        #dragHint.show { opacity: 1; }
+        #toast {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-60px);
+            background: rgba(233,69,96,0.95); color: white; padding: 10px 24px; border-radius: 8px;
+            font-size: 13px; z-index: 200; transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            pointer-events: none; box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        #toast.show { transform: translateX(-50%) translateY(0); }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div id="info">
+        <h2>3D Audio Demo</h2>
+        <p>请戴上耳机！ECO模式声源自动绕圈，手动模式用按键控制。</p>
+        <div class="btn-row">
+            <button id="startBtn">点击开始</button>
+            <button id="chooseBtn" class="secondary">Choose Your Mp3</button>
+            <button id="refreshBtn" class="secondary">刷新</button>
+        </div>
+        <p id="fileName"></p>
+        <p id="pos">声源: X=3.0 Y=1.0 Z=-5.0 | 距离: 5.9m</p>
+    </div>
+    <div id="rightPanel">
+        <div class="panel-box">
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:2px;">音频模式</div>
+            <label><input type="radio" name="mode" value="surround" checked><span>环绕音频</span></label>
+            <div class="mode-desc">HRTF定位 + 距离衰减 + 降噪</div>
+            <label><input type="radio" name="mode" value="reverb"><span>混响音频</span></label>
+            <div class="mode-desc">三视角混响 + 多重播放 + 降噪</div>
+            <label><input type="radio" name="mode" value="denoise"><span>去噪音频</span></label>
+            <div class="mode-desc">5重叠加 + 3D距离 + 降噪 + 40%音量</div>
+        </div>
+        <div class="panel-box">
+            <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:2px;">操作模式</div>
+            <label><input type="radio" name="opMode" value="eco" checked><span>ECO 自动</span></label>
+            <div class="mode-desc">声源随机绕圈移动</div>
+            <label><input type="radio" name="opMode" value="manual"><span>手动模式</span></label>
+            <div class="mode-desc">按键控制声源位置</div>
+            <div id="speedControl">
+                <label>声源速度</label>
+                <input type="range" id="speedSlider" min="10" max="1000" value="100">
+                <div id="speedValue">100%</div>
+            </div>
+        </div>
+    </div>
+    <div id="dpad" class="hidden">
+        <div class="dpad-btn dpad-up" data-dir="up">&#9650;</div>
+        <div class="dpad-btn dpad-down" data-dir="down">&#9660;</div>
+        <div class="dpad-btn dpad-left" data-dir="left">&#9664;</div>
+        <div class="dpad-btn dpad-right" data-dir="right">&#9654;</div>
+        <div class="dpad-center"></div>
+    </div>
+    <div id="yControls" class="hidden">
+        <div class="y-btn" data-dir="upY">&#8593;</div>
+        <div class="y-btn" data-dir="downY">&#8595;</div>
+    </div>
+    <div id="dragHint" class="show">左键/单指拖动旋转视角 | ECO自动绕圈 | 手动模式按键控制</div>
+    <div id="popup">
+        <button class="close-btn" onclick="closePopup()">&#10005;</button>
+        <img src="https://smallkun0.github.io/Threeblock/Ear.jpg" alt="耳机" onerror="this.style.display='none'">
+        <div class="popup-text">戴上耳机体验3D音效<br><span style="color:#e94560">推荐佩戴立体声耳机</span></div>
+    </div>
+    <div id="toast"></div>
+    <input type="file" id="fileInput" accept="audio/mpeg,.mp3" style="display:none">
+
+    <script>
+        let scene, camera, renderer, listenerGroup, sourceMesh, lineMesh, lineGeo;
+        let audioCtx, audioBuffer;
+        let isPlaying = false;
+        let currentMode = 'surround';
+        let surroundSource, surroundPanner, surroundCompressor;
+        let reverbSources = [], reverbGains = [], reverbCompressor, reverbMasterGain;
+        let denoiseSources = [], denoiseDistGain, denoiseMasterGain, denoiseCompressor;
+        const listenerPos = new THREE.Vector3(0, 1.7, 0);
+        const sourcePos = new THREE.Vector3(3, 1.0, -5);
+        const baseMoveSpeed = 0.08;
+        let moveSpeed = baseMoveSpeed;
+        const keys = { up: false, down: false, left: false, right: false, upY: false, downY: false };
+        const AUDIO_URL = 'https://tymov2.a.kwimgs.com/upic/2024/09/29/22/BMjAyNDA5MjkyMjUwMjZfODIwODc3NjQ1XzE0NDc4MTk3MzcwOF8yXzM=_b_B5a17de81acadf05aca5f5a91be38619d.mp4?clientCacheKey=3xsts45ftnqg8um_b.mp4&tt=b&di=65c885fb&bp=10000';
+        let currentAudioSource = 'cdn';
+        let currentFile = null;
+        let opMode = 'eco';
+        let ecoParams = null;
+        let ecoTime = 0;
+        let isOrbiting = false;
+        let orbitStartX = 0, orbitStartY = 0;
+        let manualRotated = false;
+        const orbitTarget = new THREE.Vector3(0, 1.7, 0);
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        function generateEcoPath() {
+            const radiusX = 2 + Math.random() * 8;
+            const radiusZ = 2 + Math.random() * 8;
+            const centerX = (Math.random() - 0.5) * 10;
+            const centerZ = (Math.random() - 0.5) * 10;
+            const phase = Math.random() * Math.PI * 2;
+            const speed = 0.3 + Math.random() * 1.2;
+            const yAmp = 0.2 + Math.random() * 1.5;
+            const yFreq = 0.5 + Math.random() * 1.5;
+            const yPhase = Math.random() * Math.PI * 2;
+            return { radiusX, radiusZ, centerX, centerZ, phase, speed, yAmp, yFreq, yPhase };
+        }
+
+        function updateOpModeUI() {
+            const dpad = document.getElementById('dpad');
+            const yControls = document.getElementById('yControls');
+            if (opMode === 'eco') {
+                dpad.classList.add('hidden');
+                yControls.classList.add('hidden');
+            } else {
+                dpad.classList.remove('hidden');
+                yControls.classList.remove('hidden');
+            }
+        }
+
+        function initThree() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a1a);
+            scene.fog = new THREE.Fog(0x0a0a1a, 30, 90);
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+            camera.position.set(12, 18, 12);
+            camera.lookAt(orbitTarget);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+            
+            const ambient = new THREE.AmbientLight(0x404060, 1.5);
+            scene.add(ambient);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(10, 20, 10);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+            const pointLight = new THREE.PointLight(0xe94560, 0.5, 20);
+            pointLight.position.set(3, 4, -5);
+            scene.add(pointLight);
+            
+            const gridHelper = new THREE.GridHelper(60, 60, 0x334466, 0x1a1a33);
+            scene.add(gridHelper);
+            const planeGeo = new THREE.PlaneGeometry(60, 60);
+            const planeMat = new THREE.MeshBasicMaterial({ color: 0x0a0a1a, side: THREE.DoubleSide, transparent: true, opacity: 0.8 });
+            const plane = new THREE.Mesh(planeGeo, planeMat);
+            plane.rotation.x = -Math.PI / 2;
+            plane.position.y = -0.01;
+            scene.add(plane);
+            
+            const axesHelper = new THREE.AxesHelper(2);
+            axesHelper.position.y = 0.05;
+            scene.add(axesHelper);
+            
+            listenerGroup = new THREE.Group();
+            listenerGroup.position.copy(listenerPos);
+            const bodyGeo = new THREE.CylinderGeometry(0.25, 0.3, 1.5, 12);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0088aa, roughness: 0.4, metalness: 0.6 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.75;
+            body.castShadow = true;
+            listenerGroup.add(body);
+            const headGeo = new THREE.SphereGeometry(0.22, 24, 24);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0x00d9ff, emissive: 0x006688, emissiveIntensity: 0.6, roughness: 0.2 });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 1.7;
+            listenerGroup.add(head);
+            const earGeo = new THREE.SphereGeometry(0.08, 12, 12);
+            const earMat = new THREE.MeshStandardMaterial({ color: 0xff6b8a, emissive: 0x662233, emissiveIntensity: 0.5 });
+            const leftEar = new THREE.Mesh(earGeo, earMat);
+            leftEar.position.set(-0.22, 1.7, 0);
+            listenerGroup.add(leftEar);
+            const rightEar = new THREE.Mesh(earGeo, earMat);
+            rightEar.position.set(0.22, 1.7, 0);
+            listenerGroup.add(rightEar);
+            const bandGeo = new THREE.TorusGeometry(0.28, 0.03, 8, 24, Math.PI);
+            const bandMat = new THREE.MeshStandardMaterial({ color: 0x333344, metalness: 0.8, roughness: 0.2 });
+            const band = new THREE.Mesh(bandGeo, bandMat);
+            band.position.y = 1.75;
+            band.rotation.y = Math.PI / 2;
+            listenerGroup.add(band);
+            scene.add(listenerGroup);
+            
+            const sourceGeo = new THREE.SphereGeometry(0.35, 32, 32);
+            const sourceMat = new THREE.MeshStandardMaterial({ color: 0xe94560, emissive: 0xe94560, emissiveIntensity: 0.9, roughness: 0.1, metalness: 0.3 });
+            sourceMesh = new THREE.Mesh(sourceGeo, sourceMat);
+            sourceMesh.position.copy(sourcePos);
+            sourceMesh.castShadow = true;
+            scene.add(sourceMesh);
+            
+            const glowGeo = new THREE.SphereGeometry(0.55, 32, 32);
+            const glowMat = new THREE.MeshBasicMaterial({ color: 0xe94560, transparent: true, opacity: 0.15 });
+            const glow = new THREE.Mesh(glowGeo, glowMat);
+            sourceMesh.add(glow);
+            const coreGeo = new THREE.SphereGeometry(0.15, 16, 16);
+            const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const core = new THREE.Mesh(coreGeo, coreMat);
+            sourceMesh.add(core);
+            
+            lineGeo = new THREE.BufferGeometry();
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xe94560, transparent: true, opacity: 0.4 });
+            lineMesh = new THREE.Line(lineGeo, lineMat);
+            scene.add(lineMesh);
+            
+            updateLine();
+            animate();
+        }
+
+        function updateLine() {
+            lineGeo.setFromPoints([listenerPos.clone(), sourcePos.clone()]);
+        }
+
+        function updateInfo() {
+            const dx = sourcePos.x - listenerPos.x;
+            const dy = sourcePos.y - listenerPos.y;
+            const dz = sourcePos.z - listenerPos.z;
+            const dist = Math.sqrt(dx*dx + dy*dy + dz*dz).toFixed(1);
+            document.getElementById('pos').textContent = '声源: X=' + sourcePos.x.toFixed(1) + ' Y=' + sourcePos.y.toFixed(1) + ' Z=' + sourcePos.z.toFixed(1) + ' | 距离: ' + dist + 'm';
+        }
+
+        function orbitCamera(deltaX, deltaY) {
+            let offset = camera.position.clone().sub(orbitTarget);
+            const qHoriz = new THREE.Quaternion();
+            qHoriz.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -deltaX * 0.005);
+            offset.applyQuaternion(qHoriz);
+            const forward = orbitTarget.clone().sub(camera.position).normalize();
+            const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+            const qVert = new THREE.Quaternion();
+            qVert.setFromAxisAngle(right, -deltaY * 0.005);
+            const testOffset = offset.clone().applyQuaternion(qVert);
+            const newPos = orbitTarget.clone().add(testOffset);
+            if (newPos.y > 0.5) offset = testOffset;
+            camera.position.copy(orbitTarget.clone().add(offset));
+            camera.lookAt(orbitTarget);
+        }
+
+        async function loadAudioBuffer(source) {
+            if (source === 'cdn') {
+                const resp = await fetch(AUDIO_URL, { mode: 'cors' });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const arrBuf = await resp.arrayBuffer();
+                audioBuffer = await audioCtx.decodeAudioData(arrBuf);
+                currentAudioSource = 'cdn';
+                currentFile = null;
+                document.getElementById('fileName').textContent = '';
+                showToast('CDN音频已加载');
+            } else if (source === 'file' && currentFile) {
+                const arrBuf = await currentFile.arrayBuffer();
+                audioBuffer = await audioCtx.decodeAudioData(arrBuf);
+                currentAudioSource = 'file';
+                document.getElementById('fileName').textContent = '当前: ' + currentFile.name;
+                showToast('MP3已加载: ' + currentFile.name);
+            }
+        }
+
+        async function initAudio() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            try {
+                await loadAudioBuffer('cdn');
+            } catch (e) {
+                console.warn('外部音频加载失败，将使用内置音源:', e.message);
+                audioBuffer = null;
+                currentAudioSource = 'fallback';
+                showToast('CDN加载失败，使用内置音源');
+            }
+            const listener = audioCtx.listener;
+            listener.positionX.value = listenerPos.x;
+            listener.positionY.value = listenerPos.y;
+            listener.positionZ.value = listenerPos.z;
+            listener.forwardX.value = 0;
+            listener.forwardY.value = 0;
+            listener.forwardZ.value = -1;
+            listener.upX.value = 0;
+            listener.upY.value = 1;
+            listener.upZ.value = 0;
+            initMode(currentMode);
+            isPlaying = true;
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('dragHint').classList.add('show');
+        }
+
+        function createCompressor() {
+            const comp = audioCtx.createDynamicsCompressor();
+            comp.threshold.value = -22;
+            comp.knee.value = 28;
+            comp.ratio.value = 10;
+            comp.attack.value = 0.003;
+            comp.release.value = 0.2;
+            return comp;
+        }
+
+        function initMode(mode) {
+            const now = audioCtx.currentTime;
+            if (surroundSource) { try { surroundSource.stop(now); } catch(e){} surroundSource = null; }
+            if (surroundPanner) { surroundPanner.disconnect(); surroundPanner = null; }
+            if (surroundCompressor) { surroundCompressor.disconnect(); surroundCompressor = null; }
+            reverbSources.forEach(s => { try { s.stop(now); } catch(e){} });
+            reverbSources = [];
+            reverbGains.forEach(g => g.disconnect());
+            reverbGains = [];
+            if (reverbCompressor) { reverbCompressor.disconnect(); reverbCompressor = null; }
+            if (reverbMasterGain) { reverbMasterGain.disconnect(); reverbMasterGain = null; }
+            denoiseSources.forEach(s => { try { s.stop(now); } catch(e){} });
+            denoiseSources = [];
+            if (denoiseDistGain) { denoiseDistGain.disconnect(); denoiseDistGain = null; }
+            if (denoiseMasterGain) { denoiseMasterGain.disconnect(); denoiseMasterGain = null; }
+            if (denoiseCompressor) { denoiseCompressor.disconnect(); denoiseCompressor = null; }
+            
+            if (mode === 'surround') {
+                surroundPanner = new PannerNode(audioCtx, {
+                    panningModel: 'HRTF',
+                    distanceModel: 'inverse',
+                    refDistance: 1,
+                    maxDistance: 100,
+                    rolloffFactor: 1,
+                    positionX: sourcePos.x,
+                    positionY: sourcePos.y,
+                    positionZ: sourcePos.z,
+                    coneInnerAngle: 360,
+                    coneOuterAngle: 360
+                });
+                surroundCompressor = createCompressor();
+                if (audioBuffer) {
+                    surroundSource = audioCtx.createBufferSource();
+                    surroundSource.buffer = audioBuffer;
+                    surroundSource.loop = true;
+                    surroundSource.connect(surroundPanner);
+                } else {
+                    surroundSource = audioCtx.createOscillator();
+                    surroundSource.type = 'sine';
+                    surroundSource.frequency.value = 440;
+                    const lfo = audioCtx.createOscillator();
+                    lfo.type = 'sine'; lfo.frequency.value = 3;
+                    const lfoGain = audioCtx.createGain(); lfoGain.gain.value = 80;
+                    lfo.connect(lfoGain); lfoGain.connect(surroundSource.frequency);
+                    lfo.start();
+                    surroundSource.connect(surroundPanner);
+                }
+                surroundPanner.connect(surroundCompressor);
+                surroundCompressor.connect(audioCtx.destination);
+                surroundSource.start();
+            } else if (mode === 'reverb') {
+                reverbCompressor = createCompressor();
+                reverbMasterGain = audioCtx.createGain();
+                reverbMasterGain.gain.value = 0.7;
+                reverbCompressor.connect(reverbMasterGain);
+                reverbMasterGain.connect(audioCtx.destination);
+                
+                for (let i = 0; i < 3; i++) {
+                    const gainNode = audioCtx.createGain();
+                    gainNode.gain.value = 0.5;
+                    reverbGains.push(gainNode);
+                    let src;
+                    if (audioBuffer) {
+                        src = audioCtx.createBufferSource();
+                        src.buffer = audioBuffer;
+                        src.loop = true;
+                    } else {
+                        src = audioCtx.createOscillator();
+                        src.type = i === 0 ? 'sine' : (i === 1 ? 'triangle' : 'sawtooth');
+                        src.frequency.value = 440 + i * 5;
+                    }
+                    src.connect(gainNode);
+                    gainNode.connect(reverbCompressor);
+                    src.start();
+                    reverbSources.push(src);
+                }
+            } else if (mode === 'denoise') {
+                denoiseCompressor = createCompressor();
+                denoiseMasterGain = audioCtx.createGain();
+                denoiseMasterGain.gain.value = 0.4;
+                denoiseDistGain = audioCtx.createGain();
+                denoiseDistGain.gain.value = 1.0;
+                
+                denoiseDistGain.connect(denoiseMasterGain);
+                denoiseMasterGain.connect(denoiseCompressor);
+                denoiseCompressor.connect(audioCtx.destination);
+                
+                for (let i = 0; i < 5; i++) {
+                    let src;
+                    if (audioBuffer) {
+                        src = audioCtx.createBufferSource();
+                        src.buffer = audioBuffer;
+                        src.loop = true;
+                    } else {
+                        src = audioCtx.createOscillator();
+                        src.type = 'sine';
+                        src.frequency.value = 440;
+                    }
+                    src.connect(denoiseDistGain);
+                    src.start();
+                    denoiseSources.push(src);
+                }
+            }
+            updateAudioParams();
+        }
+
+        function distToGain(dist) {
+            const ref = 1.0;
+            if (dist <= ref) return 1.0;
+            return Math.max(0.08, ref / (ref + 0.6 * (dist - ref)));
+        }
+
+        function updateAudioParams() {
+            if (!isPlaying || !audioCtx) return;
+            const dx = sourcePos.x - listenerPos.x;
+            const dy = sourcePos.y - listenerPos.y;
+            const dz = sourcePos.z - listenerPos.z;
+            const planarDist = Math.sqrt(dx*dx + dz*dz);
+            const sideDist = Math.sqrt(dy*dy + dz*dz);
+            const frontDist = Math.sqrt(dx*dx + dy*dy);
+            const dist3D = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            const now = audioCtx.currentTime;
+            if (currentMode === 'surround' && surroundPanner) {
+                surroundPanner.positionX.linearRampToValueAtTime(sourcePos.x, now + 0.05);
+                surroundPanner.positionY.linearRampToValueAtTime(sourcePos.y, now + 0.05);
+                surroundPanner.positionZ.linearRampToValueAtTime(sourcePos.z, now + 0.05);
+            } else if (currentMode === 'reverb' && reverbGains.length === 3) {
+                reverbGains[0].gain.linearRampToValueAtTime(distToGain(planarDist), now + 0.05);
+                reverbGains[1].gain.linearRampToValueAtTime(distToGain(sideDist), now + 0.05);
+                reverbGains[2].gain.linearRampToValueAtTime(distToGain(frontDist), now + 0.05);
+            } else if (currentMode === 'denoise' && denoiseDistGain) {
+                denoiseDistGain.gain.linearRampToValueAtTime(distToGain(dist3D), now + 0.05);
+            }
+        }
+
+        function setupControls() {
+            document.querySelectorAll('.dpad-btn').forEach(btn => {
+                const dir = btn.dataset.dir;
+                const start = () => { keys[dir] = true; btn.classList.add('active'); };
+                const end = () => { keys[dir] = false; btn.classList.remove('active'); };
+                btn.addEventListener('mousedown', start);
+                btn.addEventListener('mouseup', end);
+                btn.addEventListener('mouseleave', end);
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); start(); });
+                btn.addEventListener('touchend', (e) => { e.preventDefault(); end(); });
+            });
+            document.querySelectorAll('.y-btn').forEach(btn => {
+                const dir = btn.dataset.dir;
+                const start = () => { keys[dir] = true; btn.classList.add('active'); };
+                const end = () => { keys[dir] = false; btn.classList.remove('active'); };
+                btn.addEventListener('mousedown', start);
+                btn.addEventListener('mouseup', end);
+                btn.addEventListener('mouseleave', end);
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); start(); });
+                btn.addEventListener('touchend', (e) => { e.preventDefault(); end(); });
+            });
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.up = true;
+                if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.down = true;
+                if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.left = true;
+                if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.right = true;
+                if (e.key === 'q' || e.key === 'Q') keys.upY = true;
+                if (e.key === 'e' || e.key === 'E') keys.downY = true;
+            });
+            window.addEventListener('keyup', (e) => {
+                if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') keys.up = false;
+                if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') keys.down = false;
+                if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') keys.left = false;
+                if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') keys.right = false;
+                if (e.key === 'q' || e.key === 'Q') keys.upY = false;
+                if (e.key === 'e' || e.key === 'E') keys.downY = false;
+            });
+
+            const canvas = renderer.domElement;
+            canvas.addEventListener('mousedown', (e) => {
+                if (e.button === 0) {
+                    isOrbiting = true;
+                    orbitStartX = e.clientX;
+                    orbitStartY = e.clientY;
+                    manualRotated = true;
+                    canvas.style.cursor = 'grabbing';
+                }
+            });
+            window.addEventListener('mousemove', (e) => {
+                if (!isOrbiting) return;
+                const deltaX = e.clientX - orbitStartX;
+                const deltaY = e.clientY - orbitStartY;
+                orbitCamera(deltaX, deltaY);
+                orbitStartX = e.clientX;
+                orbitStartY = e.clientY;
+            });
+            window.addEventListener('mouseup', () => {
+                isOrbiting = false;
+                renderer.domElement.style.cursor = 'grab';
+            });
+
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 1) {
+                    isOrbiting = true;
+                    orbitStartX = e.touches[0].clientX;
+                    orbitStartY = e.touches[0].clientY;
+                    manualRotated = true;
+                }
+            }, { passive: false });
+            canvas.addEventListener('touchmove', (e) => {
+                if (!isOrbiting || e.touches.length !== 1) return;
+                e.preventDefault();
+                const deltaX = e.touches[0].clientX - orbitStartX;
+                const deltaY = e.touches[0].clientY - orbitStartY;
+                orbitCamera(deltaX, deltaY);
+                orbitStartX = e.touches[0].clientX;
+                orbitStartY = e.touches[0].clientY;
+            }, { passive: false });
+            canvas.addEventListener('touchend', () => { isOrbiting = false; });
+
+            document.querySelectorAll('input[name="mode"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    currentMode = e.target.value;
+                    if (isPlaying) initMode(currentMode);
+                });
+            });
+            document.querySelectorAll('input[name="opMode"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    opMode = e.target.value;
+                    updateOpModeUI();
+                    if (opMode === 'eco') {
+                        ecoParams = generateEcoPath();
+                        ecoTime = 0;
+                    }
+                });
+            });
+            const speedSlider = document.getElementById('speedSlider');
+            const speedValue = document.getElementById('speedValue');
+            speedSlider.addEventListener('input', (e) => {
+                const pct = parseInt(e.target.value);
+                speedValue.textContent = pct + '%';
+                moveSpeed = baseMoveSpeed * (pct / 100);
+            });
+            document.getElementById('startBtn').addEventListener('click', () => { initAudio(); });
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            const fileInput = document.getElementById('fileInput');
+            const chooseBtn = document.getElementById('chooseBtn');
+            chooseBtn.addEventListener('click', () => {
+                if (!audioCtx) { showToast('请先点击开始'); return; }
+                fileInput.click();
+            });
+            fileInput.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const isMp3 = file.type === 'audio/mpeg' || file.name.toLowerCase().endsWith('.mp3');
+                if (!isMp3) {
+                    showToast('文件不适配，请选择MP3格式');
+                    fileInput.value = '';
+                    return;
+                }
+                currentFile = file;
+                try {
+                    await loadAudioBuffer('file');
+                    if (isPlaying) initMode(currentMode);
+                } catch (err) {
+                    showToast('MP3解码失败: ' + err.message);
+                }
+                fileInput.value = '';
+            });
+            document.getElementById('refreshBtn').addEventListener('click', async () => {
+                if (!audioCtx) { showToast('请先点击开始'); return; }
+                try {
+                    if (currentAudioSource === 'file' && currentFile) {
+                        await loadAudioBuffer('file');
+                    } else {
+                        await loadAudioBuffer('cdn');
+                    }
+                    if (isPlaying) initMode(currentMode);
+                    showToast('音频已刷新');
+                } catch (err) {
+                    showToast('刷新失败: ' + err.message);
+                }
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = Date.now() * 0.001;
+            const dt = 0.016;
+            
+            if (opMode === 'eco' && ecoParams) {
+                ecoTime += dt * (moveSpeed / baseMoveSpeed);
+                const p = ecoParams;
+                sourcePos.x = p.centerX + Math.cos(ecoTime * p.speed + p.phase) * p.radiusX;
+                sourcePos.z = p.centerZ + Math.sin(ecoTime * p.speed + p.phase) * p.radiusZ;
+                sourcePos.y = listenerPos.y + Math.sin(ecoTime * p.yFreq + p.yPhase) * p.yAmp;
+                sourcePos.x = Math.max(-25, Math.min(25, sourcePos.x));
+                sourcePos.y = Math.max(0.2, Math.min(10, sourcePos.y));
+                sourcePos.z = Math.max(-25, Math.min(25, sourcePos.z));
+            } else {
+                if (keys.up) sourcePos.z -= moveSpeed;
+                if (keys.down) sourcePos.z += moveSpeed;
+                if (keys.left) sourcePos.x -= moveSpeed;
+                if (keys.right) sourcePos.x += moveSpeed;
+                if (keys.upY) sourcePos.y += moveSpeed;
+                if (keys.downY) sourcePos.y -= moveSpeed;
+                sourcePos.x = Math.max(-25, Math.min(25, sourcePos.x));
+                sourcePos.y = Math.max(0.2, Math.min(10, sourcePos.y));
+                sourcePos.z = Math.max(-25, Math.min(25, sourcePos.z));
+            }
+            
+            sourceMesh.position.copy(sourcePos);
+            sourceMesh.children[0].scale.setScalar(1 + Math.sin(time * 3) * 0.1);
+            sourceMesh.children[1].scale.setScalar(0.8 + Math.sin(time * 5) * 0.2);
+            
+            updateLine();
+            updateAudioParams();
+            updateInfo();
+            
+            if (!manualRotated && !isOrbiting) {
+                const camAngle = time * 0.05;
+                camera.position.x = Math.sin(camAngle) * 18;
+                camera.position.z = Math.cos(camAngle) * 18;
+                camera.lookAt(orbitTarget);
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        function showPopup() { document.getElementById('popup').classList.add('show'); }
+        function closePopup() { document.getElementById('popup').classList.remove('show'); }
+        window.closePopup = closePopup;
+        setTimeout(showPopup, 5000);
+
+        ecoParams = generateEcoPath();
+        initThree();
+        setupControls();
+        updateOpModeUI();
+        renderer.domElement.style.cursor = 'grab';
+    </script>
+</body>
+</html>
