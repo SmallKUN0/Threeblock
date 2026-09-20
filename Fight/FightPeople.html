@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0b1118" />
+<title>长脖子布偶 · 完整头部物理 · 爆炸反馈 · 打击音效</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0b1118; }
+  body {
+    touch-action: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  canvas { display: block; position: fixed; inset: 0; }
+
+  #hud {
+    position: fixed;
+    left: 50%; transform: translateX(-50%);
+    top: calc(12px + env(safe-area-inset-top));
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.12);
+    color: rgba(214,236,255,.78);
+    font-size: 12px; line-height: 1.55;
+    letter-spacing: .02em;
+    text-align: center;
+    max-width: min(92vw, 620px);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    pointer-events: none;
+    z-index: 20;
+  }
+  @media (max-width: 640px) { #hud { font-size: 11px; padding: 6px 12px; } }
+
+  #lookZone {
+    position: fixed;
+    top: calc(12px + env(safe-area-inset-top));
+    right: calc(12px + env(safe-area-inset-right));
+    width: 134px; height: 134px;
+    border-radius: 20px;
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.16);
+    box-shadow: inset 0 0 32px rgba(120,200,255,.10);
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(190,225,255,.55);
+    font-size: 12px;
+    letter-spacing: .14em;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    z-index: 25;
+    transition: background .15s ease, border-color .15s ease;
+  }
+  #lookZone:active,
+  #lookZone.dragging {
+    cursor: grabbing;
+    background: rgba(120,200,255,.13);
+    border-color: rgba(150,215,255,.42);
+  }
+  #lookZone span { pointer-events: none; }
+  @media (max-width: 640px) {
+    #lookZone { width: 106px; height: 106px; border-radius: 16px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  点击头部可戳动（B 处爆炸 + 随机打击音效） · 右上角区域拖动旋转视角 · 滚轮/双指缩放 · 右键/双指平移 · <b>WASD</b> 移动 · <b>Space / C</b> 升降 · <b>Shift</b> 加速
+</div>
+
+<div id="lookZone"><span>视 角</span></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* =========================================================
+   ★ 打击音效：每次从同目录 <1~5>.mp3 中随机挑一个播放
+   ---------------------------------------------------------
+   · 文件名列表：1.mp3 2.mp3 3.mp3 4.mp3 5.mp3（相对本页路径）
+   · 每次成功命中头部 → 随机抽一个 → new Audio → play()
+   · 每次都新建 Audio，天然支持叠加播放
+   · 并发上限 MAX_CONCURRENT_HITS，防止狂点堆积资源
+   · 若某个文件 404 或解码失败，会自动释放计数并静默忽略
+   ========================================================= */
+const HIT_SOUND_FILES = [
+  '1.mp3',
+  '2.mp3',
+  '3.mp3',
+  '4.mp3',
+  '5.mp3'
+];
+
+/* 同时播放的音效上限 */
+const MAX_CONCURRENT_HITS = 12;
+let activeHitSounds = 0;
+
+/**
+ * 播放一次打击音效：从 HIT_SOUND_FILES 随机选一个。
+ * 每次调用都会新建 Audio 元素 → 天然支持叠加播放。
+ */
+function playHitSound() {
+  if (HIT_SOUND_FILES.length === 0) return;
+  if (activeHitSounds >= MAX_CONCURRENT_HITS) return;
+
+  const idx = Math.floor(Math.random() * HIT_SOUND_FILES.length);
+  const file = HIT_SOUND_FILES[idx];
+
+  let audio;
+  try {
+    audio = new Audio(file);
+  } catch (_) {
+    return;
+  }
+
+  audio.volume = 0.85;
+  activeHitSounds++;
+
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    activeHitSounds = Math.max(0, activeHitSounds - 1);
+  };
+
+  audio.addEventListener('ended', release);
+  audio.addEventListener('error', release);
+  /* 兜底：超时强制释放 */
+  setTimeout(release, 5000);
+
+  const p = audio.play();
+  if (p && typeof p.catch === 'function') p.catch(() => release());
+}
+
+/* =========================================================
+   1. 渲染器 / 场景 / 相机
+   ========================================================= */
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b1118);
+scene.fog = new THREE.FogExp2(0x0b1118, 0.017);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 400);
+camera.position.set(8.5, 7.5, 12.5);
+
+/* =========================================================
+   2. Canvas 程序化布料纹理
+   ========================================================= */
+function createClothColorCanvas(size = 512) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const base = '#31505f';
+  const warp = '#639aae';
+  const weft = '#3d6b80';
+  const dark = '#162833';
+
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, size, size);
+
+  const cell = 8;
+  const n = size / cell;
+
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const px = x * cell, py = y * cell;
+      const isWarp = (x + y) % 2 === 0;
+      const grad = isWarp
+        ? ctx.createLinearGradient(px, py, px + cell, py)
+        : ctx.createLinearGradient(px, py, px, py + cell);
+      const mid = isWarp ? warp : weft;
+      grad.addColorStop(0.0, dark);
+      grad.addColorStop(0.5, mid);
+      grad.addColorStop(1.0, dark);
+      ctx.fillStyle = grad;
+      ctx.fillRect(px, py, cell, cell);
+    }
+  }
+
+  const img = ctx.getImageData(0, 0, size, size);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const nz = (Math.random() - 0.5) * 30;
+    d[i]     = Math.max(0, Math.min(255, d[i]     + nz));
+    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + nz));
+    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + nz));
+  }
+  ctx.putImageData(img, 0, 0);
+
+  for (let i = 0; i < 26; i++) {
+    const cx = Math.random() * size;
+    const cy = Math.random() * size;
+    const r = 30 + Math.random() * 130;
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    const a = 0.04 + Math.random() * 0.07;
+    g.addColorStop(0, `rgba(255,255,255,${a})`);
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  return canvas;
+}
+
+function createClothBumpCanvas(size = 512) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#808080';
+  ctx.fillRect(0, 0, size, size);
+
+  const cell = 8;
+  const n = size / cell;
+
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const px = x * cell, py = y * cell;
+      const isWarp = (x + y) % 2 === 0;
+      const grad = isWarp
+        ? ctx.createLinearGradient(px, py, px + cell, py)
+        : ctx.createLinearGradient(px, py, px, py + cell);
+      grad.addColorStop(0.0, '#242424');
+      grad.addColorStop(0.5, '#ededed');
+      grad.addColorStop(1.0, '#242424');
+      ctx.fillStyle = grad;
+      ctx.fillRect(px, py, cell, cell);
+    }
+  }
+
+  const img = ctx.getImageData(0, 0, size, size);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const nz = (Math.random() - 0.5) * 38;
+    d[i]     = Math.max(0, Math.min(255, d[i]     + nz));
+    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + nz));
+    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + nz));
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+
+const clothColorCanvas = createClothColorCanvas(512);
+const clothBumpCanvas  = createClothBumpCanvas(512);
+
+function makeClothTexture(source, rx, ry, srgb) {
+  const tex = new THREE.CanvasTexture(source);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(rx, ry);
+  tex.anisotropy = MAX_ANISO;
+  if (srgb) tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function clothMat(rx, ry, opts = {}) {
+  return new THREE.MeshStandardMaterial({
+    map: makeClothTexture(clothColorCanvas, rx, ry, true),
+    bumpMap: makeClothTexture(clothBumpCanvas, rx, ry, false),
+    bumpScale: opts.bumpScale !== undefined ? opts.bumpScale : 0.015,
+    color: opts.color !== undefined ? opts.color : 0xffffff,
+    roughness: opts.roughness !== undefined ? opts.roughness : 0.94,
+    metalness: opts.metalness !== undefined ? opts.metalness : 0.02,
+    side: THREE.FrontSide
+  });
+}
+
+/* =========================================================
+   3. 灯光
+   ========================================================= */
+scene.add(new THREE.HemisphereLight(0x9fc6e8, 0x141e26, 0.85));
+
+const keyLight = new THREE.DirectionalLight(0xfff0dd, 2.3);
+keyLight.position.set(9, 15, 8);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.camera.near = 1;
+keyLight.shadow.camera.far = 70;
+keyLight.shadow.camera.left = -16;
+keyLight.shadow.camera.right = 16;
+keyLight.shadow.camera.top = 22;
+keyLight.shadow.camera.bottom = -6;
+keyLight.shadow.bias = -0.0005;
+keyLight.shadow.normalBias = 0.02;
+scene.add(keyLight);
+
+const rimLight = new THREE.DirectionalLight(0x5aa8ff, 1.2);
+rimLight.position.set(-9, 7, -9);
+scene.add(rimLight);
+
+const fillLight = new THREE.PointLight(0xffcc88, 22, 34, 2);
+fillLight.position.set(0, 4.5, 7);
+scene.add(fillLight);
+
+/* =========================================================
+   4. 地面
+   ========================================================= */
+const groundMat = clothMat(34, 34, { color: 0x4a5f70, bumpScale: 0.008, roughness: 1.0 });
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(240, 240), groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+/* =========================================================
+   5. 布偶身体（不含头部与脖颈）
+   ========================================================= */
+const puppet = new THREE.Group();
+scene.add(puppet);
+
+const matBody = clothMat(5, 5);
+const matLimb = clothMat(2.5, 5);
+const matHead = clothMat(4, 4, { color: 0xffd9b3 });
+const matDark = new THREE.MeshStandardMaterial({ color: 0x10161c, roughness: 0.5, metalness: 0.05 });
+
+function addMesh(geo, mat, pos, rot, scale) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(pos[0], pos[1], pos[2]);
+  if (rot)   m.rotation.set(rot[0], rot[1], rot[2]);
+  if (scale) m.scale.set(scale[0], scale[1], scale[2]);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  puppet.add(m);
+  return m;
+}
+
+const legGeo = new THREE.CapsuleGeometry(0.22, 1.15, 6, 18);
+addMesh(legGeo, matLimb, [-0.32, 0.83, 0]);
+addMesh(legGeo, matLimb, [ 0.32, 0.83, 0]);
+
+addMesh(new THREE.SphereGeometry(0.50, 28, 20), matBody, [0, 1.78, 0]);
+addMesh(new THREE.CapsuleGeometry(0.50, 0.95, 8, 24), matBody, [0, 2.75, 0]);
+
+const shoulderGeo = new THREE.SphereGeometry(0.23, 20, 16);
+addMesh(shoulderGeo, matLimb, [-0.55, 3.50, 0]);
+addMesh(shoulderGeo, matLimb, [ 0.55, 3.50, 0]);
+
+const armGeo = new THREE.CapsuleGeometry(0.16, 1.00, 6, 18);
+addMesh(armGeo, matLimb, [-0.70, 2.72, 0], [0, 0,  0.07]);
+addMesh(armGeo, matLimb, [ 0.70, 2.72, 0], [0, 0, -0.07]);
+
+/* =========================================================
+   6. 头部组（球心即点 A）—— 整体放大 200%
+   ========================================================= */
+const HEAD_REST = new THREE.Vector3(0, 6.10, 0);
+
+const headGroup = new THREE.Group();
+headGroup.position.copy(HEAD_REST);
+headGroup.scale.setScalar(2);
+puppet.add(headGroup);
+
+const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.62, 40, 30), matHead);
+headMesh.scale.set(1, 1.08, 0.95);
+headMesh.castShadow = true;
+headMesh.receiveShadow = true;
+headGroup.add(headMesh);
+
+const eyeGeo = new THREE.SphereGeometry(0.075, 16, 12);
+const eyeL = new THREE.Mesh(eyeGeo, matDark);
+eyeL.position.set(-0.21, 0.16, 0.52);
+headGroup.add(eyeL);
+
+const eyeR = new THREE.Mesh(eyeGeo, matDark);
+eyeR.position.set(0.21, 0.16, 0.52);
+headGroup.add(eyeR);
+
+const noseMat = clothMat(3, 3, { color: 0xffd9b3 });
+const nose = new THREE.Mesh(new THREE.SphereGeometry(0.075, 16, 12), noseMat);
+nose.position.set(0, -0.02, 0.58);
+nose.scale.set(1.35, 1.0, 0.85);
+headGroup.add(nose);
+
+[eyeL, eyeR, nose].forEach(m => { m.castShadow = true; m.receiveShadow = true; });
+
+/* =========================================================
+   7. 可拉伸脖颈（两段，始终连接身体与头部）
+   ========================================================= */
+const UP = new THREE.Vector3(0, 1, 0);
+const NECK_BOTTOM      = new THREE.Vector3(0, 3.52, 0);
+const HEAD_NECK_OFFSET = new THREE.Vector3(0, -1.15, 0);
+
+const NECK_SEG_REST = NECK_BOTTOM.distanceTo(
+  HEAD_REST.clone().add(HEAD_NECK_OFFSET)
+) / 2;
+
+const neckGeo = new THREE.CylinderGeometry(0.20, 0.23, 1, 24, 1, false);
+const neckSeg1  = new THREE.Mesh(neckGeo, clothMat(2, 3));
+const neckSeg2  = new THREE.Mesh(neckGeo, clothMat(2, 3));
+const neckJoint = new THREE.Mesh(new THREE.SphereGeometry(0.215, 18, 14), clothMat(2, 2));
+
+[neckSeg1, neckSeg2, neckJoint].forEach(m => {
+  m.castShadow = true;
+  m.receiveShadow = true;
+  puppet.add(m);
+});
+
+const _segDir = new THREE.Vector3();
+
+function setSeg(mesh, a, b) {
+  _segDir.subVectors(b, a);
+  const len = _segDir.length();
+  if (len < 1e-4) { mesh.visible = false; return; }
+  mesh.visible = true;
+
+  mesh.position.copy(a).addScaledVector(_segDir, 0.5);
+  _segDir.normalize();
+  mesh.quaternion.setFromUnitVectors(UP, _segDir);
+
+  const thin = 1 / Math.sqrt(Math.max(len / NECK_SEG_REST, 0.35));
+  mesh.scale.set(thin, len, thin);
+}
+
+const _neckP2  = new THREE.Vector3();
+const _neckMid = new THREE.Vector3();
+
+function updateNeck() {
+  const p0  = NECK_BOTTOM;
+  const p2  = _neckP2.copy(headBody.pos).add(HEAD_NECK_OFFSET);
+  const mid = _neckMid.copy(p0).lerp(p2, 0.5);
+
+  setSeg(neckSeg1, p0, mid);
+  setSeg(neckSeg2, mid, p2);
+  neckJoint.position.copy(mid);
+}
+
+/* =========================================================
+   8. 头部完整物理引擎
+   ========================================================= */
+const headBody = {
+  mass: 16.0,
+  pos: HEAD_REST.clone(),
+  vel: new THREE.Vector3(0, 0, 0),
+  force: new THREE.Vector3(0, 0, 0)
+};
+
+const ELASTIC = {
+  k1: 200,
+  k3: 80,
+  c1: 26,
+  c2: 0.8,
+  fixedDt: 1 / 240,
+  acc: 0
+};
+
+const _physDelta = new THREE.Vector3();
+const _physForce = new THREE.Vector3();
+
+function physicsStep(h) {
+  const b = headBody;
+
+  b.force.set(0, 0, 0);
+
+  _physDelta.subVectors(b.pos, HEAD_REST);
+  const d = _physDelta.length();
+  if (d > 1e-9) {
+    const fMag = ELASTIC.k1 * d + ELASTIC.k3 * d * d * d;
+    _physForce.copy(_physDelta).multiplyScalar(-fMag / d);
+    b.force.add(_physForce);
+  }
+
+  _physForce.copy(b.vel).multiplyScalar(-ELASTIC.c1);
+  b.force.add(_physForce);
+
+  const sp = b.vel.length();
+  if (sp > 1e-9) {
+    _physForce.copy(b.vel).multiplyScalar(-ELASTIC.c2 * sp);
+    b.force.add(_physForce);
+  }
+
+  b.vel.addScaledVector(b.force, h / b.mass);
+  b.pos.addScaledVector(b.vel, h);
+}
+
+function updateHeadPhysics(dt) {
+  ELASTIC.acc += dt;
+  if (ELASTIC.acc > 0.25) ELASTIC.acc = 0.25;
+
+  let guard = 0;
+  while (ELASTIC.acc >= ELASTIC.fixedDt && guard++ < 80) {
+    physicsStep(ELASTIC.fixedDt);
+    ELASTIC.acc -= ELASTIC.fixedDt;
+  }
+
+  headGroup.position.copy(headBody.pos);
+}
+
+/* =========================================================
+   9. 脖子斜度检测（< 15° 时头顶受力向下）
+   ========================================================= */
+const NECK_UPRIGHT_COS  = Math.cos(THREE.MathUtils.degToRad(15));
+const DOWN_PUSH_IMPULSE = 70;
+let   neckUprightCooldown = 0;
+
+const _neckDirVec = new THREE.Vector3();
+
+function checkNeckUpright(dt) {
+  neckUprightCooldown = Math.max(0, neckUprightCooldown - dt);
+  if (neckUprightCooldown > 0) return;
+
+  _neckDirVec.subVectors(headBody.pos, NECK_BOTTOM).normalize();
+
+  if (_neckDirVec.y > NECK_UPRIGHT_COS) {
+    headBody.vel.y -= DOWN_PUSH_IMPULSE / headBody.mass;
+    neckUprightCooldown = 0.6;
+  }
+}
+
+/* =========================================================
+   10. 点击头部 → 生成点 B → 射线 B→A → 冲量 + 爆炸 + 音效
+   ========================================================= */
+const raycaster = new THREE.Raycaster();
+const _ndc = new THREE.Vector2();
+
+/* 点 B 标记 */
+const markers = [];
+const markerDotGeo  = new THREE.SphereGeometry(0.075, 14, 10);
+const markerRingGeo = new THREE.RingGeometry(0.09, 0.145, 28);
+
+function spawnMarker(worldPos) {
+  const dotMat = new THREE.MeshBasicMaterial({
+    color: 0x8fe6ff, transparent: true, opacity: 1,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  const dot = new THREE.Mesh(markerDotGeo, dotMat);
+  dot.position.copy(worldPos);
+  scene.add(dot);
+
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0x8fe6ff, transparent: true, opacity: 0.9,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  const ring = new THREE.Mesh(markerRingGeo, ringMat);
+  ring.position.copy(worldPos);
+  ring.quaternion.copy(camera.quaternion);
+  scene.add(ring);
+
+  markers.push({ dot, ring, life: 0, ttl: 0.65 });
+}
+
+function updateMarkers(dt) {
+  for (let i = markers.length - 1; i >= 0; i--) {
+    const mk = markers[i];
+    mk.life += dt;
+    const t = mk.life / mk.ttl;
+
+    if (t >= 1) {
+      scene.remove(mk.dot);
+      scene.remove(mk.ring);
+      mk.dot.material.dispose();
+      mk.ring.material.dispose();
+      markers.splice(i, 1);
+      continue;
+    }
+
+    mk.dot.scale.setScalar(1 + t * 0.9);
+    mk.dot.material.opacity = 1 - t;
+
+    mk.ring.scale.setScalar(1 + t * 2.4);
+    mk.ring.material.opacity = 0.9 * (1 - t);
+    mk.ring.quaternion.copy(camera.quaternion);
+  }
+}
+
+/* 完整爆炸效果：粒子 + 闪光 + 冲击波 */
+const explosions = [];
+
+function spawnExplosion(worldPos) {
+  if (explosions.length > 8) {
+    const old = explosions.shift();
+    disposeExplosion(old);
+  }
+
+  const COUNT = 90;
+  const positions = new Float32Array(COUNT * 3);
+  const colors    = new Float32Array(COUNT * 3);
+  const velocities = new Float32Array(COUNT * 3);
+
+  for (let i = 0; i < COUNT; i++) {
+    const i3 = i * 3;
+    positions[i3]     = worldPos.x;
+    positions[i3 + 1] = worldPos.y;
+    positions[i3 + 2] = worldPos.z;
+
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = Math.acos(2 * Math.random() - 1);
+    const speed = 2.0 + Math.random() * 6.5;
+
+    velocities[i3]     = Math.sin(phi) * Math.cos(theta) * speed;
+    velocities[i3 + 1] = Math.sin(phi) * Math.sin(theta) * speed;
+    velocities[i3 + 2] = Math.cos(phi) * speed;
+
+    const warm = Math.random();
+    colors[i3]     = 0.55 + warm * 0.45;
+    colors[i3 + 1] = 0.85 + warm * 0.15;
+    colors[i3 + 2] = 1.00 - warm * 0.65;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
+
+  const mat = new THREE.PointsMaterial({
+    size: 0.14,
+    vertexColors: true,
+    transparent: true,
+    opacity: 1,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true
+  });
+
+  const points = new THREE.Points(geo, mat);
+  points.frustumCulled = false;
+  scene.add(points);
+
+  const light = new THREE.PointLight(0xaee8ff, 70, 14, 2);
+  light.position.copy(worldPos);
+  scene.add(light);
+
+  const shockGeo = new THREE.SphereGeometry(0.15, 20, 14);
+  const shockMat = new THREE.MeshBasicMaterial({
+    color: 0x9fe8ff,
+    transparent: true,
+    opacity: 0.85,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    wireframe: true
+  });
+  const shock = new THREE.Mesh(shockGeo, shockMat);
+  shock.position.copy(worldPos);
+  scene.add(shock);
+
+  explosions.push({
+    points, light, shock,
+    positions, velocities,
+    life: 0,
+    ttl: 1.10,
+    lightTtl: 0.28,
+    shockTtl: 0.55
+  });
+}
+
+function disposeExplosion(ex) {
+  scene.remove(ex.points);
+  scene.remove(ex.light);
+  scene.remove(ex.shock);
+  ex.points.geometry.dispose();
+  ex.points.material.dispose();
+  ex.shock.geometry.dispose();
+  ex.shock.material.dispose();
+}
+
+function updateExplosions(dt) {
+  for (let i = explosions.length - 1; i >= 0; i--) {
+    const ex = explosions[i];
+    ex.life += dt;
+
+    const posAttr = ex.points.geometry.getAttribute('position');
+    const arr = posAttr.array;
+    const vel = ex.velocities;
+    const n = arr.length / 3;
+    const drag = Math.pow(0.10, dt);
+
+    for (let j = 0; j < n; j++) {
+      const j3 = j * 3;
+      vel[j3]     *= drag;
+      vel[j3 + 1] *= drag;
+      vel[j3 + 2] *= drag;
+      vel[j3 + 1] -= 7.0 * dt;
+
+      arr[j3]     += vel[j3]     * dt;
+      arr[j3 + 1] += vel[j3 + 1] * dt;
+      arr[j3 + 2] += vel[j3 + 2] * dt;
+    }
+    posAttr.needsUpdate = true;
+
+    const t = Math.min(ex.life / ex.ttl, 1);
+    ex.points.material.opacity = 1 - t * t;
+
+    if (ex.life < ex.lightTtl) {
+      ex.light.intensity = 70 * (1 - ex.life / ex.lightTtl);
+    } else {
+      ex.light.intensity = 0;
+    }
+
+    if (ex.life < ex.shockTtl) {
+      const st = ex.life / ex.shockTtl;
+      ex.shock.scale.setScalar(1 + st * 10);
+      ex.shock.material.opacity = 0.85 * (1 - st);
+    } else {
+      ex.shock.visible = false;
+    }
+
+    if (ex.life >= ex.ttl) {
+      disposeExplosion(ex);
+      explosions.splice(i, 1);
+    }
+  }
+}
+
+/* 冲量大小：126.0 → 300% = 378.0 */
+const POKE_IMPULSE = 378.0;
+
+const _A   = new THREE.Vector3();
+const _dir = new THREE.Vector3();
+
+function pokeHeadAt(clientX, clientY) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  _ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  _ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+  puppet.updateMatrixWorld(true);
+  raycaster.setFromCamera(_ndc, camera);
+
+  const hits = raycaster.intersectObject(headMesh, false);
+  if (!hits.length) return;
+
+  const B = hits[0].point.clone();
+  _A.copy(headBody.pos);
+
+  _dir.subVectors(_A, B).normalize();
+  headBody.vel.addScaledVector(_dir, POKE_IMPULSE / headBody.mass);
+
+  spawnMarker(B);
+  spawnExplosion(B);
+
+  /* ★ 每次成功打击 → 随机播放 1~5.mp3 之一，可叠加 */
+  playHitSound();
+}
+
+/* 区分点击与拖拽 */
+const canvasEl = renderer.domElement;
+let ptrDown = null;
+
+canvasEl.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  ptrDown = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now() };
+});
+
+canvasEl.addEventListener('pointerup', (e) => {
+  if (!ptrDown || e.pointerId !== ptrDown.id) { ptrDown = null; return; }
+  const dx = e.clientX - ptrDown.x;
+  const dy = e.clientY - ptrDown.y;
+  const moved = Math.hypot(dx, dy);
+  const elapsed = performance.now() - ptrDown.t;
+  ptrDown = null;
+
+  if (moved < 10 && elapsed < 450) {
+    pokeHeadAt(e.clientX, e.clientY);
+  }
+});
+
+canvasEl.addEventListener('pointercancel', () => { ptrDown = null; });
+
+/* =========================================================
+   11. 相机控制
+   ========================================================= */
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 3.6, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.rotateSpeed = 0.85;
+controls.zoomSpeed = 0.9;
+controls.panSpeed = 0.9;
+controls.screenSpacePanning = true;
+controls.minDistance = 1.2;
+controls.maxDistance = 80;
+controls.update();
+
+/* 右上角视角转动区域 */
+const lookZone = document.getElementById('lookZone');
+let lookActive = false;
+let lookId = null;
+let lookLX = 0, lookLY = 0;
+
+const _lookSpherical = new THREE.Spherical();
+const _lookOffset    = new THREE.Vector3();
+
+function rotateCameraByDelta(dx, dy) {
+  _lookOffset.subVectors(camera.position, controls.target);
+  _lookSpherical.setFromVector3(_lookOffset);
+
+  _lookSpherical.theta -= dx * 0.006;
+  _lookSpherical.phi   -= dy * 0.006;
+  _lookSpherical.phi = Math.max(0.08, Math.min(Math.PI - 0.08, _lookSpherical.phi));
+  _lookSpherical.radius = Math.max(1.2, Math.min(80, _lookSpherical.radius));
+
+  _lookOffset.setFromSpherical(_lookSpherical);
+  camera.position.copy(controls.target).add(_lookOffset);
+  camera.lookAt(controls.target);
+}
+
+lookZone.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  lookActive = true;
+  lookId = e.pointerId;
+  lookLX = e.clientX;
+  lookLY = e.clientY;
+  lookZone.classList.add('dragging');
+  try { lookZone.setPointerCapture(e.pointerId); } catch (_) {}
+});
+
+lookZone.addEventListener('pointermove', (e) => {
+  if (!lookActive || e.pointerId !== lookId) return;
+  e.preventDefault();
+  const dx = e.clientX - lookLX;
+  const dy = e.clientY - lookLY;
+  lookLX = e.clientX;
+  lookLY = e.clientY;
+  rotateCameraByDelta(dx, dy);
+});
+
+function endLook(e) {
+  if (e.pointerId !== lookId) return;
+  lookActive = false;
+  lookId = null;
+  lookZone.classList.remove('dragging');
+}
+lookZone.addEventListener('pointerup', endLook);
+lookZone.addEventListener('pointercancel', endLook);
+lookZone.addEventListener('lostpointercapture', () => {
+  lookActive = false;
+  lookId = null;
+  lookZone.classList.remove('dragging');
+});
+
+/* 键盘 */
+const keys = Object.create(null);
+
+window.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+    e.preventDefault();
+  }
+});
+window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+/* 自由移动 */
+const _forward = new THREE.Vector3();
+const _right   = new THREE.Vector3();
+const _move    = new THREE.Vector3();
+
+function updateMovement(dt) {
+  const boost = (keys['ShiftLeft'] || keys['ShiftRight']) ? 2.6 : 1;
+  const speed = 6 * boost * dt;
+
+  camera.getWorldDirection(_forward);
+  _forward.y = 0;
+  if (_forward.lengthSq() < 1e-8) _forward.set(0, 0, -1);
+  _forward.normalize();
+  _right.crossVectors(_forward, camera.up).normalize();
+
+  _move.set(0, 0, 0);
+
+  if (keys['KeyW'] || keys['ArrowUp'])    _move.add(_forward);
+  if (keys['KeyS'] || keys['ArrowDown'])  _move.sub(_forward);
+  if (keys['KeyD'] || keys['ArrowRight']) _move.add(_right);
+  if (keys['KeyA'] || keys['ArrowLeft'])  _move.sub(_right);
+  if (keys['Space'])                      _move.y += 1;
+  if (keys['KeyC'] || keys['KeyQ'])       _move.y -= 1;
+
+  if (_move.lengthSq() > 1e-6) {
+    _move.normalize().multiplyScalar(speed);
+    camera.position.add(_move);
+    controls.target.add(_move);
+  }
+}
+
+/* =========================================================
+   12. 自适应 & 主循环
+   ========================================================= */
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const clock = new THREE.Clock();
+
+function animate() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  updateMovement(dt);
+
+  checkNeckUpright(dt);
+
+  updateHeadPhysics(dt);
+  updateNeck();
+
+  updateMarkers(dt);
+  updateExplosions(dt);
+
+  headGroup.rotation.z = Math.sin(t * 0.9) * 0.05;
+  headGroup.rotation.x = Math.sin(t * 0.7 + 1.2) * 0.035;
+
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+updateNeck();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
