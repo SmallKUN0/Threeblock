@@ -1,0 +1,2633 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>黑白科学计算器</title>
+<style>
+  :root{
+    --fg:#ffffff;
+    --bg:#000000;
+    --line:#4a4a4a;
+    --line-soft:#2c2c2c;
+    --panel:#0b0b0b;
+    --assign:#4a9eff;
+    --eq1:#b06bff;
+    --eqsys:#ff4d4d;
+    --formula:#4caf50;
+  }
+  *{
+    box-sizing:border-box;
+    border-radius:0 !important;
+    -webkit-tap-highlight-color:transparent;
+  }
+  html,body{ height:100%; }
+  body{
+    margin:0; padding:8px;
+    background:var(--bg); color:var(--fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    display:flex; flex-direction:column; gap:8px;
+    height:100dvh; overflow:auto;
+  }
+
+  .screen{ display:flex; gap:6px; flex:0 0 auto; align-items:stretch; }
+  .arrows{ display:flex; flex-direction:column; gap:6px; flex:0 0 auto; }
+  .arrows button{
+    flex:1 1 0; width:40px; min-height:38px;
+    border:1px solid var(--line); background:var(--panel); color:var(--fg);
+    font:inherit; font-size:18px; line-height:1; cursor:pointer;
+  }
+  .arrows button:disabled{ opacity:.25; cursor:default; }
+  .arrows button:not(:disabled):active{ background:#fff; color:#000; }
+
+  .io{ flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:6px; }
+
+  .field{
+    border:1px solid var(--line);
+    background:var(--panel);
+    color:var(--fg);
+    height:auto;
+    min-height:72px;
+    max-height:320px;
+    min-width:90px;
+    resize:both;
+    overflow:auto;
+    padding:8px 10px;
+    font-family:inherit;
+    font-size:16px;
+    line-height:1.6;
+    flex:0 0 auto;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  #output{ height:72px; }
+  .field:focus-within{ border-color:#fff; }
+  .field.assign-mode{ border-color: var(--assign); box-shadow: 0 0 0 1px var(--assign); }
+  .field.eq1-mode{ border-color: var(--eq1); box-shadow: 0 0 0 1px var(--eq1); }
+  .field.eqsys-mode{ border-color: var(--eqsys); box-shadow: 0 0 0 1px var(--eqsys); }
+  .field.formula-mode{ border-color: var(--formula); box-shadow: 0 0 0 1px var(--formula); }
+
+  .editor{ display:block; white-space:nowrap; min-height:1.6em; outline:none; }
+
+  input.cell{
+    font-family:inherit; font-size:inherit; color:var(--fg);
+    background:transparent; border:none; outline:none;
+    padding:0; margin:0; min-width:.6ch; line-height:inherit;
+    caret-color:var(--fg); vertical-align:baseline; display:inline-block;
+  }
+
+  /* 分数 */
+  .frac{
+    display:inline-flex; flex-direction:column; align-items:center;
+    vertical-align:middle; margin:0 2px;
+  }
+  .frac > .group{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-height:2em; padding:6px 8px;
+  }
+  .frac > .frac-line{
+    align-self:stretch; min-width:1.4em; height:2px;
+    background:var(--fg); margin:3px 0; cursor:pointer;
+  }
+
+  /* 指数 */
+  .pow{
+    display:inline-block; vertical-align:0.62em; font-size:.78em;
+    margin-left:0; padding:1px 2px;
+  }
+  .pow > .cell{ font-size:inherit; }
+
+  /* 根号 */
+  .root{
+    display:inline-flex; align-items:stretch; vertical-align:middle;
+    margin:0 2px; font-size:1em; line-height:1;
+  }
+  .root-deg{
+    display:inline-flex; align-items:flex-start; align-self:flex-start;
+    font-size:.6em; line-height:1; margin-top:-0.2em; margin-right:0;
+  }
+  .root-deg .cell{ font-size:inherit; }
+  .root-sym{
+    display:inline-flex; align-items:flex-start; font-size:1.05em;
+    line-height:1; align-self:stretch; padding-top:2px; cursor:pointer;
+  }
+  .root-radical{
+    display:inline-flex; align-items:center; border-top:1.5px solid var(--fg);
+    padding:6px 8px 3px 8px; min-width:1.4em; margin-left:-3px;
+  }
+
+  /* 嵌套在分数/根号里的指数对齐修正 */
+  .frac .pow, .root .pow{ align-self:center; vertical-align:middle; }
+  .frac .group .pow, .root .radical .pow{ margin-top:-0.2em; }
+
+  /* 分子 / 分母 / 指数 / 根号下的 cell 白框 */
+  .frac .cell, .pow .cell, .root .cell{
+    outline:1px solid var(--fg); outline-offset:0; min-width:1.2em;
+  }
+  .root-deg .cell{ min-width:.8em; }
+
+  /* 输出端专用样式 */
+  #output .frac .cell, #output .pow .cell, #output .root .cell{ outline: none; }
+  #output .frac > .frac-line{ cursor: default; }
+  #output .root-sym{ cursor: default; }
+  #output .group { min-height: auto; padding: 0 4px; }
+
+  .output{ white-space:pre-wrap; word-break:break-all; resize:both; }
+
+  .start{
+    flex:0 0 auto; width:74px; border:1px solid var(--fg);
+    background:var(--fg); color:#000; font:inherit; font-size:15px;
+    font-weight:700; letter-spacing:.5px; cursor:pointer;
+  }
+  .start:active{ background:#000; color:#fff; }
+
+  /* 公式应用组件与参数容器 */
+  .formula-app{
+    display:inline-flex; align-items:center; gap:1px;
+    border:1px dashed var(--formula); padding:2px 4px;
+    margin:0 2px; vertical-align:middle;
+  }
+  .param-cell{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:2ch; min-height:1.6em; padding:0 2px;
+    border:1px solid var(--formula); outline:none;
+    vertical-align:middle;
+  }
+  .param-cell > input.cell{
+    outline: none; min-width:2ch; padding:0 3px;
+  }
+  .formula-sep{
+    color:var(--formula); font-size:0.9em; padding:0 1px;
+  }
+
+  /* 键盘 */
+  .pad{
+    flex:1 1 auto; min-height:150px; overflow:auto;
+    border:1px solid var(--line); display:grid;
+    grid-template-columns:repeat(7,1fr);
+    grid-auto-rows:minmax(44px,1fr); background:#000;
+  }
+  .pad button{
+    border:1px solid var(--line-soft); background:var(--panel);
+    color:var(--fg); font:inherit; font-size:14px;
+    padding:0; margin:0; min-height:44px; cursor:pointer; user-select:none;
+  }
+  .pad button.small{ font-size:11px; }
+  .pad button.span2{ grid-column: span 2; }
+  .pad button:active{ background:#fff; color:#000; }
+  .pad button:disabled{ opacity:.25; cursor:default; }
+  .pad button.var-btn{ font-size:13px; }
+
+  .hint{
+    position:fixed; left:50%; bottom:22px;
+    transform:translateX(-50%) translateY(8px);
+    background:#fff; color:#000; padding:6px 14px;
+    font-size:13px; opacity:0; pointer-events:none;
+    transition:opacity .18s, transform .18s; z-index:99;
+    max-width:80vw; text-align:center;
+  }
+  .hint.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  @media (max-width:420px){
+    .start{ width:60px; font-size:13px; }
+    .field{ min-height:66px; }
+    .pad button{ font-size:12px; }
+    .pad button.small{ font-size:9.5px; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="screen">
+    <div class="arrows">
+      <button id="btnUp" type="button" disabled>↑</button>
+      <button id="btnDown" type="button" disabled>↓</button>
+    </div>
+    <div class="io">
+      <div class="field" id="inputField">
+        <div class="editor" id="editor"></div>
+      </div>
+      <div class="field output" id="output" readonly></div>
+    </div>
+    <button id="btnStart" type="button" class="start">Start</button>
+  </div>
+
+  <div class="pad" id="pad"></div>
+  <div class="hint" id="hint"></div>
+
+<script>
+(function(){
+  'use strict';
+
+  /* =========================================================
+   *  高精度十进制（BigInt 实现）
+   * ========================================================= */
+  var PREC = 130;
+  var POW10 = 10n ** BigInt(PREC);
+
+  function divRound(a, b){
+    var neg = (a < 0n) !== (b < 0n);
+    if (a < 0n) a = -a;
+    if (b < 0n) b = -b;
+    var q = a / b;
+    var r = a % b;
+    if (r * 2n >= b) q += 1n;
+    return neg ? -q : q;
+  }
+
+  function decZero(){ return { v: 0n }; }
+  function decOne(){ return { v: POW10 }; }
+  function decAdd(a,b){ return { v: a.v + b.v }; }
+  function decSub(a,b){ return { v: a.v - b.v }; }
+  function decNeg(a){ return { v: -a.v }; }
+  function decMul(a,b){ return { v: divRound(a.v * b.v, POW10) }; }
+  function decDiv(a,b){
+    if (b.v === 0n) throw new Error('div0');
+    return { v: divRound(a.v * POW10, b.v) };
+  }
+
+  function decParse(str){
+    str = String(str).trim();
+    if (!str) return null;
+    var neg = false, i = 0;
+    if (str.charAt(0) === '-'){ neg = true; i = 1; }
+    else if (str.charAt(0) === '+'){ i = 1; }
+    var rest = str.slice(i);
+    if (!/^[0-9]*\.?[0-9]*$/.test(rest)) return null;
+    if (rest === '' || rest === '.') return null;
+    var dot = rest.indexOf('.');
+    var ip, fp;
+    if (dot === -1){ ip = rest; fp = ''; }
+    else { ip = rest.slice(0, dot); fp = rest.slice(dot + 1); }
+    if (ip === '') ip = '0';
+    if (fp.length > PREC) fp = fp.slice(0, PREC);
+    fp = fp + '0'.repeat(PREC - fp.length);
+    var v = BigInt(ip + fp);
+    return { v: neg ? -v : v };
+  }
+
+  function decToString(d, maxDec){
+    var v = d.v;
+    var neg = v < 0n;
+    if (neg) v = -v;
+    var s = v.toString();
+    while (s.length <= PREC) s = '0' + s;
+    var intPart = s.slice(0, s.length - PREC);
+    var fracPart = s.slice(s.length - PREC);
+
+    if (maxDec < PREC){
+      var keep = fracPart.slice(0, maxDec);
+      var nextDigit = fracPart.charCodeAt(maxDec) - 48;
+      if (nextDigit >= 5){
+        var combined = intPart + keep;
+        var arr = combined.split('');
+        var j = arr.length - 1;
+        while (j >= 0){
+          var dg = arr[j].charCodeAt(0) - 48;
+          if (dg === 9){ arr[j] = '0'; j--; }
+          else { arr[j] = String(dg + 1); break; }
+        }
+        if (j < 0) arr.unshift('1');
+        combined = arr.join('');
+        var newIntLen = combined.length - maxDec;
+        if (newIntLen < 0) newIntLen = 0;
+        intPart = combined.slice(0, newIntLen) || '0';
+        keep = combined.slice(newIntLen);
+        if (keep.length < maxDec) keep = '0'.repeat(maxDec - keep.length) + keep;
+      }
+      fracPart = keep;
+    } else {
+      fracPart = fracPart.slice(0, maxDec);
+    }
+    fracPart = fracPart.replace(/0+$/, '');
+    var res = intPart + (fracPart ? '.' + fracPart : '');
+    if (neg && (intPart !== '0' || fracPart)) res = '-' + res;
+    return res;
+  }
+
+  function expandSci(s){
+    var m = /^(\d+)(?:\.(\d+))?[eE]([+-]?\d+)$/.exec(s);
+    if (!m) return s;
+    var ip = m[1];
+    var fp = m[2] || '';
+    var exp = parseInt(m[3], 10);
+    var digits = ip + fp;
+    var pointPos = ip.length + exp;
+    if (pointPos <= 0){
+      return '0.' + '0'.repeat(-pointPos) + digits;
+    } else if (pointPos >= digits.length){
+      return digits + '0'.repeat(pointPos - digits.length);
+    } else {
+      return digits.slice(0, pointPos) + '.' + digits.slice(pointPos);
+    }
+  }
+
+  function decFromNumber(n){
+    if (!isFinite(n)) throw new Error('inf');
+    if (n === 0) return decZero();
+    var neg = n < 0;
+    var abs = Math.abs(n);
+    var s = abs.toPrecision(15);
+    if (/[eE]/.test(s)) s = expandSci(s);
+    var d = decParse(s);
+    if (!d) return decZero();
+    return { v: neg ? -d.v : d.v };
+  }
+
+  function decToNumber(d){
+    return Number(decToString(d, 25));
+  }
+
+  function decPowInt(base, n){
+    if (n === 0) return decOne();
+    var result = decOne();
+    var b = base;
+    var e = n;
+    while (e > 0){
+      if (e % 2 === 1) result = decMul(result, b);
+      e = Math.floor(e / 2);
+      if (e > 0) b = decMul(b, b);
+    }
+    return result;
+  }
+
+  function decPow(a, b){
+    var bNum = decToNumber(b);
+    if (Math.abs(bNum - Math.round(bNum)) < 1e-10 && Math.abs(bNum) < 1e5){
+      var n = Math.round(bNum);
+      if (n >= 0) return decPowInt(a, n);
+      return decDiv(decOne(), decPowInt(a, -n));
+    }
+    return decFromNumber(Math.pow(decToNumber(a), bNum));
+  }
+
+  var IMAG_FLAG = false;
+
+  function decSqrt(a){
+    if (a.v < 0n){ IMAG_FLAG = true; a = decNeg(a); }
+    if (a.v === 0n) return decZero();
+    var approx = Math.sqrt(decToNumber(a));
+    if (!isFinite(approx)) throw new Error('sqrt-inf');
+    var x = decFromNumber(approx);
+    var half = { v: POW10 / 2n };
+    for (var i = 0; i < 60; i++){
+      var nx = decMul(decAdd(x, decDiv(a, x)), half);
+      if (nx.v === x.v) break;
+      x = nx;
+    }
+    return x;
+  }
+
+  function decNthRoot(a, n){
+    n = Number(n);
+    if (!isFinite(n) || n === 0) throw new Error('bad-root');
+    if (a.v < 0n){
+      if (Math.abs(n % 2) < 0.5){
+        IMAG_FLAG = true;
+        a = decNeg(a);
+      } else {
+        var pos = decNthRoot(decNeg(a), n);
+        return decNeg(pos);
+      }
+    }
+    if (a.v === 0n) return decZero();
+    var approx = Math.pow(decToNumber(a), 1 / n);
+    if (!isFinite(approx) || approx === 0) throw new Error('root-inf');
+    var x = decFromNumber(approx);
+    var nDec = decFromNumber(n);
+    var nMinus1 = decFromNumber(n - 1);
+    var nInt = Math.max(1, Math.round(n) - 1);
+    for (var i = 0; i < 80; i++){
+      var xPow = decPowInt(x, nInt);
+      var nx = decDiv(decAdd(decMul(nMinus1, x), decDiv(a, xPow)), nDec);
+      if (nx.v === x.v) break;
+      x = nx;
+    }
+    return x;
+  }
+
+  /* =========================================================
+   *  分数运算
+   * ========================================================= */
+  function frGcd(a, b){
+    if (a < 0n) a = -a;
+    if (b < 0n) b = -b;
+    while (b){ var t = a % b; a = b; b = t; }
+    return a;
+  }
+  function frMake(n, d){
+    if (d === 0n) throw new Error('div0');
+    if (d < 0n){ n = -n; d = -d; }
+    if (n === 0n) return { n: 0n, d: 1n };
+    var g = frGcd(n, d);
+    return { n: n / g, d: d / g };
+  }
+  function frAdd(a, b){ return frMake(a.n * b.d + b.n * a.d, a.d * b.d); }
+  function frSub(a, b){ return frMake(a.n * b.d - b.n * a.d, a.d * b.d); }
+  function frMul(a, b){ return frMake(a.n * b.n, a.d * b.d); }
+  function frDiv(a, b){
+    if (b.n === 0n) throw new Error('div0');
+    return frMake(a.n * b.d, a.d * b.n);
+  }
+  function frNeg(a){ return frMake(-a.n, a.d); }
+  function frOne(){ return { n: 1n, d: 1n }; }
+  function frZero(){ return { n: 0n, d: 1n }; }
+  function frFromStr(s){
+    s = String(s).trim();
+    if (!s) return null;
+    var neg = false;
+    if (s.charAt(0) === '-'){ neg = true; s = s.slice(1); }
+    else if (s.charAt(0) === '+'){ s = s.slice(1); }
+    if (!/^\d*\.?\d*$/.test(s)) return null;
+    if (s === '' || s === '.') return null;
+    var dot = s.indexOf('.');
+    var ip, fp;
+    if (dot === -1){ ip = s; fp = ''; }
+    else { ip = s.slice(0, dot); fp = s.slice(dot + 1); }
+    if (ip === '') ip = '0';
+    var n, d;
+    if (fp === ''){ n = BigInt(ip); d = 1n; }
+    else { n = BigInt(ip + fp); d = 10n ** BigInt(fp.length); }
+    if (neg) n = -n;
+    return frMake(n, d);
+  }
+  function frToStr(f){
+    if (f.d === 1n) return f.n.toString();
+    return f.n.toString() + '/' + f.d.toString();
+  }
+
+  function decToFraction(d, maxDenom){
+    maxDenom = maxDenom || 1000000000n;
+    var v = d.v;
+    var neg = false;
+    if (v < 0n){ neg = true; v = -v; }
+    if (v === 0n) return frZero();
+    var a = v, b = POW10;
+    var h1 = 1n, h2 = 0n, k1 = 0n, k2 = 1n;
+    while (b !== 0n){
+      var q = a / b;
+      var r = a % b;
+      var h = q * h1 + h2;
+      var k = q * k1 + k2;
+      if (k > maxDenom) break;
+      h2 = h1; h1 = h;
+      k2 = k1; k1 = k;
+      a = b; b = r;
+    }
+    if (neg) h1 = -h1;
+    return frMake(h1, k1);
+  }
+
+  function frTokenize(str){
+    var tokens = [], i = 0, n = str.length;
+    while (i < n){
+      var c = str.charAt(i);
+      if (c === ' ' || c === '\t' || c === '\n' || c === '\r'){ i++; continue; }
+      if ((c >= '0' && c <= '9') || c === '.'){
+        var j = i;
+        while (j < n && ((str.charAt(j) >= '0' && str.charAt(j) <= '9') || str.charAt(j) === '.')) j++;
+        tokens.push({ type: 'num', value: str.slice(i, j) });
+        i = j;
+        continue;
+      }
+      if ('+-*/^%(),'.indexOf(c) >= 0){
+        tokens.push({ type: 'op', value: c });
+        i++;
+        continue;
+      }
+      return null;
+    }
+    return tokens;
+  }
+
+  function evaluateFraction(input){
+    try {
+      var s = normalize(input).trim();
+      if (!s) return null;
+      var tokens = frTokenize(s);
+      if (!tokens || tokens.length === 0) return null;
+
+      var pos = 0;
+      function peek(){ return tokens[pos]; }
+      function eat(){ return tokens[pos++]; }
+
+      function parseExpr(){
+        var v = parseTerm();
+        while (peek() && (peek().value === '+' || peek().value === '-')){
+          var op = eat().value;
+          var r = parseTerm();
+          v = (op === '+') ? frAdd(v, r) : frSub(v, r);
+        }
+        return v;
+      }
+      function parseTerm(){
+        var v = parseUnary();
+        while (peek() && (peek().value === '*' || peek().value === '/' || peek().value === '%')){
+          var op = eat().value;
+          var r = parseUnary();
+          if (op === '*') v = frMul(v, r);
+          else if (op === '/') v = frDiv(v, r);
+          else throw new Error('mod');
+        }
+        return v;
+      }
+      function parseUnary(){
+        if (peek() && peek().value === '-'){ eat(); return frNeg(parseUnary()); }
+        if (peek() && peek().value === '+'){ eat(); return parseUnary(); }
+        return parsePower();
+      }
+      function parsePower(){
+        var base = parseAtom();
+        if (peek() && peek().value === '^'){
+          eat();
+          var exp = parseUnary();
+          if (exp.d !== 1n || exp.n < 0n || exp.n > 1000n) throw new Error('bad exp');
+          var k = Number(exp.n);
+          var result = frOne();
+          for (var i = 0; i < k; i++) result = frMul(result, base);
+          base = result;
+        }
+        return base;
+      }
+      function parseAtom(){
+        var t = peek();
+        if (!t) throw new Error('eof');
+        if (t.type === 'num'){
+          eat();
+          var f = frFromStr(t.value);
+          if (!f) throw new Error('bad num');
+          return f;
+        }
+        if (t.value === '('){
+          eat();
+          var v = parseExpr();
+          if (!peek() || peek().value !== ')') throw new Error('paren');
+          eat();
+          return v;
+        }
+        throw new Error('unexpected');
+      }
+
+      var result = parseExpr();
+      if (pos !== tokens.length) return null;
+      return result;
+    } catch (e){
+      return null;
+    }
+  }
+
+  /* =========================================================
+   *  隐式乘法插入
+   * ========================================================= */
+  function insertImplicitMul(s){
+    s = String(s).replace(/×/g, '*').replace(/÷/g, '/').replace(/[−–—]/g, '-');
+    var out = '';
+    var i = 0, n = s.length;
+    var funcNames = ['sin','cos','tan','sqrt','root'];
+    var lastWasValue = false;
+    while (i < n){
+      var c = s.charAt(i);
+      if (c === ' ' || c === '\t' || c === '\n' || c === '\r'){ out += c; i++; continue; }
+
+      var isFunc = false, funcLen = 0;
+      for (var k = 0; k < funcNames.length; k++){
+        var fn = funcNames[k];
+        if (s.substr(i, fn.length) === fn){
+          var after = (i + fn.length < n) ? s.charAt(i + fn.length) : '';
+          if (!/[a-zA-Z0-9αβπ]/.test(after)){
+            isFunc = true;
+            funcLen = fn.length;
+            break;
+          }
+        }
+      }
+
+      if (isFunc){
+        if (lastWasValue) out += '*';
+        out += s.substr(i, funcLen);
+        i += funcLen;
+        lastWasValue = false;
+        continue;
+      }
+
+      if ((c >= '0' && c <= '9') || c === '.'){
+        if (lastWasValue) out += '*';
+        var j = i;
+        while (j < n && ((s.charAt(j) >= '0' && s.charAt(j) <= '9') || s.charAt(j) === '.')) j++;
+        out += s.slice(i, j);
+        i = j;
+        lastWasValue = true;
+        continue;
+      }
+
+      if (/[a-zA-Zαβ]/.test(c) || c === 'π'){
+        if (lastWasValue) out += '*';
+        out += c;
+        i++;
+        lastWasValue = true;
+        continue;
+      }
+
+      if (c === ')'){
+        out += c;
+        i++;
+        lastWasValue = true;
+        continue;
+      }
+      if (c === '('){
+        if (lastWasValue) out += '*';
+        out += c;
+        i++;
+        lastWasValue = false;
+        continue;
+      }
+      if ('+-*/^%'.indexOf(c) >= 0){
+        out += c;
+        i++;
+        lastWasValue = false;
+        continue;
+      }
+      if (c === ',' || c === ';' || c === '='){
+        out += c;
+        i++;
+        lastWasValue = false;
+        continue;
+      }
+      out += c;
+      i++;
+      lastWasValue = false;
+    }
+    return out;
+  }
+
+  /* 常数 */
+  var PI_STR = '3.' +
+    '14159265358979323846264338327950288419716939937510' +
+    '58209749445923078164062862089986280348253421170679' +
+    '821480865132823066470938446095';
+  var PI_DEC = decParse(PI_STR);
+
+  var E_STR = '2.' +
+    '71828182845904523536028747135266249775724709369995' +
+    '95749669676277240766303535475945713821785251664274' +
+    '274663919320030599218174135966';
+  var E_DEC = decParse(E_STR);
+
+  /* =========================================================
+   *  三角函数（角度制）
+   * ========================================================= */
+  function decSin(a){
+    var x = decToNumber(a);
+    var rad = x * Math.PI / 180;
+    return decFromNumber(Math.sin(rad));
+  }
+  function decCos(a){
+    var x = decToNumber(a);
+    var rad = x * Math.PI / 180;
+    return decFromNumber(Math.cos(rad));
+  }
+  function decTan(a){
+    var x = decToNumber(a);
+    var rad = x * Math.PI / 180;
+    return decFromNumber(Math.tan(rad));
+  }
+
+  /* =========================================================
+   *  方程求解内核
+   * ========================================================= */
+  var ZERO_EPS_D = 10n ** BigInt(PREC - 60);
+  function dNearZero(d){
+    var v = d.v;
+    if (v < 0n) v = -v;
+    return v < ZERO_EPS_D;
+  }
+
+  function monoKey(m){
+    var ks = Object.keys(m);
+    if (ks.length === 0) return '#';
+    ks.sort();
+    var s = '';
+    for (var i = 0; i < ks.length; i++){
+      s += ks[i];
+      if (m[ks[i]] > 1) s += '^' + m[ks[i]];
+      if (i < ks.length - 1) s += '*';
+    }
+    return s;
+  }
+  function monoMul(a, b){
+    var r = {}, k;
+    for (k in a) r[k] = a[k];
+    for (k in b) r[k] = (r[k] || 0) + b[k];
+    for (k in r) if (r[k] === 0) delete r[k];
+    return r;
+  }
+  function polyIsEmpty(p){ return p.size === 0; }
+  function polyConst(c){
+    var p = new Map();
+    if (!dNearZero(c)) p.set('#', { mono: {}, coef: c });
+    return p;
+  }
+  function polyVar(name){
+    var p = new Map();
+    var m = {};
+    m[name] = 1;
+    p.set(monoKey(m), { mono: m, coef: decOne() });
+    return p;
+  }
+  function polyAdd(a, b){
+    var r = new Map();
+    a.forEach(function(t, k){ r.set(k, { mono: t.mono, coef: t.coef }); });
+    b.forEach(function(t, k){
+      if (r.has(k)){
+        var c = decAdd(r.get(k).coef, t.coef);
+        if (dNearZero(c)) r.delete(k);
+        else r.set(k, { mono: r.get(k).mono, coef: c });
+      } else {
+        r.set(k, { mono: t.mono, coef: t.coef });
+      }
+    });
+    return r;
+  }
+  function polyNeg(a){
+    var r = new Map();
+    a.forEach(function(t, k){ r.set(k, { mono: t.mono, coef: decNeg(t.coef) }); });
+    return r;
+  }
+  function polySub(a, b){ return polyAdd(a, polyNeg(b)); }
+  function polyMul(a, b){
+    var r = new Map();
+    a.forEach(function(ta){
+      b.forEach(function(tb){
+        var m = monoMul(ta.mono, tb.mono);
+        var k = monoKey(m);
+        var c = decMul(ta.coef, tb.coef);
+        if (r.has(k)) c = decAdd(r.get(k).coef, c);
+        if (dNearZero(c)) r.delete(k);
+        else r.set(k, { mono: m, coef: c });
+      });
+    });
+    return r;
+  }
+  function polyVars(p){
+    var s = {};
+    p.forEach(function(t){
+      for (var k in t.mono) if (t.mono[k] > 0) s[k] = true;
+    });
+    return Object.keys(s);
+  }
+  function polyIsLinear(p){
+    var ok = true;
+    p.forEach(function(t){
+      var deg = 0;
+      for (var k in t.mono) deg += t.mono[k];
+      if (deg > 1) ok = false;
+    });
+    return ok;
+  }
+  function polyLinearCoefs(p, vars){
+    var coefs = [];
+    for (var i = 0; i < vars.length; i++) coefs.push(decZero());
+    var c = decZero();
+    p.forEach(function(t){
+      var ks = [];
+      for (var k in t.mono) if (t.mono[k] > 0) ks.push(k);
+      if (ks.length === 0){
+        c = decAdd(c, t.coef);
+      } else {
+        var idx = vars.indexOf(ks[0]);
+        if (idx >= 0) coefs[idx] = decAdd(coefs[idx], t.coef);
+      }
+    });
+    return { coefs: coefs, c: c };
+  }
+  function polyToCoefs(p, v){
+    var maxDeg = 0;
+    p.forEach(function(t){
+      for (var k in t.mono){
+        if (k !== v && t.mono[k] > 0) throw new Error('多变量');
+      }
+      var d = t.mono[v] || 0;
+      if (d > maxDeg) maxDeg = d;
+    });
+    var coefs = [];
+    for (var i = 0; i <= maxDeg; i++) coefs.push(decZero());
+    p.forEach(function(t){
+      var d = t.mono[v] || 0;
+      coefs[d] = decAdd(coefs[d], t.coef);
+    });
+    return coefs;
+  }
+
+  function normalizeKeepEq(s){
+    return String(s)
+      .replace(/×/g, '*')
+      .replace(/÷/g, '/')
+      .replace(/[−–—]/g, '-')
+      .replace(/\[/g, '(')
+      .replace(/\]/g, ')')
+      .replace(/\{/g, '(')
+      .replace(/\}/g, ')');
+  }
+
+  function eqTokenize(str){
+    var tokens = [], i = 0, n = str.length;
+    while (i < n){
+      var c = str.charAt(i);
+      if (c === ' ' || c === '\t' || c === '\n' || c === '\r'){ i++; continue; }
+
+      if (tokens.length > 0) {
+        var prev = tokens[tokens.length - 1];
+        var prevEnds = (prev.type === 'num' || prev.type === 'var' || (prev.type === 'op' && prev.value === ')'));
+        var currStarts = ((c >= '0' && c <= '9') || c === '.' || c === 'π' || c === 'e' || 'xyzabcdαβ'.indexOf(c) >= 0 || c === '(' || /^(sin|cos|tan|sqrt|root)/.test(str.slice(i)));
+        if (prevEnds && currStarts) tokens.push({ type: 'op', value: '*' });
+      }
+
+      if ((c >= '0' && c <= '9') || c === '.'){
+        var j = i;
+        while (j < n && ((str.charAt(j) >= '0' && str.charAt(j) <= '9') || str.charAt(j) === '.')) j++;
+        var d = decParse(str.slice(i, j));
+        if (!d) throw new Error('数字错误');
+        tokens.push({ type: 'num', value: d });
+        i = j;
+        continue;
+      }
+      if (c === 'π'){ tokens.push({ type: 'num', value: PI_DEC }); i++; continue; }
+      if (c === 'e'){ tokens.push({ type: 'num', value: E_DEC }); i++; continue; }
+
+      var fm = /^(sin|cos|tan|sqrt|root)/.exec(str.slice(i));
+      if (fm){ tokens.push({ type: 'func', value: fm[1] }); i += fm[1].length; continue; }
+
+      if ('xyzabcdαβ'.indexOf(c) >= 0){ tokens.push({ type: 'var', name: c }); i++; continue; }
+      if ('+-*/^%(),;'.indexOf(c) >= 0){ tokens.push({ type: 'op', value: c }); i++; continue; }
+      throw new Error('无法识别字符：' + c);
+    }
+    return tokens;
+  }
+
+  function parseTokens(tokens){
+    var pos = 0;
+    function peek(){ return tokens[pos]; }
+    function eat(){ return tokens[pos++]; }
+
+    function parseExpr(){
+      var v = parseTerm();
+      while (peek() && peek().type === 'op' && (peek().value === '+' || peek().value === '-')){
+        var op = eat().value;
+        var r = parseTerm();
+        v = { type: op === '+' ? 'add' : 'sub', a: v, b: r };
+      }
+      return v;
+    }
+    function parseTerm(){
+      var v = parseUnary();
+      while (peek() && peek().type === 'op' && (peek().value === '*' || peek().value === '/' || peek().value === '%')){
+        var op = eat().value;
+        var r = parseUnary();
+        if (op === '%') v = { type: 'mod', a: v, b: r };
+        else v = { type: op === '*' ? 'mul' : 'div', a: v, b: r };
+      }
+      return v;
+    }
+    function parseUnary(){
+      if (peek() && peek().type === 'op' && peek().value === '-'){ eat(); return { type: 'neg', a: parseUnary() }; }
+      if (peek() && peek().type === 'op' && peek().value === '+'){ eat(); return parseUnary(); }
+      return parsePower();
+    }
+    function parsePower(){
+      var base = parseAtom();
+      if (peek() && peek().type === 'op' && peek().value === '^'){
+        eat();
+        var exp = parseUnary();
+        return { type: 'pow', a: base, b: exp };
+      }
+      return base;
+    }
+    function parseAtom(){
+      var t = peek();
+      if (!t) throw new Error('表达式不完整');
+      if (t.type === 'num'){ eat(); return { type: 'num', value: t.value }; }
+      if (t.type === 'var'){ eat(); return { type: 'var', name: t.name }; }
+      if (t.type === 'func'){
+        eat();
+        if (!peek() || peek().value !== '(') throw new Error('函数缺少括号');
+        eat();
+        var args = [parseExpr()];
+        while (peek() && peek().value === ','){ eat(); args.push(parseExpr()); }
+        if (!peek() || peek().value !== ')') throw new Error('括号不匹配');
+        eat();
+        return { type: 'func', name: t.value, args: args };
+      }
+      if (t.type === 'op' && t.value === '('){
+        eat();
+        var v = parseExpr();
+        if (!peek() || peek().value !== ')') throw new Error('括号不匹配');
+        eat();
+        return v;
+      }
+      throw new Error('意外的符号');
+    }
+
+    var result = parseExpr();
+    if (pos !== tokens.length) throw new Error('有多余内容');
+    return result;
+  }
+
+  function ratConst(d){ return { num: polyConst(d), den: polyConst(decOne()) }; }
+
+  function ratToNumber(r){
+    var n = 0, d = 1;
+    r.num.forEach(function(t){ if (Object.keys(t.mono).length === 0) n = decToNumber(t.coef); });
+    r.den.forEach(function(t){ if (Object.keys(t.mono).length === 0) d = decToNumber(t.coef); });
+    return d === 0 ? NaN : n / d;
+  }
+
+  function astToRat(node){
+    switch (node.type){
+      case 'num': return ratConst(node.value);
+      case 'var': return { num: polyVar(node.name), den: polyConst(decOne()) };
+      case 'neg': {
+        var a = astToRat(node.a);
+        return { num: polyNeg(a.num), den: a.den };
+      }
+      case 'add': case 'sub': {
+        var a1 = astToRat(node.a), b1 = astToRat(node.b);
+        var n1 = polyMul(a1.num, b1.den);
+        var n2 = polyMul(b1.num, a1.den);
+        return {
+          num: node.type === 'add' ? polyAdd(n1, n2) : polySub(n1, n2),
+          den: polyMul(a1.den, b1.den)
+        };
+      }
+      case 'mul': {
+        var a2 = astToRat(node.a), b2 = astToRat(node.b);
+        return { num: polyMul(a2.num, b2.num), den: polyMul(a2.den, b2.den) };
+      }
+      case 'div': {
+        var a3 = astToRat(node.a), b3 = astToRat(node.b);
+        if (polyIsEmpty(b3.num)) throw new Error('除数为零');
+        return { num: polyMul(a3.num, b3.den), den: polyMul(a3.den, b3.num) };
+      }
+      case 'pow': {
+        var base = astToRat(node.a);
+        var e = astToRat(node.b);
+        if (polyVars(e.num).length > 0 || polyVars(e.den).length > 0)
+          throw new Error('指数不能含字母');
+        var ev = ratToNumber(e);
+        if (!isFinite(ev) || Math.abs(ev - Math.round(ev)) > 1e-9 || ev < 0 || ev > 50)
+          throw new Error('指数必须是非负整数(≤50)');
+        var n = Math.round(ev);
+        var num = polyConst(decOne()), den = polyConst(decOne());
+        for (var i = 0; i < n; i++){
+          num = polyMul(num, base.num);
+          den = polyMul(den, base.den);
+        }
+        return { num: num, den: den };
+      }
+      case 'mod': throw new Error('方程中不支持取余');
+      case 'func': throw new Error('方程中不支持函数');
+    }
+    throw new Error('未知表达式');
+  }
+
+  function evalAstNum(node, env){
+    switch (node.type){
+      case 'num': return decToNumber(node.value);
+      case 'var':
+        if (!(node.name in env)) throw new Error('未知变量');
+        return env[node.name];
+      case 'add': return evalAstNum(node.a, env) + evalAstNum(node.b, env);
+      case 'sub': return evalAstNum(node.a, env) - evalAstNum(node.b, env);
+      case 'mul': return evalAstNum(node.a, env) * evalAstNum(node.b, env);
+      case 'div': return evalAstNum(node.a, env) / evalAstNum(node.b, env);
+      case 'neg': return -evalAstNum(node.a, env);
+      case 'pow': return Math.pow(evalAstNum(node.a, env), evalAstNum(node.b, env));
+      case 'mod': return evalAstNum(node.a, env) % evalAstNum(node.b, env);
+      case 'func': {
+        var args = (node.args || []).map(function(x){ return evalAstNum(x, env); });
+        switch (node.name){
+          case 'sin': return Math.sin(args[0] * Math.PI / 180);
+          case 'cos': return Math.cos(args[0] * Math.PI / 180);
+          case 'tan': return Math.tan(args[0] * Math.PI / 180);
+          case 'sqrt': return Math.sqrt(args[0]);
+          case 'root': return Math.pow(args[0], 1 / (args[1] || 2));
+        }
+        break;
+      }
+    }
+    throw new Error('无法求值');
+  }
+
+  function collectDivs(node, acc){
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'div') acc.push(node);
+    if (node.type === 'num' || node.type === 'var') return;
+    if (node.type === 'func'){
+      (node.args || []).forEach(function(a){ collectDivs(a, acc); });
+      return;
+    }
+    if (node.a) collectDivs(node.a, acc);
+    if (node.b) collectDivs(node.b, acc);
+  }
+
+  function findRealRoots(coefsIn){
+    var coefs = coefsIn.slice();
+    var n = coefs.length - 1;
+    while (n > 0 && Math.abs(coefs[n]) < 1e-15){ coefs.pop(); n--; }
+    if (n < 1) return [];
+
+    var maxc = 0;
+    for (var i = 0; i < n; i++) maxc = Math.max(maxc, Math.abs(coefs[i]));
+    var bound = 1 + maxc / Math.abs(coefs[n]);
+    if (!isFinite(bound) || bound > 1e9) bound = 1e9;
+    if (bound < 1) bound = 1;
+
+    function f(x){
+      var r = coefs[n];
+      for (var i2 = n - 1; i2 >= 0; i2--) r = r * x + coefs[i2];
+      return r;
+    }
+
+    var roots = [];
+    var N = 20000;
+    var step = (2 * bound) / N;
+    var px = -bound, py = f(px);
+    for (var i3 = 1; i3 <= N; i3++){
+      var x = -bound + i3 * step;
+      var y = f(x);
+      if (py === 0) roots.push(px);
+      else if (py * y < 0){
+        var lo = px, hi = x, flo = py;
+        for (var k = 0; k < 100; k++){
+          var mid = (lo + hi) / 2;
+          var fm = f(mid);
+          if (fm === 0){ lo = hi = mid; break; }
+          if (flo * fm < 0) hi = mid;
+          else { lo = mid; flo = fm; }
+        }
+        roots.push((lo + hi) / 2);
+      }
+      px = x; py = y;
+    }
+
+    roots.sort(function(a, b){ return a - b; });
+    var uniq = [];
+    for (var i4 = 0; i4 < roots.length; i4++){
+      if (uniq.length === 0 ||
+          Math.abs(roots[i4] - uniq[uniq.length - 1]) > 1e-6 * Math.max(1, Math.abs(roots[i4]))){
+        uniq.push(roots[i4]);
+      }
+    }
+    return uniq;
+  }
+
+  function simplifyRadical(n) {
+    if (n <= 0n) return { coeff: 0n, rad: 0n };
+    var coeff = 1n;
+    var rad = n;
+    for (var i = 2n; i * i <= rad; i++) {
+      while (rad % (i * i) === 0n) {
+        rad /= (i * i);
+        coeff *= i;
+      }
+    }
+    return { coeff: coeff, rad: rad };
+  }
+
+  function solveSingleEquation(exprStr){
+    var s = normalizeKeepEq(exprStr).trim();
+    if (!s) return { error: '请输入方程' };
+
+    var sides = s.split('=');
+    if (sides.length !== 2) return { error: '格式错误：需要且仅需要一个等号' };
+
+    var la, ra;
+    try {
+      la = parseTokens(eqTokenize(sides[0]));
+      ra = parseTokens(eqTokenize(sides[1]));
+    } catch (e){ return { error: '表达式解析失败' }; }
+
+    var L, R;
+    try {
+      L = astToRat(la);
+      R = astToRat(ra);
+    } catch (e){
+      return { error: '不支持：' + (e.message || '未知错误') };
+    }
+
+    var P = polySub(polyMul(L.num, R.den), polyMul(R.num, L.den));
+    var vs = polyVars(P);
+
+    if (vs.length > 1) return { error: '只能含有一个字母' };
+    if (vs.length === 0){
+      return polyIsEmpty(P) ? { status: 'any' } : { status: 'none', message: '方程矛盾' };
+    }
+
+    var v = vs[0];
+    var coefs;
+    try { coefs = polyToCoefs(P, v); }
+    catch (e){ return { error: '只能含有一个字母' }; }
+
+    while (coefs.length > 1 && dNearZero(coefs[coefs.length - 1])) coefs.pop();
+
+    var deg = coefs.length - 1;
+    if (deg === 0) return { status: 'none', message: '方程矛盾' };
+
+    var roots = [];
+
+    if (deg === 1){
+      roots = [ decNeg(decDiv(coefs[0], coefs[1])) ];
+    } else if (deg === 2){
+      var A = coefs[2], B = coefs[1], C = coefs[0];
+      var disc = decSub(decMul(B, B), decMul(decFromNumber(4), decMul(A, C)));
+      
+      if (disc.v < 0n) return { status: 'none', message: '无实数解' };
+      
+      if (disc.v === 0n) {
+        roots = [ decNeg(decDiv(B, decMul(decFromNumber(2), A))) ];
+      } else {
+        var deltaFrac = decToFraction(disc);
+        var nd = deltaFrac.n * deltaFrac.d;
+        var sqrtNd = 0n;
+        var tempNd = nd;
+        var lo = 0n, hi = tempNd;
+        if (hi > 1000000n) hi = 1000000n;
+        while (lo <= hi) {
+          var mid = (lo + hi) / 2n;
+          if (mid * mid === tempNd) { sqrtNd = mid; break; }
+          if (mid * mid < tempNd) lo = mid + 1n;
+          else hi = mid - 1n;
+        }
+        
+        if (sqrtNd * sqrtNd === nd) {
+          var sq = decFromNumber(Math.sqrt(decToNumber(disc)));
+          var twoA = decMul(decFromNumber(2), A);
+          roots = [
+            decDiv(decSub(decNeg(B), sq), twoA),
+            decDiv(decAdd(decNeg(B), sq), twoA)
+          ];
+        } else {
+          var simp = simplifyRadical(nd);
+          var coeff = simp.coeff;
+          var rad = simp.rad;
+          var denom = decToFraction(decMul(decFromNumber(2), A));
+          
+          var g1 = frGcd(coeff, denom.n);
+          coeff /= g1;
+          denom = frMake(denom.n / g1, denom.d);
+          
+          var Bfrac = decToFraction(B);
+          var g2 = frGcd(Bfrac.n, denom.n);
+          var Bval = Bfrac.n / g2;
+          var denomVal = denom.n / g2;
+          
+          var numStr = '';
+          if (Bval !== 0n) {
+            if (Bval > 0n) numStr += '-' + Bval.toString();
+            else numStr += '+' + (-Bval).toString();
+          }
+          
+          if (coeff !== 1n) numStr += '±' + coeff.toString() + '√' + rad.toString();
+          else numStr += '±√' + rad.toString();
+          
+          var html = '<span class="frac"><span class="group num">' + numStr + '</span><span class="frac-line"></span><span class="group den">' + denomVal.toString() + '</span></span>';
+          
+          return { status: 'ok', html: html, varName: v };
+        }
+      }
+    } else {
+      var nc = coefs.map(function(c){ return decToNumber(c); });
+      var nr = findRealRoots(nc);
+      if (nr.length === 0) return { status: 'none', message: '无实数解' };
+      roots = nr.map(function(x){ return decFromNumber(x); });
+    }
+
+    var fracs = [];
+    collectDivs(la, fracs);
+    collectDivs(ra, fracs);
+
+    var valid = [];
+    var hasExtra = false;
+    for (var i = 0; i < roots.length; i++){
+      var env = {};
+      env[v] = decToNumber(roots[i]);
+      var bad = false;
+      for (var f = 0; f < fracs.length; f++){
+        try {
+          var dv = evalAstNum(fracs[f].b, env);
+          if (Math.abs(dv) < 1e-9){ bad = true; break; }
+        } catch (e){}
+      }
+      if (bad) hasExtra = true;
+      else valid.push(roots[i]);
+    }
+
+    return {
+      status: 'ok',
+      varName: v,
+      solutions: valid,
+      extraneous: hasExtra
+    };
+  }
+
+  function solveLinearSystem(A, b, ncols){
+    var nrows = A.length;
+    var pivots = [];
+    var row = 0;
+
+    for (var col = 0; col < ncols && row < nrows; col++){
+      var sel = -1;
+      for (var r = row; r < nrows; r++){
+        if (!dNearZero(A[r][col])){ sel = r; break; }
+      }
+      if (sel === -1) continue;
+
+      var tmpA = A[row]; A[row] = A[sel]; A[sel] = tmpA;
+      var tmpB = b[row]; b[row] = b[sel]; b[sel] = tmpB;
+
+      var pv = A[row][col];
+      for (var c = col; c < ncols; c++) A[row][c] = decDiv(A[row][c], pv);
+      b[row] = decDiv(b[row], pv);
+
+      for (var r2 = 0; r2 < nrows; r2++){
+        if (r2 === row) continue;
+        if (dNearZero(A[r2][col])) continue;
+        var f = A[r2][col];
+        for (var c2 = col; c2 < ncols; c2++){
+          A[r2][c2] = decSub(A[r2][c2], decMul(f, A[row][c2]));
+        }
+        b[r2] = decSub(b[r2], decMul(f, b[row]));
+      }
+      pivots.push(col);
+      row++;
+    }
+
+    for (var r3 = row; r3 < nrows; r3++){
+      var allZero = true;
+      for (var c3 = 0; c3 < ncols; c3++){
+        if (!dNearZero(A[r3][c3])){ allZero = false; break; }
+      }
+      if (allZero && !dNearZero(b[r3])) return { status: 'none' };
+    }
+
+    if (pivots.length < ncols) return { status: 'infinite' };
+
+    var sol = new Array(ncols);
+    for (var i = 0; i < pivots.length; i++) sol[pivots[i]] = b[i];
+    return { status: 'unique', sol: sol };
+  }
+
+  function solveSystem(exprStr){
+    var s = normalizeKeepEq(exprStr).trim();
+    if (!s) return { error: '请输入方程组' };
+
+    var eqs = s.split(';').map(function(x){ return x.trim(); }).filter(function(x){ return x.length > 0; });
+    if (eqs.length === 0) return { error: '请输入方程组' };
+
+    var allVars = {};
+    var parsed = [];
+    var fracs = [];
+
+    for (var i = 0; i < eqs.length; i++){
+      var sides = eqs[i].split('=');
+      if (sides.length !== 2) return { error: '第 ' + (i + 1) + ' 个方程格式错误' };
+
+      var la, ra;
+      try {
+        la = parseTokens(eqTokenize(sides[0]));
+        ra = parseTokens(eqTokenize(sides[1]));
+      } catch (e){ return { error: '第 ' + (i + 1) + ' 个方程解析失败' }; }
+
+      var L, R;
+      try {
+        L = astToRat(la);
+        R = astToRat(ra);
+      } catch (e){
+        return { error: '第 ' + (i + 1) + ' 个方程不支持：' + (e.message || '') };
+      }
+
+      var P = polySub(polyMul(L.num, R.den), polyMul(R.num, L.den));
+
+      var vs = polyVars(P);
+      vs.forEach(function(v){ allVars[v] = true; });
+
+      parsed.push({ la: la, ra: ra, poly: P });
+      collectDivs(la, fracs);
+      collectDivs(ra, fracs);
+    }
+
+    var varList = Object.keys(allVars).sort();
+    if (varList.length === 0) return { error: '未找到字母变量' };
+    if (parsed.length < varList.length) return { error: '方程个数必须≥字母个数' };
+
+    for (var i2 = 0; i2 < parsed.length; i2++){
+      if (!polyIsLinear(parsed[i2].poly)) return { error: '方程组仅支持一次方程' };
+    }
+
+    var A = [], b = [];
+    for (var i3 = 0; i3 < parsed.length; i3++){
+      var lc = polyLinearCoefs(parsed[i3].poly, varList);
+      A.push(lc.coefs);
+      b.push(decNeg(lc.c));
+    }
+
+    var res = solveLinearSystem(A, b, varList.length);
+    if (res.status === 'none') return { status: 'none', message: '方程组矛盾' };
+    if (res.status === 'infinite') return { status: 'any', message: '值为任意' };
+
+    var env = {};
+    for (var i4 = 0; i4 < varList.length; i4++) env[varList[i4]] = decToNumber(res.sol[i4]);
+    var hasExtra = false;
+    for (var f = 0; f < fracs.length; f++){
+      try {
+        if (Math.abs(evalAstNum(fracs[f].b, env)) < 1e-9){ hasExtra = true; break; }
+      } catch (e){}
+    }
+
+    return {
+      status: 'ok',
+      vars: varList,
+      values: res.sol,
+      extraneous: hasExtra
+    };
+  }
+
+  /* =========================================================
+   *  DOM 元素
+   * ========================================================= */
+  var editor     = document.getElementById('editor');
+  var inputField = document.getElementById('inputField');
+  var output     = document.getElementById('output');
+  var btnStart   = document.getElementById('btnStart');
+  var btnUp      = document.getElementById('btnUp');
+  var btnDown    = document.getElementById('btnDown');
+  var pad        = document.getElementById('pad');
+  var hintEl     = document.getElementById('hint');
+
+  /* =========================================================
+   *  状态
+   * ========================================================= */
+  var lastCell = null;
+  var history  = [];
+  var histPos  = -1;
+  var hintTimer = null;
+
+  var lastResult = null;
+  var assignMode = false;
+  var formulaMode = false;
+  var eqMode = null;
+  var variables = {
+    'x': '0', 'y': '0', 'z': '0',
+    'a': '0', 'b': '0', 'c': '0', 'd': '0',
+    'α': '0', 'β': '0'
+  };
+  /* 字母→公式存储：{ args: [...], expr: '...' } */
+  var formulaStore = {};
+
+  function showHint(msg){
+    hintEl.textContent = msg;
+    hintEl.classList.add('show');
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(function(){ hintEl.classList.remove('show'); }, 1800);
+  }
+
+  function cellsList(){
+    return Array.prototype.slice.call(editor.querySelectorAll('.cell'));
+  }
+
+  function focusCellEnd(cell){
+    if (!cell) return;
+    cell.focus();
+    var n = cell.value.length;
+    try { cell.setSelectionRange(n, n); } catch(err){}
+    lastCell = cell;
+  }
+
+  function focusCellStart(cell){
+    if (!cell) return;
+    cell.focus();
+    try { cell.setSelectionRange(0, 0); } catch(err){}
+    lastCell = cell;
+  }
+
+  function sizeAuto(inp){
+    var len = inp.value.length || 1;
+    inp.style.width = 'calc(' + len + 'ch + 3px)';
+  }
+
+  function createTextCell(value){
+    var inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'cell';
+    inp.value = value == null ? '' : value;
+    inp.autocomplete = 'off';
+    inp.spellcheck = false;
+    inp.setAttribute('autocapitalize','off');
+    inp.setAttribute('autocorrect','off');
+    inp.setAttribute('inputmode', 'none');
+    inp.setAttribute('virtualkeyboardpolicy', 'manual');
+    sizeAuto(inp);
+
+    inp.addEventListener('input', function(){ sizeAuto(inp); });
+    inp.addEventListener('focus', function(){ lastCell = inp; });
+    inp.addEventListener('keydown', function(ev){
+      if (ev.key === 'Enter'){ ev.preventDefault(); runCalculate(); return; }
+
+      if (ev.key === 'Backspace' || ev.key === 'Delete'){
+        var selS = inp.selectionStart, selE = inp.selectionEnd;
+        if (selS == null || selS !== selE || selS !== 0) return;
+        var p = inp.parentNode;
+        if (!p || !p.classList) return;
+
+        if (p.classList.contains('param-cell')){
+          ev.preventDefault();
+          removeParamCell(p, inp);
+          return;
+        }
+        if (p.classList.contains('formula-app')){
+          ev.preventDefault();
+          removeFormulaApp(p, inp);
+          return;
+        }
+        if (p.classList.contains('num') || p.classList.contains('den')){
+          ev.preventDefault();
+          removeFraction(p.parentNode, inp);
+          return;
+        }
+        if (p.classList.contains('pow') && inp.value === ''){
+          ev.preventDefault();
+          removePower(p, inp);
+          return;
+        }
+        if (p.classList.contains('root-radical') || p.classList.contains('root-deg')){
+          ev.preventDefault();
+          var rootEl = p.closest ? p.closest('.root') : null;
+          if (rootEl) removeRoot(rootEl, inp);
+          return;
+        }
+      }
+    });
+    return inp;
+  }
+
+  function createParamCell(){
+    var span = document.createElement('span');
+    span.className = 'param-cell';
+    var inp = createTextCell('');
+    span.appendChild(inp);
+    return span;
+  }
+
+  function ensureCell(){
+    if (lastCell && document.contains(lastCell)) return lastCell;
+    var cells = editor.querySelectorAll('.cell');
+    if (cells.length){ lastCell = cells[cells.length - 1]; return lastCell; }
+    var c = createTextCell('');
+    editor.appendChild(c);
+    lastCell = c;
+    return c;
+  }
+
+  function cleanupEmptyGroups(node){
+    var cur = node;
+    while (cur && cur.nodeType === 1 && cur.classList && cur.classList.contains('group')){
+      if (cur.querySelector('.cell')) break;
+      var frac = cur.parentNode;
+      if (!frac || !frac.parentNode) break;
+      frac.parentNode.removeChild(frac);
+      cur = frac.parentNode;
+    }
+  }
+
+  function pickTargetAfterRemove(idx){
+    var newCells = cellsList();
+    var ti = Math.min(idx - 1, newCells.length - 1);
+    if (ti < 0) ti = Math.min(idx, newCells.length - 1);
+    var target = ti >= 0 ? newCells[ti] : null;
+    if (!target){
+      target = createTextCell('');
+      editor.appendChild(target);
+    }
+    focusCellEnd(target);
+  }
+
+  function removeFraction(fracEl, srcCell){
+    if (!fracEl || !fracEl.parentNode) return;
+    var cells = cellsList();
+    var idx = cells.indexOf(srcCell);
+    if (idx < 0) idx = cells.length;
+    var parent = fracEl.parentNode;
+    parent.removeChild(fracEl);
+    cleanupEmptyGroups(parent);
+    pickTargetAfterRemove(idx);
+  }
+
+  function removePower(powEl, srcCell){
+    if (!powEl || !powEl.parentNode) return;
+    var cells = cellsList();
+    var idx = cells.indexOf(srcCell);
+    if (idx < 0) idx = cells.length;
+    var parent = powEl.parentNode;
+    parent.removeChild(powEl);
+    cleanupEmptyGroups(parent);
+    pickTargetAfterRemove(idx);
+  }
+
+  function removeRoot(rootEl, srcCell){
+    if (!rootEl || !rootEl.parentNode) return;
+    var cells = cellsList();
+    var idx = cells.indexOf(srcCell);
+    if (idx < 0) idx = cells.length;
+    var parent = rootEl.parentNode;
+    parent.removeChild(rootEl);
+    cleanupEmptyGroups(parent);
+    pickTargetAfterRemove(idx);
+  }
+
+  function removeFormulaApp(appEl, srcCell){
+    if (!appEl || !appEl.parentNode) return;
+    var cells = cellsList();
+    var idx = cells.indexOf(srcCell);
+    if (idx < 0) idx = cells.length;
+    var parent = appEl.parentNode;
+    parent.removeChild(appEl);
+    pickTargetAfterRemove(idx);
+  }
+
+  function removeParamCell(paramEl, srcCell){
+    if (!paramEl || !paramEl.parentNode) return;
+    var cells = cellsList();
+    var idx = cells.indexOf(srcCell);
+    if (idx < 0) idx = cells.length;
+    var parent = paramEl.parentNode;
+    parent.removeChild(paramEl);
+    pickTargetAfterRemove(idx);
+  }
+
+  /* =========================================================
+   *  插入
+   * ========================================================= */
+  function insertText(text){
+    var cell = ensureCell();
+    cell.focus();
+    var s = cell.selectionStart, e = cell.selectionEnd;
+    if (s == null){ s = cell.value.length; e = s; }
+    if (s > e){ var t = s; s = e; e = t; }
+    cell.value = cell.value.slice(0, s) + text + cell.value.slice(e);
+    var p = s + text.length;
+    try { cell.setSelectionRange(p, p); } catch(err){}
+    sizeAuto(cell);
+    lastCell = cell;
+  }
+
+  function insertFunc(name){
+    var cell = ensureCell();
+    cell.focus();
+    var s = cell.selectionStart, e = cell.selectionEnd;
+    if (s == null){ s = cell.value.length; e = s; }
+    if (s > e){ var t = s; s = e; e = t; }
+    var text = name + '(';
+    cell.value = cell.value.slice(0, s) + text + cell.value.slice(e);
+    var p = s + text.length;
+    try { cell.setSelectionRange(p, p); } catch(err){}
+    sizeAuto(cell);
+    lastCell = cell;
+  }
+
+  function insertPercent(){
+    var cell = ensureCell();
+    cell.focus();
+    var s = cell.selectionStart;
+    if (s == null) s = cell.value.length;
+    if (s <= 0){ showHint('% 必须紧跟在 ) 之后'); return; }
+    if (cell.value.charAt(s - 1) !== ')'){
+      showHint('% 必须紧跟在 ) 之后');
+      return;
+    }
+    insertText('%');
+  }
+
+  /* 通用：在当前单元格处插入复杂结构，若在 param-cell 内则替换内部 input 但保留 param-cell */
+  function insertComplexStructure(cell, createStructure){
+    var s = cell.selectionStart, e = cell.selectionEnd;
+    if (s == null){ s = cell.value.length; e = s; }
+    if (s > e){ var t = s; s = e; e = t; }
+
+    var before = cell.value.slice(0, s);
+    var after  = cell.value.slice(e);
+
+    var parent = cell.parentNode;
+    var isParam = parent && parent.classList && parent.classList.contains('param-cell');
+
+    var structure = createStructure();
+
+    if (isParam){
+      // 在 param-cell 内：清空 param-cell，放入结构，并保留前后文本
+      parent.innerHTML = '';
+      if (before) {
+        var pre = createTextCell(before);
+        parent.appendChild(pre);
+      }
+      parent.appendChild(structure.element);
+      if (after) {
+        var post = createTextCell(after);
+        parent.appendChild(post);
+      }
+      // 聚焦到结构的第一个单元格
+      if (structure.focusCell) structure.focusCell.focus();
+    } else {
+      // 普通情况：替换当前 cell
+      var beforeCell = createTextCell(before);
+      var afterCell  = createTextCell(after);
+      parent.insertBefore(beforeCell, cell);
+      parent.insertBefore(structure.element, cell);
+      parent.insertBefore(afterCell, cell);
+      parent.removeChild(cell);
+      if (structure.focusCell) structure.focusCell.focus();
+    }
+  }
+
+  function insertFraction(){
+    var cell = ensureCell();
+    cell.focus();
+    insertComplexStructure(cell, function(){
+      var frac = document.createElement('span');
+      frac.className = 'frac';
+      var numG = document.createElement('span');
+      numG.className = 'group num';
+      var denG = document.createElement('span');
+      denG.className = 'group den';
+      var numCell = createTextCell('');
+      var denCell = createTextCell('');
+      numG.appendChild(numCell);
+      denG.appendChild(denCell);
+      var line = document.createElement('span');
+      line.className = 'frac-line';
+      frac.appendChild(numG);
+      frac.appendChild(line);
+      frac.appendChild(denG);
+      return { element: frac, focusCell: numCell };
+    });
+  }
+
+  function insertPower(){
+    var cell = ensureCell();
+    cell.focus();
+    var prev = cell.value.charAt(cell.selectionStart - 1);
+    if (prev !== ')'){
+      showHint('^ 必须紧跟在 ) 之后');
+      return;
+    }
+    insertComplexStructure(cell, function(){
+      var pow = document.createElement('span');
+      pow.className = 'pow';
+      var expCell = createTextCell('');
+      pow.appendChild(expCell);
+      return { element: pow, focusCell: expCell };
+    });
+  }
+
+  function insertRoot(){
+    var cell = ensureCell();
+    cell.focus();
+    insertComplexStructure(cell, function(){
+      var root = document.createElement('span');
+      root.className = 'root';
+      var degEl = document.createElement('span');
+      degEl.className = 'root-deg';
+      var degCell = createTextCell('');
+      degEl.appendChild(degCell);
+      var sym = document.createElement('span');
+      sym.className = 'root-sym';
+      sym.textContent = '√';
+      var radical = document.createElement('span');
+      radical.className = 'root-radical';
+      var radCell = createTextCell('');
+      radical.appendChild(radCell);
+      root.appendChild(degEl);
+      root.appendChild(sym);
+      root.appendChild(radical);
+      return { element: root, focusCell: radCell };
+    });
+  }
+
+  /* 插入公式应用组件（参数单元格用 ; 分隔） */
+  function insertFormulaApp(varName){
+    var formula = formulaStore[varName];
+    if (!formula) return;
+
+    var cell = ensureCell();
+    cell.focus();
+    var s = cell.selectionStart, e = cell.selectionEnd;
+    if (s == null){ s = cell.value.length; e = s; }
+    if (s > e){ var t = s; s = e; e = t; }
+
+    var before = cell.value.slice(0, s);
+    var after  = cell.value.slice(e);
+    var parent = cell.parentNode;
+
+    var app = document.createElement('span');
+    app.className = 'formula-app';
+    app.setAttribute('data-var', varName);
+
+    var appCells = [];
+    for (var i = 0; i < formula.args.length; i++){
+      if (i > 0){
+        var sep = document.createElement('span');
+        sep.className = 'formula-sep';
+        sep.textContent = ';';
+        app.appendChild(sep);
+      }
+      var paramCell = createParamCell();
+      app.appendChild(paramCell);
+      appCells.push(paramCell.querySelector('.cell'));
+    }
+
+    var beforeCell = createTextCell(before);
+    var afterCell  = createTextCell(after);
+
+    parent.insertBefore(beforeCell, cell);
+    parent.insertBefore(app, cell);
+    parent.insertBefore(afterCell, cell);
+    parent.removeChild(cell);
+
+    if (appCells.length > 0){
+      appCells[0].focus();
+      lastCell = appCells[0];
+    }
+  }
+
+  /* =========================================================
+   *  退格
+   * ========================================================= */
+  function doBackspace(){
+    var cell = ensureCell();
+    cell.focus();
+    var s = cell.selectionStart, e = cell.selectionEnd;
+    if (s == null){ s = cell.value.length; e = s; }
+    if (s > e){ var t = s; s = e; e = t; }
+
+    if (s === 0){
+      var par = cell.parentNode;
+      if (par && par.classList){
+        if (par.classList.contains('param-cell')){
+          removeParamCell(par, cell);
+          return;
+        }
+        if (par.classList.contains('formula-app')){
+          removeFormulaApp(par, cell);
+          return;
+        }
+        if (par.classList.contains('num') || par.classList.contains('den')){
+          removeFraction(par.parentNode, cell);
+          return;
+        }
+        if (par.classList.contains('pow') && cell.value === ''){
+          removePower(par, cell);
+          return;
+        }
+        if (par.classList.contains('root-radical') || par.classList.contains('root-deg')){
+          var rootEl = par.closest ? par.closest('.root') : null;
+          if (rootEl){ removeRoot(rootEl, cell); return; }
+        }
+      }
+    }
+
+    if (s !== e){
+      cell.value = cell.value.slice(0, s) + cell.value.slice(e);
+      try { cell.setSelectionRange(s, s); } catch(err){}
+    } else if (s > 0){
+      cell.value = cell.value.slice(0, s - 1) + cell.value.slice(s);
+      try { cell.setSelectionRange(s - 1, s - 1); } catch(err){}
+    } else {
+      var prev = cell.previousElementSibling;
+      if (prev && prev.classList && prev.classList.contains('cell')){
+        var pv = prev.value;
+        prev.value = pv + cell.value;
+        cell.parentNode.removeChild(cell);
+        sizeAuto(prev);
+        focusCellEnd(prev);
+        return;
+      }
+      return;
+    }
+    sizeAuto(cell);
+    lastCell = cell;
+  }
+
+  function doClear(){
+    editor.innerHTML = '';
+    var c = createTextCell('');
+    editor.appendChild(c);
+    lastCell = c;
+    c.focus();
+    histPos = -1;
+    updateArrows();
+  }
+
+  /* =========================================================
+   *  序列化
+   * ========================================================= */
+  function serialize(node){
+    var out = '';
+    var children = node.childNodes;
+    for (var i = 0; i < children.length; i++){
+      var ch = children[i];
+      if (ch.nodeType === 3){ out += ch.textContent; continue; }
+      if (ch.nodeType !== 1) continue;
+
+      var cls = ch.classList;
+      if (cls.contains('param-cell')){
+        out += '(' + serialize(ch) + ')';
+      } else if (cls.contains('formula-app')){
+        var val = computeFormulaApp(ch);
+        out += '(' + (val != null ? val : '0') + ')';
+      } else if (cls.contains('cell')){
+        out += ch.value;
+      } else if (cls.contains('frac')){
+        var num = ch.querySelector(':scope > .num');
+        var den = ch.querySelector(':scope > .den');
+        out += '((' + serialize(num) + ')/(' + serialize(den) + '))';
+      } else if (cls.contains('pow')){
+        var exp = serialize(ch);
+        if (exp.trim() !== '') out += '^(' + exp + ')';
+      } else if (cls.contains('root')){
+        var rad = ch.querySelector('.root-radical');
+        var deg = ch.querySelector('.root-deg');
+        var radStr = rad ? serialize(rad) : '';
+        var degStr = deg ? serialize(deg).trim() : '';
+        if (degStr === ''){
+          out += 'root((' + radStr + '),(2))';
+        } else {
+          out += 'root((' + radStr + '),(' + degStr + '))';
+        }
+      } else {
+        out += serialize(ch);
+      }
+    }
+    return out;
+  }
+
+  /* 计算公式应用组件的值（优先分数精确求值） */
+  function computeFormulaApp(appEl){
+    if (!appEl) return null;
+    var varName = appEl.getAttribute('data-var');
+    var formula = formulaStore[varName];
+    if (!formula) return null;
+
+    var paramCells = appEl.querySelectorAll('.param-cell');
+    var env = {};
+    for (var i = 0; i < formula.args.length; i++){
+      var val = '';
+      if (i < paramCells.length){
+        val = serialize(paramCells[i]).trim();
+      }
+      env[formula.args[i]] = val || '0';
+    }
+
+    var expr = formula.expr;
+    var argNames = formula.args.slice().sort(function(a, b){ return b.length - a.length; });
+    for (var j = 0; j < argNames.length; j++){
+      var a = argNames[j];
+      var v = env[a];
+      var re = new RegExp('\\b' + a + '\\b', 'g');
+      expr = expr.replace(re, '(' + v + ')');
+    }
+
+    expr = insertImplicitMul(expr);
+
+    // 优先尝试分数精确求值
+    var fr = evaluateFraction(expr);
+    if (fr !== null){
+      return frToStr(fr);
+    }
+
+    // 回退到十进制求值
+    try {
+      var parsed = evaluateString(expr);
+      if (parsed === null) return null;
+      return fmt(parsed);
+    } catch (e){
+      return null;
+    }
+  }
+
+  /* 判断是否仅包含单个公式应用 */
+  function checkSingleFormulaApp(){
+    var apps = editor.querySelectorAll('.formula-app');
+    if (apps.length !== 1) return null;
+    var app = apps[0];
+
+    var hasOther = false;
+    function walk(node){
+      if (node === app) return;
+      if (node.nodeType === 3){
+        if (node.textContent.replace(/\s/g, '') !== '') hasOther = true;
+        return;
+      }
+      if (node.nodeType !== 1) return;
+      if (node.classList.contains('cell')){
+        if (node.value.replace(/\s/g, '') !== '') hasOther = true;
+        return;
+      }
+      if (node.classList.contains('param-cell')) return; // 公式应用内部的忽略
+      for (var i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]);
+    }
+    for (var i = 0; i < editor.childNodes.length; i++) walk(editor.childNodes[i]);
+
+    return hasOther ? null : app;
+  }
+
+  function substituteVariables(expr){
+    var result = expr;
+    for (var key in variables){
+      if (variables.hasOwnProperty(key)){
+        var val = variables[key];
+        var replacement = '(' + val + ')';
+        if (/^[a-zA-Z]$/.test(key)) {
+          var regex = new RegExp('\\b' + key + '\\b', 'g');
+          result = result.replace(regex, replacement);
+        } else {
+          var newResult = '';
+          for (var i = 0; i < result.length; i++) {
+            if (result[i] === key) {
+              var prev = i > 0 ? result[i-1] : '';
+              var next = i < result.length - 1 ? result[i+1] : '';
+              if (!/[a-zA-Z0-9]/.test(prev) && !/[a-zA-Z0-9]/.test(next)) {
+                newResult += replacement;
+              } else {
+                newResult += key;
+              }
+            } else {
+              newResult += result[i];
+            }
+          }
+          result = newResult;
+        }
+      }
+    }
+    return result;
+  }
+
+  function normalize(s){
+    return s
+      .replace(/×/g, '*')
+      .replace(/÷/g, '/')
+      .replace(/[−–—]/g, '-')
+      .replace(/\[/g, '(')
+      .replace(/\]/g, ')')
+      .replace(/\{/g, '(')
+      .replace(/\}/g, ')')
+      .replace(/=/g, '');
+  }
+
+  function tokenize(str){
+    var tokens = [], i = 0, n = str.length;
+    while (i < n){
+      var c = str.charAt(i);
+      if (c === ' ' || c === '\t' || c === '\n' || c === '\r'){ i++; continue; }
+
+      if (tokens.length > 0) {
+        var prev = tokens[tokens.length - 1];
+        var prevEnds = (prev.type === 'num' || (prev.type === 'op' && prev.value === ')'));
+        var currStarts = ((c >= '0' && c <= '9') || c === '.' || c === 'π' || c === 'e' || c === '(' || /^(sin|cos|tan|sqrt|root)/.test(str.slice(i)));
+        if (prevEnds && currStarts) tokens.push({ type: 'op', value: '*' });
+      }
+
+      if ((c >= '0' && c <= '9') || c === '.'){
+        var j = i;
+        while (j < n && ((str.charAt(j) >= '0' && str.charAt(j) <= '9') || str.charAt(j) === '.')) j++;
+        var numStr = str.slice(i, j);
+        var d = decParse(numStr);
+        if (!d) return null;
+        tokens.push({ type:'num', value: d });
+        i = j;
+        continue;
+      }
+
+      if (c === 'π'){ tokens.push({ type:'num', value: PI_DEC }); i++; continue; }
+      if (c === 'e'){ tokens.push({ type:'num', value: E_DEC }); i++; continue; }
+
+      var funcMatch = /^(sin|cos|tan|sqrt|root)\b/.exec(str.slice(i));
+      if (funcMatch){ tokens.push({ type:'func', value: funcMatch[1] }); i += funcMatch[1].length; continue; }
+
+      if ('+-*/^%(),'.indexOf(c) >= 0){ tokens.push({ type:'op', value: c }); i++; continue; }
+      return null;
+    }
+    return tokens;
+  }
+
+  function evaluateString(input){
+    try {
+      IMAG_FLAG = false;
+      var s = normalize(input).trim();
+      if (!s) return null;
+
+      var tokens = tokenize(s);
+      if (!tokens || tokens.length === 0) return null;
+
+      var pos = 0;
+      function peek(){ return tokens[pos]; }
+      function eat(){ return tokens[pos++]; }
+
+      function parseExpr(){
+        var v = parseTerm();
+        while (peek() && (peek().value === '+' || peek().value === '-')){
+          var op = eat().value;
+          var r = parseTerm();
+          v = (op === '+') ? decAdd(v, r) : decSub(v, r);
+        }
+        return v;
+      }
+      function parseTerm(){
+        var v = parseUnary();
+        while (peek() && (peek().value === '*' || peek().value === '/' || peek().value === '%')){
+          var op = eat().value;
+          var r = parseUnary();
+          if (op === '*'){
+            v = decMul(v, r);
+          } else if (op === '/'){
+            v = decDiv(v, r);
+          } else {
+            var va = decToNumber(v), vb = decToNumber(r);
+            if (vb === 0) throw new Error('mod0');
+            v = decFromNumber(va % vb);
+          }
+        }
+        return v;
+      }
+      function parseUnary(){
+        if (peek() && peek().value === '-'){ eat(); return decNeg(parseUnary()); }
+        if (peek() && peek().value === '+'){ eat(); return parseUnary(); }
+        return parsePower();
+      }
+      function parsePower(){
+        var base = parseAtom();
+        while (peek() && peek().value === '^'){
+          eat();
+          var exp = parseUnary();
+          base = decPow(base, exp);
+        }
+        return base;
+      }
+      function parseAtom(){
+        var t = peek();
+        if (!t) throw new Error('eof');
+        if (t.type === 'num'){ eat(); return t.value; }
+        if (t.type === 'func'){
+          eat();
+          if (!peek() || peek().value !== '(') throw new Error('func-paren');
+          eat();
+          var args = [parseExpr()];
+          while (peek() && peek().value === ','){
+            eat();
+            args.push(parseExpr());
+          }
+          if (!peek() || peek().value !== ')') throw new Error('paren');
+          eat();
+          switch (t.value){
+            case 'sin': return decSin(args[0]);
+            case 'cos': return decCos(args[0]);
+            case 'tan': return decTan(args[0]);
+            case 'sqrt': return decSqrt(args[0]);
+            case 'root': {
+              var deg = args.length > 1 ? decToNumber(args[1]) : 2;
+              return decNthRoot(args[0], deg);
+            }
+          }
+          throw new Error('unknown-func');
+        }
+        if (t.value === '('){
+          eat();
+          var v = parseExpr();
+          if (!peek() || peek().value !== ')') throw new Error('paren');
+          eat();
+          return v;
+        }
+        throw new Error('unexpected');
+      }
+
+      var result = parseExpr();
+      if (pos !== tokens.length) return null;
+      return result;
+    } catch (e){
+      return null;
+    }
+  }
+
+  function fmt(d){
+    var s = decToString(d, 100);
+    if (IMAG_FLAG) s += 'i';
+    return s;
+  }
+
+  /* =========================================================
+   *  输出端渲染
+   * ========================================================= */
+  function renderMathHTML(str) {
+    if (!str) return '';
+    var fracMatch = /^(-?\d+)\/(\d+)$/.exec(str);
+    if (fracMatch) {
+      return '<span class="frac"><span class="group num">' + fracMatch[1] + '</span><span class="frac-line"></span><span class="group den">' + fracMatch[2] + '</span></span>';
+    }
+    var rootMatch = /^([+-]?)(\d*)\u221a(\d+)$/.exec(str);
+    if (rootMatch) {
+      var sign = rootMatch[1] || '';
+      var coeff = rootMatch[2];
+      var rad = rootMatch[3];
+      var html = sign;
+      if (coeff !== '1' && coeff !== '') html += coeff;
+      html += '<span class="root"><span class="root-deg"></span><span class="root-sym">√</span><span class="root-radical">' + rad + '</span></span>';
+      return html;
+    }
+    return str;
+  }
+
+  function setOutputHTML(html) { output.innerHTML = html; }
+  function setOutputFraction(frStr) { output.innerHTML = renderMathHTML(frStr); }
+
+  /* =========================================================
+   *  模式管理
+   * ========================================================= */
+  function setMode(m){
+    assignMode = false;
+    formulaMode = false;
+    eqMode = null;
+    inputField.classList.remove('assign-mode');
+    inputField.classList.remove('eq1-mode');
+    inputField.classList.remove('eqsys-mode');
+    inputField.classList.remove('formula-mode');
+
+    if (m === 'assign'){
+      assignMode = true;
+      inputField.classList.add('assign-mode');
+      showHint('赋值模式：输入单个字母或 <字母>=<数或式子>，然后按 Start');
+    } else if (m === 'assignFormula'){
+      formulaMode = true;
+      inputField.classList.add('formula-mode');
+      showHint('赋公式模式：输入 <字母>=(<参数1>;<参数2>...)=<含参数的整式>');
+    } else if (m === 'single'){
+      eqMode = 'single';
+      inputField.classList.add('eq1-mode');
+      showHint('一元方程模式：输入 <含一个字母的整式>=<整式>，按 Start');
+    } else if (m === 'system'){
+      eqMode = 'system';
+      inputField.classList.add('eqsys-mode');
+      showHint('方程组模式：用 ; 分隔方程，如 a+b+c=3;b=6;c=3');
+    }
+  }
+
+  /* =========================================================
+   *  赋值处理
+   * ========================================================= */
+  function handleAssign(){
+    var expr = serialize(editor).replace(/\s/g, '');
+    var singleLetterMatch = /^[xyzabcdαβ]$/.exec(expr);
+    if (singleLetterMatch){
+      var letter = singleLetterMatch[0];
+      if (lastResult === null){
+        output.textContent = '请先计算一次';
+        return;
+      }
+      variables[letter] = lastResult;
+      output.textContent = letter + '=' + lastResult;
+      setMode(null);
+      doClear();
+      return;
+    }
+    var assignMatch = /^([xyzabcdαβ])=(.*)$/.exec(expr);
+    if (assignMatch){
+      var letter2 = assignMatch[1];
+      var value = assignMatch[2];
+      if (value.trim() === ''){
+        output.textContent = '赋值内容不能为空';
+        return;
+      }
+      variables[letter2] = value;
+      output.textContent = letter2 + '=' + value;
+      setMode(null);
+      doClear();
+      return;
+    }
+    output.textContent = '赋值格式错误，请输入单个字母或 <字母>=<数或式子>';
+  }
+
+  /* =========================================================
+   *  赋公式处理
+   * ========================================================= */
+  function parseAssignFormula(s){
+    s = String(s).trim();
+    if (!s) return null;
+
+    var idx1 = s.indexOf('=');
+    if (idx1 < 0) return null;
+    var letter = s.slice(0, idx1).trim();
+    if (!/^[a-zA-Zαβ]$/.test(letter)) return null;
+
+    var rest = s.slice(idx1 + 1);
+    if (rest.charAt(0) !== '(') return null;
+    var closeIdx = rest.indexOf(')');
+    if (closeIdx < 0) return null;
+
+    var argsStr = rest.slice(1, closeIdx);
+    var after = rest.slice(closeIdx + 1);
+    if (after.charAt(0) !== '=') return null;
+    var expr = after.slice(1).trim();
+    if (!expr) return null;
+
+    var args = argsStr.split(';').map(function(x){ return x.trim(); }).filter(function(x){ return x.length > 0; });
+    if (args.length === 0) return null;
+    for (var i = 0; i < args.length; i++){
+      if (!/^[a-zA-Zαβ]$/.test(args[i])) return null;
+    }
+
+    return { letter: letter, args: args, expr: expr };
+  }
+
+  function handleAssignFormula(){
+    var s = serialize(editor).trim();
+    if (!s){ output.textContent = '请输入赋公式内容'; return; }
+
+    var parsed = parseAssignFormula(s);
+    if (!parsed){
+      output.textContent = '格式错误，请使用 <字母>=(<参数1>;<参数2>...)=<含参数的整式>';
+      return;
+    }
+
+    formulaStore[parsed.letter] = {
+      args: parsed.args,
+      expr: parsed.expr
+    };
+
+    output.textContent = parsed.letter + '=(' + parsed.args.join(';') + ')=' + parsed.expr;
+    setMode(null);
+    doClear();
+  }
+
+  /* =========================================================
+   *  一元方程执行
+   * ========================================================= */
+  function runSingleEquation(){
+    var rawExpr = serialize(editor);
+    if (!rawExpr.trim()){ output.textContent = '请输入方程'; return; }
+
+    var expr = insertImplicitMul(rawExpr);
+
+    var res = solveSingleEquation(expr);
+    if (res.error){ output.textContent = res.error; return; }
+    if (res.status === 'none'){ output.textContent = res.message || '无实数解'; return; }
+    if (res.status === 'any'){ output.textContent = '值为任意'; return; }
+
+    if (res.html) {
+      output.innerHTML = res.html;
+      lastResult = res.varName + '=' + output.textContent;
+      if (btnResult) btnResult.disabled = false;
+      return;
+    }
+
+    if (res.solutions.length === 0){
+      output.textContent = res.extraneous ? '方程有增根，无有效解' : '无实数解';
+      return;
+    }
+
+    var strs = res.solutions.map(function(d){ return decToString(d, 30); });
+    var txt = strs.map(function(sv){ return res.varName + '=' + sv; }).join(';');
+    if (res.extraneous) txt += '  [有增根]';
+
+    var useFrac = false;
+    for (var i = 0; i < res.solutions.length; i++) {
+      var frStr = frToStr(decToFraction(res.solutions[i]));
+      if (frStr.indexOf('/') !== -1) { useFrac = true; break; }
+    }
+
+    if (useFrac) {
+      var htmlParts = [];
+      for (var j = 0; j < res.solutions.length; j++) {
+        var frS = frToStr(decToFraction(res.solutions[j]));
+        htmlParts.push(res.varName + '=' + renderMathHTML(frS));
+      }
+      var finalHtml = htmlParts.join(';');
+      if (res.extraneous) finalHtml += '  [有增根]';
+      output.innerHTML = finalHtml;
+    } else {
+      output.textContent = txt;
+    }
+
+    variables[res.varName] = strs[0];
+    lastResult = strs[0];
+    if (btnResult) btnResult.disabled = false;
+  }
+
+  /* =========================================================
+   *  方程组执行
+   * ========================================================= */
+  function runSystemEquation(){
+    var rawExpr = serialize(editor);
+    if (!rawExpr.trim()){ output.textContent = '请输入方程组'; return; }
+
+    var expr = insertImplicitMul(rawExpr);
+
+    var res = solveSystem(expr);
+    if (res.error){ output.textContent = res.error; return; }
+    if (res.status === 'none'){ output.textContent = res.message || '方程组矛盾'; return; }
+    if (res.status === 'any'){ output.textContent = '值为任意'; return; }
+
+    var parts = [];
+    var useFrac = false;
+    for (var i = 0; i < res.vars.length; i++){
+      var frStr = frToStr(decToFraction(res.values[i]));
+      if (frStr.indexOf('/') !== -1) useFrac = true;
+      parts.push({ varName: res.vars[i], frStr: frStr, decStr: decToString(res.values[i], 30) });
+      variables[res.vars[i]] = parts[i].decStr;
+    }
+
+    if (useFrac) {
+      var htmlParts = [];
+      for (var j = 0; j < parts.length; j++) {
+        htmlParts.push(parts[j].varName + '=' + renderMathHTML(parts[j].frStr));
+      }
+      var finalHtml = htmlParts.join(';');
+      if (res.extraneous) finalHtml += '  [有增根]';
+      output.innerHTML = finalHtml;
+    } else {
+      var txt = parts.map(function(p){ return p.varName + '=' + p.decStr; }).join(';');
+      if (res.extraneous) txt += '  [有增根]';
+      output.textContent = txt;
+    }
+
+    if (res.vars.length > 0) lastResult = parts[0].decStr;
+    if (btnResult) btnResult.disabled = false;
+  }
+
+  var btnResult = null;
+
+  function runCalculate(){
+    if (formulaMode){ handleAssignFormula(); return; }
+    if (eqMode === 'single'){ runSingleEquation(); return; }
+    if (eqMode === 'system'){ runSystemEquation(); return; }
+    if (assignMode){ handleAssign(); return; }
+
+    /* 单公式应用特判：输出 <字母>=<值> */
+    var singleApp = checkSingleFormulaApp();
+    if (singleApp){
+      var vn = singleApp.getAttribute('data-var');
+      var v = computeFormulaApp(singleApp);
+      if (v != null){
+        output.textContent = vn + '=' + v;
+        lastResult = v;
+        if (btnResult) btnResult.disabled = false;
+        return;
+      }
+    }
+
+    var hasFr = editor.querySelector('.frac') !== null;
+    var hasRoot = editor.querySelector('.root') !== null;
+    var rawExpr = serialize(editor);
+    var expr = insertImplicitMul(rawExpr);
+    expr = substituteVariables(expr);
+
+    if (hasRoot && !hasFr) {
+      var rootMatch = /^(\d*)\s*\*\s*root\(\((\d+)\),\(2\)\)$/.exec(expr);
+      if (rootMatch) {
+        var coeff = rootMatch[1] ? BigInt(rootMatch[1]) : 1n;
+        var radicand = BigInt(rootMatch[2]);
+        var simp = simplifyRadical(radicand);
+        var totalCoeff = coeff * simp.coeff;
+        var resHtml = '';
+        if (totalCoeff === 0n) resHtml = '0';
+        else {
+          if (totalCoeff !== 1n) resHtml += totalCoeff.toString();
+          if (simp.rad > 1n) resHtml += '√' + simp.rad.toString();
+          else if (totalCoeff === 1n) resHtml += '1';
+        }
+        setOutputHTML(renderMathHTML(resHtml));
+        lastResult = resHtml;
+        if (btnResult) btnResult.disabled = false;
+        history.push(rawExpr);
+        histPos = -1;
+        updateArrows();
+        return;
+      }
+    }
+
+    if (hasFr) {
+      var fr = evaluateFraction(expr);
+      if (fr !== null) {
+        var frStr = frToStr(fr);
+        setOutputFraction(frStr);
+        lastResult = frStr;
+        if (btnResult) btnResult.disabled = false;
+        history.push(rawExpr);
+        histPos = -1;
+        updateArrows();
+        return;
+      }
+    }
+
+    var val = evaluateString(expr);
+    if (val === null){
+      output.textContent = '错误';
+      return;
+    }
+    var resStr = fmt(val);
+    output.textContent = resStr;
+    lastResult = resStr;
+    if (btnResult) btnResult.disabled = false;
+    history.push(rawExpr);
+    histPos = -1;
+    updateArrows();
+  }
+
+  function updateArrows(){
+    btnUp.disabled = (history.length === 0);
+    btnDown.disabled = (histPos === -1 || histPos >= history.length - 1);
+  }
+
+  function setEditorText(str){
+    editor.innerHTML = '';
+    var c = createTextCell(str);
+    editor.appendChild(c);
+    lastCell = c;
+    c.focus();
+    var n = str.length;
+    try { c.setSelectionRange(n, n); } catch(err){}
+  }
+
+  btnUp.addEventListener('click', function(){
+    if (history.length === 0) return;
+    if (histPos === -1) histPos = history.length - 1;
+    else if (histPos > 0) histPos--;
+    else return;
+    setEditorText(history[histPos]);
+    updateArrows();
+  });
+
+  btnDown.addEventListener('click', function(){
+    if (histPos === -1 || histPos >= history.length - 1) return;
+    histPos++;
+    setEditorText(history[histPos]);
+    updateArrows();
+  });
+
+  var KEYS = [
+    { t:'func',  l:'sin', v:'sin' },
+    { t:'func',  l:'cos', v:'cos' },
+    { t:'func',  l:'tan', v:'tan' },
+    { t:'txt',   l:'(',   v:'(' },
+    { t:'txt',   l:')',   v:')' },
+    { t:'pct',   l:'%' },
+    { t:'pow',   l:'^' },
+
+    { t:'txt',   l:'7',   v:'7' },
+    { t:'txt',   l:'8',   v:'8' },
+    { t:'txt',   l:'9',   v:'9' },
+    { t:'txt',   l:'÷',   v:'÷' },
+    { t:'txt',   l:'×',   v:'×' },
+    { t:'txt',   l:'π',   v:'π' },
+    { t:'root',  l:'√' },
+
+    { t:'txt',   l:'4',   v:'4' },
+    { t:'txt',   l:'5',   v:'5' },
+    { t:'txt',   l:'6',   v:'6' },
+    { t:'txt',   l:'−',   v:'−' },
+    { t:'txt',   l:'+',   v:'+' },
+    { t:'frac',  l:'分数线', small:true },
+    { t:'back',  l:'⌫' },
+
+    { t:'txt',   l:'1',   v:'1' },
+    { t:'txt',   l:'2',   v:'2' },
+    { t:'txt',   l:'3',   v:'3' },
+    { t:'txt',   l:'0',   v:'0' },
+    { t:'txt',   l:'.',   v:'.' },
+    { t:'txt',   l:'e',   v:'e' },
+    { t:'clear', l:'C' },
+
+    { t:'result', l:'结果' },
+    { t:'eq',     l:'=' },
+    { t:'assign', l:'赋值' },
+    { t:'var',    l:'x',   v:'x' },
+    { t:'var',    l:'y',   v:'y' },
+    { t:'var',    l:'z',   v:'z' },
+    { t:'var',    l:'a',   v:'a' },
+
+    { t:'var',    l:'b',   v:'b' },
+    { t:'var',    l:'c',   v:'c' },
+    { t:'var',    l:'d',   v:'d' },
+    { t:'var',    l:'α',   v:'α' },
+    { t:'var',    l:'β',   v:'β' },
+    { t:'txt',    l:';',   v:';' },
+    { t:'eq1',    l:'一元方程', small:true },
+
+    { t:'eqsys',  l:'方程组', span2:true },
+    { t:'formula', l:'赋公式', span2:true }
+  ];
+
+  function onKey(k){
+    switch (k.t){
+      case 'txt':   insertText(k.v); break;
+      case 'func':  insertFunc(k.v); break;
+      case 'pct':   insertPercent(); break;
+      case 'frac':  insertFraction(); break;
+      case 'pow':   insertPower(); break;
+      case 'root':  insertRoot(); break;
+      case 'back':  doBackspace(); break;
+      case 'clear': doClear(); break;
+      case 'result':
+        if (lastResult !== null) insertText(lastResult);
+        else showHint('请先计算一次');
+        break;
+      case 'eq':    insertText('='); break;
+      case 'assign':
+        setMode(assignMode ? null : 'assign');
+        break;
+      case 'eq1':
+        setMode(eqMode === 'single' ? null : 'single');
+        break;
+      case 'eqsys':
+        setMode(eqMode === 'system' ? null : 'system');
+        break;
+      case 'formula':
+        setMode(formulaMode ? null : 'assignFormula');
+        break;
+      case 'var':
+        if (formulaStore[k.v] && !assignMode && !formulaMode && !eqMode){
+          insertFormulaApp(k.v);
+        } else {
+          insertText(k.v);
+        }
+        break;
+    }
+  }
+
+  KEYS.forEach(function(k){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = k.l;
+    if (k.small) b.classList.add('small');
+    if (k.span2 || k.span === 2) b.classList.add('span2');
+    if (k.t === 'var') b.classList.add('var-btn');
+    if (k.t === 'result'){
+      b.disabled = true;
+      btnResult = b;
+    }
+    b.addEventListener('mousedown', function(e){ e.preventDefault(); });
+    b.addEventListener('click', function(){ onKey(k); });
+    pad.appendChild(b);
+  });
+
+  editor.addEventListener('click', function(e){
+    var target = e.target;
+    if (!target || !target.classList) return;
+
+    if (target.classList.contains('frac-line')){
+      var frac = target.closest ? target.closest('.frac') : null;
+      if (frac){
+        var numCell = frac.querySelector('.num .cell');
+        if (numCell){ focusCellStart(numCell); return; }
+      }
+    }
+
+    if (target.classList.contains('root-sym')){
+      var root = target.closest ? target.closest('.root') : null;
+      if (root){
+        var radCell = root.querySelector('.root-radical .cell');
+        if (radCell){ focusCellStart(radCell); return; }
+      }
+    }
+  });
+
+  btnStart.addEventListener('mousedown', function(e){ e.preventDefault(); });
+  btnStart.addEventListener('click', runCalculate);
+
+  editor.addEventListener('click', function(e){
+    if (e.target === editor){
+      var cells = editor.querySelectorAll('.cell');
+      if (cells.length){
+        var c = cells[cells.length - 1];
+        c.focus();
+        var n = c.value.length;
+        try { c.setSelectionRange(n, n); } catch(err){}
+        lastCell = c;
+      } else {
+        var nc = createTextCell('');
+        editor.appendChild(nc);
+        nc.focus();
+        lastCell = nc;
+      }
+    }
+  });
+
+  document.addEventListener('focusin', function(e){
+    var t = e.target;
+    if (t && t.classList && t.classList.contains('cell')) lastCell = t;
+  });
+
+  (function init(){
+    var c = createTextCell('');
+    editor.appendChild(c);
+    lastCell = c;
+    updateArrows();
+  })();
+
+})();
+</script>
+</body>
+</html>
