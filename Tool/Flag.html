@@ -1,0 +1,2167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<title>Canvas 动态红旗 · 自定义旗</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background: #05070d;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #c { display: block; width: 100vw; height: 100vh; touch-action: none; }
+
+  /* ---------- 右上角画质选择（自绘下拉，不使用浏览器内置列表） ---------- */
+  #qualityBox {
+    position: fixed; z-index: 30;
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: calc(12px + env(safe-area-inset-right, 0px));
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px;
+    border-radius: 12px;
+    background: rgba(16, 22, 36, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    color: #c6d2e4; font-size: 12px; line-height: 1.2;
+  }
+  #qualityBox > label { color: #8d9bb1; letter-spacing: .02em; white-space: nowrap; }
+
+  .q-dropdown { position: relative; }
+  .q-trigger {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 75, 62, 0.4);
+    background: rgba(255, 75, 62, 0.15);
+    color: #ff8b7a;
+    font-size: 12px; font-family: inherit; cursor: pointer;
+    white-space: nowrap; outline: none;
+    transition: background-color .15s, color .15s, border-color .15s;
+  }
+  .q-trigger:hover { background: rgba(255, 75, 62, 0.28); color: #fff; border-color: rgba(255,75,62,0.7); }
+  .q-trigger .arrow { transition: transform .18s ease; }
+  .q-dropdown.open .q-trigger { background: rgba(255, 75, 62, 0.28); color: #fff; border-color: rgba(255,75,62,0.7); }
+  .q-dropdown.open .q-trigger .arrow { transform: rotate(180deg); }
+
+  .q-menu {
+    position: absolute; top: calc(100% + 6px); right: 0;
+    min-width: 100%;
+    display: none;
+    flex-direction: column;
+    padding: 4px;
+    border-radius: 10px;
+    background: #111826;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.62);
+    z-index: 40;
+  }
+  .q-dropdown.open .q-menu { display: flex; }
+  .q-option {
+    padding: 6px 14px;
+    border-radius: 6px;
+    color: #c6d2e4; font-size: 12px; cursor: pointer;
+    white-space: nowrap;
+    transition: background-color .12s, color .12s;
+  }
+  .q-option:hover { background: rgba(255, 75, 62, 0.22); color: #fff; }
+  .q-option.active { background: rgba(255, 75, 62, 0.30); color: #ff8b7a; font-weight: 600; }
+
+  #panel {
+    position: fixed; left: 12px; right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 6px 16px;
+    padding: 12px 16px;
+    border-radius: 16px;
+    background: rgba(16, 22, 36, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    color: #c6d2e4; font-size: 12px; line-height: 1.2;
+    max-height: 60vh; overflow-y: auto;
+  }
+  @media (max-width: 640px) {
+    #panel { grid-template-columns: repeat(2, 1fr); gap: 8px 16px; }
+  }
+  .ctl .hd { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 3px; }
+  .ctl .hd span { color: #8d9bb1; letter-spacing: .02em; }
+  .ctl .hd b { color: #ff5b4d; font-weight: 600; font-variant-numeric: tabular-nums; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 20px; margin: 0; padding: 0; background: transparent; cursor: pointer; }
+  input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.14); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%; background: #ff4b3e; border: 2px solid #fff; box-shadow: 0 1px 6px rgba(255, 75, 62, .6); }
+  input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.14); }
+  input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #ff4b3e; border: 2px solid #fff; }
+
+  .optrow {
+    grid-column: 1 / -1;
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 8px 12px;
+    margin-top: 4px; padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .chk { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; color: #c6d2e4; font-size: 12px; white-space: nowrap; }
+  .chk input[type=checkbox] { width: 15px; height: 15px; margin: 0; accent-color: #ff4b3e; cursor: pointer; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 5px; padding: 6px 12px;
+    border-radius: 8px; border: 1px solid rgba(255,75,62,0.4);
+    background: rgba(255,75,62,0.15); color: #ff8b7a;
+    font-size: 12px; font-family: inherit; cursor: pointer;
+    transition: all .15s; white-space: nowrap;
+  }
+  .btn:hover { background: rgba(255,75,62,0.28); color: #fff; }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost { border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); color: #c6d2e4; }
+  .btn.ghost:hover { background: rgba(255,255,255,0.14); color: #fff; }
+  .btn.active { border-color: rgba(255,75,62,0.85); background: rgba(255,75,62,0.34); color: #fff; }
+
+  /* ---------- 通用模态框 ---------- */
+  .modal {
+    position: fixed; inset: 0; z-index: 999;
+    display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.72);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    padding: 12px;
+  }
+  .modal.open { display: flex; }
+
+  .modal-content {
+    width: 100%; max-width: 720px; max-height: 92vh;
+    display: flex; flex-direction: column;
+    border-radius: 16px;
+    background: #111826;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+    color: #c6d2e4; overflow: hidden;
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .modal-header h2 { margin: 0; font-size: 15px; font-weight: 600; color: #e8eef8; }
+  .close-btn {
+    width: 30px; height: 30px; border-radius: 50%;
+    border: none; background: rgba(255,255,255,0.08); color: #c6d2e4;
+    font-size: 18px; line-height: 1; cursor: pointer;
+  }
+  .close-btn:hover { background: rgba(255,75,62,0.5); color: #fff; }
+  .modal-footer {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .modal-footer .spacer { flex: 1; }
+
+  /* ---------- 旗列表 ---------- */
+  #flagListBody {
+    padding: 12px 16px;
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .flag-card {
+    position: relative;
+    border-radius: 10px; overflow: hidden;
+    border: 2px solid rgba(255,255,255,0.1);
+    background: #0a0f18; cursor: pointer;
+    transition: all .15s;
+  }
+  .flag-card:hover { border-color: rgba(255,75,62,0.5); }
+  .flag-card.active { border-color: #ff4b3e; box-shadow: 0 0 0 2px rgba(255,75,62,0.25); }
+  .flag-card canvas { display: block; width: 100%; height: auto; }
+  .flag-card .name {
+    padding: 6px 8px; font-size: 11px; color: #c6d2e4;
+    background: rgba(0,0,0,0.5); text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .flag-card .del {
+    position: absolute; top: 4px; right: 4px;
+    width: 22px; height: 22px; border-radius: 50%;
+    border: none; background: rgba(0,0,0,0.6); color: #ff8b7a;
+    font-size: 14px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .flag-card .del:hover { background: #ff4b3e; color: #fff; }
+
+  /* ---------- 编辑器 ---------- */
+  .editor-content { max-width: 900px; height: 92vh; }
+  .editor-body {
+    flex: 1; min-height: 0;
+    display: grid;
+    grid-template-columns: 110px 1fr 180px;
+    gap: 0;
+  }
+  @media (max-width: 640px) {
+    .editor-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
+  }
+  .editor-toolbar {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 10px; overflow-y: auto;
+    border-right: 1px solid rgba(255,255,255,0.08);
+  }
+  @media (max-width: 640px) {
+    .editor-toolbar { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  }
+  .editor-toolbar .btn { width: 100%; }
+  @media (max-width: 640px) { .editor-toolbar .btn { width: auto; } }
+
+  .editor-canvas-wrap {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    padding: 12px; min-height: 0;
+    background: #0a0f18;
+    overflow: hidden;
+  }
+  #editorCanvas { touch-action: none; border-radius: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+
+  .editor-props {
+    padding: 10px; overflow-y: auto;
+    border-left: 1px solid rgba(255,255,255,0.08);
+    font-size: 12px;
+  }
+  @media (max-width: 640px) {
+    .editor-props { border-left: none; border-top: 1px solid rgba(255,255,255,0.08); max-height: 200px; }
+  }
+  .editor-props h3 { margin: 0 0 8px; font-size: 12px; color: #8d9bb1; font-weight: 500; }
+  .prop-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .prop-row label { color: #8d9bb1; }
+  .prop-row input[type=text] {
+    flex: 1; min-width: 0; padding: 4px 6px; border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.3);
+    color: #e8eef8; font-size: 12px; font-family: inherit; outline: none;
+  }
+  .prop-row input[type=range] { flex: 1; }
+  .prop-empty { color: #5b6678; font-size: 11px; text-align: center; padding: 14px 8px; }
+
+  .doodle-section {
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  /* ---------- 多色渐变选择器 ---------- */
+  .prop-color-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .prop-color-row > label {
+    color: #8d9bb1;
+    font-size: 12px;
+  }
+  .color-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 5px;
+    align-items: center;
+  }
+  .color-chip {
+    position: relative;
+    display: inline-flex;
+    line-height: 0;
+  }
+  .color-chip input[type=color] {
+    width: 32px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .color-chip-del {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.3);
+    background: #ff4b3e;
+    color: #fff;
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+  }
+  .color-chip-del:hover { background: #ff1a0a; }
+  .color-add {
+    width: 32px;
+    height: 24px;
+    border: 1px dashed rgba(255,255,255,0.3);
+    border-radius: 4px;
+    background: rgba(255,255,255,0.05);
+    color: #c6d2e4;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+    line-height: 1;
+  }
+  .color-add:hover { background: rgba(255,255,255,0.15); color: #fff; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- 右上角画质选择（自绘下拉） -->
+<div id="qualityBox">
+  <label>画质</label>
+  <div class="q-dropdown" id="qualityDropdown">
+    <button class="q-trigger" id="qualityTrigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+      <span id="qualityLabel">高品质</span>
+      <svg class="arrow" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
+        <path d="M0 0l5 6 5-6z" fill="currentColor"/>
+      </svg>
+    </button>
+    <div class="q-menu" id="qualityMenu" role="listbox">
+      <div class="q-option" data-value="smooth" role="option">流畅</div>
+      <div class="q-option" data-value="high" role="option">高品质</div>
+      <div class="q-option" data-value="ultra" role="option">极佳！</div>
+    </div>
+  </div>
+</div>
+
+<div id="panel">
+  <div class="ctl">
+    <div class="hd"><span>A · 旋转半径</span><b id="vA">3</b></div>
+    <input id="sA" type="range" min="0" max="40" step="1" value="3" autocomplete="off">
+  </div>
+  <div class="ctl">
+    <div class="hd"><span>B · 圆直径</span><b id="vB">14</b></div>
+    <input id="sB" type="range" min="1" max="40" step="1" value="14" autocomplete="off">
+  </div>
+  <div class="ctl">
+    <div class="hd"><span>C · 秒/圈</span><b id="vC">3.0</b></div>
+    <input id="sC" type="range" min="0.5" max="10" step="0.1" value="3" autocomplete="off">
+  </div>
+  <div class="ctl">
+    <div class="hd"><span>X · 填充层数</span><b id="vX">2</b></div>
+    <input id="sX" type="range" min="1" max="5" step="1" value="2" autocomplete="off">
+  </div>
+
+  <div class="optrow">
+    <label class="chk"><input type="checkbox" id="cbBlur"> 启用模糊</label>
+    <button class="btn" id="btnCustom">＋ 自定义旗</button>
+    <button class="btn ghost" id="btnList">☰ 旗列表</button>
+  </div>
+</div>
+
+<!-- 旗列表 -->
+<div class="modal" id="flagListModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>旗列表</h2>
+      <button class="close-btn" data-close>×</button>
+    </div>
+    <div id="flagListBody"></div>
+    <div class="modal-footer">
+      <span class="spacer"></span>
+      <button class="btn" id="btnListNew">＋ 新建旗</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑器 -->
+<div class="modal" id="editorModal">
+  <div class="modal-content editor-content">
+    <div class="modal-header">
+      <h2 id="editorTitle">自定义旗</h2>
+      <button class="close-btn" data-close>×</button>
+    </div>
+    <div class="editor-body">
+      <div class="editor-toolbar">
+        <button class="btn ghost" data-add="text">T 文字</button>
+        <button class="btn ghost" data-add="circle">● 圆形</button>
+        <button class="btn ghost" data-add="rect">■ 矩形</button>
+        <button class="btn ghost" data-add="star">★ 星形</button>
+        <button class="btn ghost" data-add="triangle">▲ 三角形</button>
+      </div>
+      <div class="editor-canvas-wrap">
+        <canvas id="editorCanvas"></canvas>
+      </div>
+      <div class="editor-props" id="editorProps">
+        <div class="prop-empty">点击画布中的元素进行编辑</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="chk" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+        <span>基础色</span>
+        <div class="color-list" id="editorBaseColorList"></div>
+      </div>
+      <label class="chk"><input type="checkbox" id="editorShowEffect"> 效果展示</label>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="editorCancel">取消</button>
+      <button class="btn" id="editorSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ============================================================
+     全局禁用浏览器内置列表 / 自动填充（颜色选择器除外）
+     ============================================================ */
+  function disableNativeLists(root) {
+    const scope = root || document;
+    const inputs = scope.querySelectorAll('input, textarea');
+    for (let i = 0; i < inputs.length; i++) {
+      const el = inputs[i];
+      if (el.type === 'color') continue;
+      el.setAttribute('autocomplete', 'off');
+      el.setAttribute('autocorrect', 'off');
+      el.setAttribute('autocapitalize', 'off');
+      el.setAttribute('spellcheck', 'false');
+      if (el.type === 'text' || el.tagName === 'TEXTAREA') {
+        el.setAttribute('autofill', 'off');
+        el.setAttribute('data-form-type', 'other');
+      }
+    }
+    if (document.body) document.body.setAttribute('autocomplete', 'off');
+  }
+  disableNativeLists(document);
+
+  /* ============================================================
+     颜色工具
+     ============================================================ */
+  function hexToRgb(hex) {
+    if (typeof hex !== 'string') return [0, 0, 0];
+    hex = hex.trim();
+    if (hex.charAt(0) === '#') hex = hex.slice(1);
+    if (hex.length === 3) {
+      hex = hex.charAt(0) + hex.charAt(0) + hex.charAt(1) + hex.charAt(1) + hex.charAt(2) + hex.charAt(2);
+    }
+    if (hex.length !== 6) return [0, 0, 0];
+    const n = parseInt(hex, 16);
+    if (isNaN(n)) return [0, 0, 0];
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  function rgbToHex(r, g, b) {
+    const rr = Math.max(0, Math.min(255, Math.round(r)));
+    const gg = Math.max(0, Math.min(255, Math.round(g)));
+    const bb = Math.max(0, Math.min(255, Math.round(b)));
+    return '#' + ((1 << 24) | (rr << 16) | (gg << 8) | bb).toString(16).slice(1);
+  }
+
+  function lerpColor(c1, c2, t) {
+    const a = hexToRgb(c1);
+    const b = hexToRgb(c2);
+    return rgbToHex(
+      a[0] + (b[0] - a[0]) * t,
+      a[1] + (b[1] - a[1]) * t,
+      a[2] + (b[2] - a[2]) * t
+    );
+  }
+
+  function gradientColorAt(colors, t) {
+    if (!colors || colors.length === 0) return '#000000';
+    if (colors.length === 1) return colors[0];
+    t = Math.max(0, Math.min(1, t));
+    const n = colors.length - 1;
+    const scaled = t * n;
+    let i = Math.floor(scaled);
+    if (i >= n) i = n - 1;
+    if (i < 0) i = 0;
+    const f = scaled - i;
+    return lerpColor(colors[i], colors[i + 1], f);
+  }
+
+  function quantizeColor(hex, bits) {
+    const rgb = hexToRgb(hex);
+    const levels = (1 << bits) - 1;
+    const qr = Math.round(rgb[0] / 255 * levels) / levels * 255;
+    const qg = Math.round(rgb[1] / 255 * levels) / levels * 255;
+    const qb = Math.round(rgb[2] / 255 * levels) / levels * 255;
+    return rgbToHex(qr, qg, qb);
+  }
+
+  function normalizeColors(c) {
+    if (Array.isArray(c)) return c.length > 0 ? c : ['#000000'];
+    if (typeof c === 'string') return [c];
+    return ['#000000'];
+  }
+
+  /* ============================================================
+     基础画布
+     ============================================================ */
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  const P = { A: 3, B: 14, C: 3.0, X: 2, blur: false };
+
+  let W = 0, H = 0, DPR = 1;
+  let flag = { x: 0, y: 0, w: 0, h: 0 };
+  let pole = { x: 0, top: 0, bottom: 0 };
+  let bgGrad = null, glowGrad = null;
+
+  let flagData = { pts: null, cols: null, sprites: [], count: 0 };
+  let SPRITE_SIZE = 0;
+
+  /* ============================================================
+     旗子数据结构
+     约定：elements[0] 为最新添加的组件（显示优先级最高，位于最上层）
+     ============================================================ */
+  function uid() {
+    return 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function createDefaultFlag() {
+    const bigX = 5 / 30, bigY = 5 / 20;
+    return {
+      id: 'default',
+      name: '五星红旗',
+      baseColor: '#e8231f',
+      strokes: [],
+      elements: [
+        // 默认旗中先建大星，再建小星，为了让小星压在大星之上（如果重叠），
+        // 数组顺序按"后添加的排在更前面"的约定排列，因此这里按小星 → 大星排。
+        { id: uid(), type: 'star', x: 10 / 30, y: 9 / 20, size: 1 / 30, color: '#ffde00', pointTo: { x: bigX, y: bigY } },
+        { id: uid(), type: 'star', x: 12 / 30, y: 7 / 20, size: 1 / 30, color: '#ffde00', pointTo: { x: bigX, y: bigY } },
+        { id: uid(), type: 'star', x: 12 / 30, y: 4 / 20, size: 1 / 30, color: '#ffde00', pointTo: { x: bigX, y: bigY } },
+        { id: uid(), type: 'star', x: 10 / 30, y: 2 / 20, size: 1 / 30, color: '#ffde00', pointTo: { x: bigX, y: bigY } },
+        { id: uid(), type: 'star', x: bigX, y: bigY, size: 3 / 30, rotation: 0, color: '#ffde00' }
+      ]
+    };
+  }
+
+  function createBlankFlag(name) {
+    return {
+      id: 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name: name || '自定义旗',
+      baseColor: '#e8231f',
+      strokes: [],
+      elements: []
+    };
+  }
+
+  const state = {
+    flags: [createDefaultFlag()],
+    activeIdx: 0
+  };
+
+  function currentFlag() { return state.flags[state.activeIdx]; }
+
+  /* ============================================================
+     几何工具
+     ============================================================ */
+  function makeStarPoly(cx, cy, R, rot) {
+    const r = R * 0.381966;
+    const poly = [];
+    const step = Math.PI * 2 / 5;
+    for (let k = 0; k < 5; k++) {
+      const a1 = rot - Math.PI / 2 + k * step;
+      const a2 = a1 + Math.PI / 5;
+      poly.push(cx + R * Math.cos(a1), cy + R * Math.sin(a1));
+      poly.push(cx + r * Math.cos(a2), cy + r * Math.sin(a2));
+    }
+    return poly;
+  }
+
+  function makeTrianglePoly(cx, cy, s, rot) {
+    const R = s / Math.sqrt(3);
+    const poly = [];
+    for (let k = 0; k < 3; k++) {
+      const a = rot - Math.PI / 2 + k * Math.PI * 2 / 3;
+      poly.push(cx + R * Math.cos(a), cy + R * Math.sin(a));
+    }
+    return poly;
+  }
+
+  function pointInPoly(x, y, poly) {
+    const n = poly.length / 2;
+    let inside = false;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const xi = poly[i * 2], yi = poly[i * 2 + 1];
+      const xj = poly[j * 2], yj = poly[j * 2 + 1];
+      if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }
+
+  function roundRectPath(c, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+  }
+
+  function poleWidth() { return Math.max(15, Math.min(30, W * 0.0275)); }
+
+  /* ============================================================
+     元素 → 旋转角 / 水平边界 / 命中测试 / 绘制
+     ============================================================ */
+  function getElemRotation(elem, rect) {
+    if (elem.pointTo) {
+      const ex = rect.x + elem.x * rect.w;
+      const ey = rect.y + elem.y * rect.h;
+      const tx = rect.x + elem.pointTo.x * rect.w;
+      const ty = rect.y + elem.pointTo.y * rect.h;
+      const ang = Math.atan2(ty - ey, tx - ex);
+      return ang + Math.PI / 2;
+    }
+    return elem.rotation || 0;
+  }
+
+  function textWidthApprox(elem, fw) {
+    const s = elem.size * fw;
+    const t = elem.text || '文字';
+    let n = 0;
+    for (let i = 0; i < t.length; i++) {
+      n += t.charCodeAt(i) > 255 ? 1 : 0.55;
+    }
+    return s * n * 0.62;
+  }
+
+  function elemHorizBounds(elem, rect) {
+    const fw = rect.w;
+    const cx = rect.x + elem.x * fw;
+
+    if (elem.type === 'rect') {
+      const w = (elem.w || 0.1) * fw;
+      return [cx - w / 2, cx + w / 2];
+    }
+    if (elem.type === 'text') {
+      const tw = textWidthApprox(elem, fw);
+      return [cx - tw / 2, cx + tw / 2];
+    }
+    if (elem.type === 'triangle') {
+      const s = elem.size * fw;
+      const R = s / Math.sqrt(3);
+      return [cx - R, cx + R];
+    }
+    const s = elem.size * fw;
+    return [cx - s, cx + s];
+  }
+
+  function elementContains(elem, px, py, rect) {
+    const fw = rect.w;
+    const ex = rect.x + elem.x * fw;
+    const ey = rect.y + elem.y * rect.h;
+    const s = elem.size * fw;
+
+    if (elem.type === 'circle') {
+      const dx = px - ex, dy = py - ey;
+      return dx * dx + dy * dy <= s * s;
+    }
+    if (elem.type === 'rect') {
+      const w = (elem.w || 0.1) * fw;
+      const h = (elem.h || 0.1) * fw;
+      return px >= ex - w / 2 && px <= ex + w / 2 && py >= ey - h / 2 && py <= ey + h / 2;
+    }
+    if (elem.type === 'star') {
+      const rot = getElemRotation(elem, rect);
+      return pointInPoly(px, py, makeStarPoly(ex, ey, s, rot));
+    }
+    if (elem.type === 'triangle') {
+      const rot = elem.rotation || 0;
+      return pointInPoly(px, py, makeTrianglePoly(ex, ey, s, rot));
+    }
+    if (elem.type === 'text') {
+      const tw = textWidthApprox(elem, fw);
+      const th = s;
+      return px >= ex - tw / 2 && px <= ex + tw / 2 && py >= ey - th / 2 && py <= ey + th / 2;
+    }
+    return false;
+  }
+
+  function applyElemFill(c, elem, rect) {
+    const col = elem.color;
+    if (Array.isArray(col)) {
+      if (col.length === 0) {
+        c.fillStyle = '#000000';
+      } else if (col.length === 1) {
+        c.fillStyle = col[0];
+      } else {
+        const b = elemHorizBounds(elem, rect);
+        if (b[1] - b[0] < 0.5) {
+          c.fillStyle = col[0];
+        } else {
+          const grad = c.createLinearGradient(b[0], 0, b[1], 0);
+          for (let i = 0; i < col.length; i++) {
+            grad.addColorStop(i / (col.length - 1), col[i]);
+          }
+          c.fillStyle = grad;
+        }
+      }
+    } else if (typeof col === 'string') {
+      c.fillStyle = col;
+    } else {
+      c.fillStyle = '#000000';
+    }
+  }
+
+  function resolveElemColor(elem, px, bounds) {
+    const col = elem.color;
+    if (typeof col === 'string') return col;
+    if (!Array.isArray(col) || col.length === 0) return '#000000';
+    if (col.length === 1) return col[0];
+    const span = Math.max(1, bounds[1] - bounds[0]);
+    const t = Math.max(0, Math.min(1, (px - bounds[0]) / span));
+    return quantizeColor(gradientColorAt(col, t), 5);
+  }
+
+  function drawElementOn(c, elem, rect) {
+    const fw = rect.w;
+    const ex = rect.x + elem.x * fw;
+    const ey = rect.y + elem.y * rect.h;
+    const s = elem.size * fw;
+
+    applyElemFill(c, elem, rect);
+
+    if (elem.type === 'circle') {
+      c.beginPath(); c.arc(ex, ey, s, 0, Math.PI * 2); c.fill();
+    } else if (elem.type === 'rect') {
+      const w = (elem.w || 0.1) * fw;
+      const h = (elem.h || 0.1) * fw;
+      c.fillRect(ex - w / 2, ey - h / 2, w, h);
+    } else if (elem.type === 'star') {
+      const rot = getElemRotation(elem, rect);
+      const poly = makeStarPoly(ex, ey, s, rot);
+      c.beginPath();
+      for (let i = 0; i < poly.length; i += 2) {
+        if (i === 0) c.moveTo(poly[i], poly[i + 1]); else c.lineTo(poly[i], poly[i + 1]);
+      }
+      c.closePath(); c.fill();
+    } else if (elem.type === 'triangle') {
+      const rot = elem.rotation || 0;
+      const poly = makeTrianglePoly(ex, ey, s, rot);
+      c.beginPath();
+      for (let i = 0; i < poly.length; i += 2) {
+        if (i === 0) c.moveTo(poly[i], poly[i + 1]); else c.lineTo(poly[i], poly[i + 1]);
+      }
+      c.closePath(); c.fill();
+    } else if (elem.type === 'text') {
+      c.font = 'bold ' + s + 'px sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(elem.text || '文字', ex, ey);
+    }
+  }
+
+  function applyBgFill(c, baseColor, rect) {
+    const colors = normalizeColors(baseColor);
+    if (colors.length === 1) {
+      c.fillStyle = colors[0];
+    } else {
+      const g = c.createLinearGradient(rect.x, rect.y, rect.x + rect.w, rect.y);
+      for (let i = 0; i < colors.length; i++) {
+        g.addColorStop(i / (colors.length - 1), colors[i]);
+      }
+      c.fillStyle = g;
+    }
+  }
+
+  function drawStrokesOn(c, strokes, rect) {
+    if (!strokes || strokes.length === 0) return;
+
+    c.save();
+    c.lineCap = 'round';
+    c.lineJoin = 'round';
+
+    for (let s = 0; s < strokes.length; s++) {
+      const stroke = strokes[s];
+      const pts = stroke.points;
+      if (!pts || pts.length === 0) continue;
+
+      const brushSize = Math.max(1, stroke.size * rect.w);
+      c.lineWidth = brushSize;
+
+      const colors = normalizeColors(stroke.color);
+      if (colors.length > 1) {
+        let minX = Infinity, maxX = -Infinity;
+        for (let i = 0; i < pts.length; i++) {
+          if (pts[i].x < minX) minX = pts[i].x;
+          if (pts[i].x > maxX) maxX = pts[i].x;
+        }
+        const px0 = rect.x + minX * rect.w;
+        const px1 = rect.x + maxX * rect.w;
+        if (px1 - px0 < 0.5) {
+          c.strokeStyle = colors[0];
+          c.fillStyle = colors[0];
+        } else {
+          const g = c.createLinearGradient(px0, 0, px1, 0);
+          for (let i = 0; i < colors.length; i++) {
+            g.addColorStop(i / (colors.length - 1), colors[i]);
+          }
+          c.strokeStyle = g;
+          c.fillStyle = g;
+        }
+      } else {
+        c.strokeStyle = colors[0];
+        c.fillStyle = colors[0];
+      }
+
+      if (pts.length === 1) {
+        c.beginPath();
+        c.arc(rect.x + pts[0].x * rect.w, rect.y + pts[0].y * rect.h, brushSize / 2, 0, Math.PI * 2);
+        c.fill();
+      } else {
+        c.beginPath();
+        for (let i = 0; i < pts.length; i++) {
+          const px = rect.x + pts[i].x * rect.w;
+          const py = rect.y + pts[i].y * rect.h;
+          if (i === 0) c.moveTo(px, py);
+          else c.lineTo(px, py);
+        }
+        c.stroke();
+      }
+    }
+
+    c.restore();
+  }
+
+  function drawFlatFlag(c, flagDef, rect) {
+    applyBgFill(c, flagDef.baseColor, rect);
+    c.fillRect(rect.x, rect.y, rect.w, rect.h);
+
+    /* 从数组末尾到开头遍历：末尾最旧先绘制，索引 0（最新）最后绘制 = 显示在最上层 */
+    for (let i = flagDef.elements.length - 1; i >= 0; i--) {
+      drawElementOn(c, flagDef.elements[i], rect);
+    }
+
+    drawStrokesOn(c, flagDef.strokes, rect);
+  }
+
+  /* ============================================================
+     文本像素掩码
+     ============================================================ */
+  function buildTextMask(elem, rect) {
+    const mw = Math.max(1, Math.round(rect.w));
+    const mh = Math.max(1, Math.round(rect.h));
+    const cv = document.createElement('canvas');
+    cv.width = mw;
+    cv.height = mh;
+    const c2 = cv.getContext('2d');
+
+    const s = elem.size * rect.w;
+    c2.font = 'bold ' + s + 'px sans-serif';
+    c2.textAlign = 'center';
+    c2.textBaseline = 'middle';
+    c2.fillStyle = '#fff';
+    c2.fillText(elem.text || '文字', elem.x * rect.w, elem.y * rect.h);
+
+    try {
+      const data = c2.getImageData(0, 0, mw, mh).data;
+      return { data: data, w: mw, h: mh };
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function textMaskHit(mask, rect, px, py) {
+    const lx = Math.round(px - rect.x);
+    const ly = Math.round(py - rect.y);
+    if (lx < 0 || lx >= mask.w || ly < 0 || ly >= mask.h) return false;
+    return mask.data[(ly * mask.w + lx) * 4 + 3] > 128;
+  }
+
+  /* ============================================================
+     涂鸦离屏画布
+     ============================================================ */
+  function buildDoodleCanvas(flagDef, rect) {
+    const mw = Math.max(1, Math.round(rect.w));
+    const mh = Math.max(1, Math.round(rect.h));
+
+    if (!flagDef.strokes || flagDef.strokes.length === 0) {
+      return { data: null, w: mw, h: mh };
+    }
+
+    const cv = document.createElement('canvas');
+    cv.width = mw;
+    cv.height = mh;
+    const c = cv.getContext('2d');
+    drawStrokesOn(c, flagDef.strokes, { x: 0, y: 0, w: mw, h: mh });
+
+    let data = null;
+    try {
+      data = c.getImageData(0, 0, mw, mh).data;
+    } catch (e) {
+      data = null;
+    }
+    return { data: data, w: mw, h: mh };
+  }
+
+  /* ============================================================
+     圆球系统：生成点阵 + 颜色索引
+     叠加优先级：基础背景 < 元素（数组末尾最旧 → 索引 0 最新） < 涂鸦
+     ============================================================ */
+  function buildCirclesFor(flagDef, rect, B, A, layers) {
+    const sp = B * 0.70;
+    const pad = B * 0.8 + A;
+
+    const x0 = rect.x - pad;
+    const y0 = rect.y - pad;
+    const x1 = rect.x + rect.w + pad;
+    const y1 = rect.y + rect.h + pad;
+
+    const nx = Math.ceil((x1 - x0) / sp);
+    const ny = Math.ceil((y1 - y0) / sp);
+
+    const lambda = Math.max(80, rect.w * 0.55);
+    const k = Math.PI * 2 / lambda;
+
+    const total = (nx + 1) * (ny + 1) * layers;
+
+    const pts = new Float32Array(total * 3);
+    const cols = new Uint8Array(total);
+
+    const palette = [];
+    const colorMap = new Map();
+    function paletteIndex(col) {
+      let i = colorMap.get(col);
+      if (i === undefined) {
+        i = palette.length;
+        colorMap.set(col, i);
+        palette.push(col);
+      }
+      return i;
+    }
+
+    const bgColors = normalizeColors(flagDef.baseColor);
+    for (let i = 0; i < bgColors.length; i++) paletteIndex(bgColors[i]);
+    const useBgGradient = bgColors.length > 1;
+    const invW = 1 / Math.max(1, rect.w);
+
+    for (let e = 0; e < flagDef.elements.length; e++) {
+      const col = flagDef.elements[e].color;
+      if (typeof col === 'string') paletteIndex(col);
+    }
+
+    const doodle = buildDoodleCanvas(flagDef, rect);
+    const doodleData = doodle.data;
+    const doodleW = doodle.w;
+    const doodleH = doodle.h;
+
+    const textMasks = new Array(flagDef.elements.length);
+    for (let e = 0; e < flagDef.elements.length; e++) {
+      const elem = flagDef.elements[e];
+      if (elem.type === 'text') textMasks[e] = buildTextMask(elem, rect);
+    }
+
+    const elemBounds = new Array(flagDef.elements.length);
+    for (let e = 0; e < flagDef.elements.length; e++) {
+      const el = flagDef.elements[e];
+      if (Array.isArray(el.color) && el.color.length > 1) {
+        elemBounds[e] = elemHorizBounds(el, rect);
+      }
+    }
+
+    function hitElem(elem, eIdx, px, py) {
+      if (elem.type === 'text') {
+        const mask = textMasks[eIdx];
+        if (!mask) return false;
+        return textMaskHit(mask, rect, px, py);
+      }
+      return elementContains(elem, px, py, rect);
+    }
+
+    const elemCount = flagDef.elements.length;
+
+    let idx = 0;
+    for (let l = 0; l < layers; l++) {
+      const ox = (l / layers) * sp;
+      const oy = (l / layers) * sp * 0.62;
+
+      for (let i = 0; i <= nx; i++) {
+        const bx = x0 + i * sp + ox;
+        const ph = -(bx - rect.x) * k;
+
+        for (let j = 0; j <= ny; j++) {
+          const by = y0 + j * sp + oy;
+
+          pts[idx * 3]     = bx;
+          pts[idx * 3 + 1] = by;
+          pts[idx * 3 + 2] = ph;
+
+          /* ① 基础背景 */
+          let ci;
+          if (useBgGradient) {
+            const t = (bx - rect.x) * invW;
+            ci = paletteIndex(quantizeColor(gradientColorAt(bgColors, t), 5));
+          } else {
+            ci = paletteIndex(bgColors[0]);
+          }
+
+          /* ② 元素：从末尾（最旧）到开头（最新）遍历，
+                索引 0（最新添加）最后覆盖，位于最上层 */
+          for (let e = elemCount - 1; e >= 0; e--) {
+            const elem = flagDef.elements[e];
+            if (hitElem(elem, e, bx, by)) {
+              const col = resolveElemColor(elem, bx, elemBounds[e]);
+              ci = paletteIndex(col);
+            }
+          }
+
+          /* ③ 涂鸦覆盖所有 */
+          if (doodleData) {
+            const lx = Math.round(bx - rect.x);
+            const ly = Math.round(by - rect.y);
+            if (lx >= 0 && lx < doodleW && ly >= 0 && ly < doodleH) {
+              const di = (ly * doodleW + lx) * 4;
+              if (doodleData[di + 3] > 128) {
+                const col = quantizeColor(
+                  rgbToHex(doodleData[di], doodleData[di + 1], doodleData[di + 2]), 5
+                );
+                ci = paletteIndex(col);
+              }
+            }
+          }
+
+          cols[idx] = ci;
+          idx++;
+        }
+      }
+    }
+
+    return { pts, cols, palette, count: idx };
+  }
+
+  /* ============================================================
+     圆点贴图
+     ============================================================ */
+  function makeSpriteForColor(color) {
+    const d = Math.max(1, P.B);
+    const size = Math.ceil(d) + 2;
+    SPRITE_SIZE = size;
+
+    const px = Math.max(1, Math.round(size * DPR));
+    const cv = document.createElement('canvas');
+    cv.width = px;
+    cv.height = px;
+
+    const s = cv.getContext('2d');
+    s.setTransform(DPR, 0, 0, DPR, 0, 0);
+    s.clearRect(0, 0, size, size);
+
+    const blurAmt = P.blur ? Math.max(0.3, Math.min(1.0, d * 0.10)) : 0;
+    s.filter = blurAmt > 0 ? 'blur(' + blurAmt + 'px)' : 'none';
+
+    s.fillStyle = color;
+    s.beginPath();
+    s.arc(size / 2, size / 2, d / 2, 0, Math.PI * 2);
+    s.fill();
+    s.filter = 'none';
+
+    return cv;
+  }
+
+  function rebuildSprites() {
+    const palette = flagData.palette || [];
+    flagData.sprites = palette.map(makeSpriteForColor);
+  }
+
+  /* ============================================================
+     布局 / 背景
+     ============================================================ */
+  function layout() {
+    const poleW = poleWidth();
+    const ballR = (poleW / 2) * 1.75;
+
+    pole.x = Math.max(26, W * 0.10);
+    pole.top = Math.max(H * 0.10, ballR + 20);
+    pole.bottom = Math.max(pole.top + 80, H * 0.92);
+
+    const poleH = pole.bottom - pole.top;
+    const availW = W - (pole.x + poleW / 2) - Math.max(14, W * 0.05);
+
+    let fw = Math.min(availW, poleH * 1.4, 680);
+    let fh = fw * 0.62;
+    const maxFH = poleH * 0.78;
+    if (fh > maxFH) { fh = maxFH; fw = fh / 0.62; }
+
+    flag.w = Math.max(90, fw);
+    flag.h = Math.max(56, fh);
+    flag.x = pole.x + poleW / 2;
+    flag.y = pole.top + poleH * 0.06;
+  }
+
+  function makeBg() {
+    bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, '#0e1626');
+    bgGrad.addColorStop(0.60, '#080c16');
+    bgGrad.addColorStop(1, '#04060b');
+
+    const gx = flag.x + flag.w * 0.5;
+    const gy = flag.y + flag.h * 0.5;
+    const gr = Math.max(flag.w, flag.h) * 0.95;
+    glowGrad = ctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
+    glowGrad.addColorStop(0, 'rgba(215, 40, 40, 0.20)');
+    glowGrad.addColorStop(0.45, 'rgba(170, 28, 40, 0.08)');
+    glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  }
+
+  /* ============================================================
+     主渲染重建
+     ============================================================ */
+  function rebuildAll() {
+    const data = buildCirclesFor(currentFlag(), flag, P.B, P.A, P.X);
+    flagData.pts = data.pts;
+    flagData.cols = data.cols;
+    flagData.palette = data.palette;
+    flagData.count = data.count;
+    rebuildSprites();
+  }
+
+  /* ============================================================
+     画旗杆（位置固定，不随旗面摆动）
+     ============================================================ */
+  function drawPole() {
+    const w = poleWidth();
+    const r = w / 2;
+    const x = pole.x;
+    const top = pole.top;
+    const bot = pole.bottom;
+
+    const g = ctx.createLinearGradient(x - r, 0, x + r, 0);
+    g.addColorStop(0, '#39424e');
+    g.addColorStop(0.22, '#c3cedb');
+    g.addColorStop(0.48, '#ffffff');
+    g.addColorStop(0.72, '#8d99a9');
+    g.addColorStop(1, '#2f3741');
+    ctx.fillStyle = g;
+    roundRectPath(ctx, x - r, top, w, bot - top, r);
+    ctx.fill();
+
+    const bg = ctx.createRadialGradient(x - r * 0.7, top - r * 0.9, r * 0.15, x, top, r * 2.2);
+    bg.addColorStop(0, '#fff8d0');
+    bg.addColorStop(0.45, '#f3c94b');
+    bg.addColorStop(1, '#9a7415');
+    ctx.fillStyle = bg;
+    ctx.beginPath();
+    ctx.arc(x, top, r * 1.75, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* ============================================================
+     画旗面
+     ============================================================ */
+  function drawFlag(t) {
+    const A = P.A;
+    const omega = Math.PI * 2 / Math.max(0.05, P.C);
+    const half = SPRITE_SIZE / 2;
+    const size = SPRITE_SIZE;
+
+    const pts = flagData.pts;
+    const cols = flagData.cols;
+    const sprites = flagData.sprites;
+    const n = flagData.count;
+
+    if (!pts) return;
+
+    for (let i = 0; i < n; i++) {
+      const sp = sprites[cols[i]];
+      if (!sp) continue;
+
+      const a = pts[i * 3 + 2] + omega * t;
+      const s = Math.sin(a);
+      const c = Math.cos(a);
+      const dx = pts[i * 3] - A * s;
+      const dy = pts[i * 3 + 1] - A + A * c;
+
+      ctx.drawImage(sp, dx - half, dy - half, size, size);
+    }
+  }
+
+  /* ============================================================
+     主循环
+     ============================================================ */
+  let startTime = 0;
+  function loop(now) {
+    if (!startTime) startTime = now;
+    const t = (now - startTime) / 1000;
+
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = glowGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    drawFlag(t);
+    drawPole();
+
+    requestAnimationFrame(loop);
+  }
+
+  /* ============================================================
+     尺寸自适应
+     ============================================================ */
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth;
+    H = window.innerHeight;
+
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+    layout();
+    makeBg();
+    rebuildAll();
+
+    if (editor.open) {
+      resizeEditorCanvas();
+      editor.dirty = true;
+    }
+  }
+
+  let rzTimer = null;
+  function onResize() {
+    clearTimeout(rzTimer);
+    rzTimer = setTimeout(resize, 120);
+  }
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+
+  /* ============================================================
+     参数绑定
+     ============================================================ */
+  let pending = false;
+  function requestRebuild() {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function () {
+      pending = false;
+      const data = buildCirclesFor(currentFlag(), flag, P.B, P.A, P.X);
+      flagData.pts = data.pts;
+      flagData.cols = data.cols;
+      flagData.palette = data.palette;
+      flagData.count = data.count;
+      rebuildSprites();
+    });
+  }
+
+  function bindSlider(id, valId, key, fmt) {
+    const input = document.getElementById(id);
+    const label = document.getElementById(valId);
+    const apply = function () {
+      const v = parseFloat(input.value);
+      P[key] = v;
+      label.textContent = fmt ? fmt(v) : v;
+      requestRebuild();
+    };
+    input.addEventListener('input', apply);
+    label.textContent = fmt ? fmt(parseFloat(input.value)) : input.value;
+  }
+
+  bindSlider('sA', 'vA', 'A');
+  bindSlider('sB', 'vB', 'B');
+  bindSlider('sC', 'vC', 'C', function (v) { return v.toFixed(1); });
+  bindSlider('sX', 'vX', 'X');
+
+  const cbBlur = document.getElementById('cbBlur');
+  cbBlur.addEventListener('change', function () {
+    P.blur = cbBlur.checked;
+    rebuildSprites();
+  });
+
+  /* ============================================================
+     右上角画质选择
+     ============================================================ */
+  const QUALITY_PRESETS = {
+    smooth: { B: 27, X: 1, label: '流畅' },
+    high:   { B: 3,  X: 2, label: '高品质' },
+    ultra:  { B: 1,  X: 3, label: '极佳！' }
+  };
+
+  const qualityDropdown = document.getElementById('qualityDropdown');
+  const qualityTrigger = document.getElementById('qualityTrigger');
+  const qualityMenu = document.getElementById('qualityMenu');
+  const qualityLabel = document.getElementById('qualityLabel');
+  const qualityOptions = qualityMenu.querySelectorAll('.q-option');
+
+  const sBEl = document.getElementById('sB');
+  const vBEl = document.getElementById('vB');
+  const sXEl = document.getElementById('sX');
+  const vXEl = document.getElementById('vX');
+
+  let currentQuality = 'high';
+
+  function applyQuality(key) {
+    const q = QUALITY_PRESETS[key];
+    if (!q) return;
+    P.B = q.B;
+    P.X = q.X;
+
+    sBEl.value = q.B;
+    vBEl.textContent = q.B;
+    sXEl.value = q.X;
+    vXEl.textContent = q.X;
+
+    requestRebuild();
+  }
+
+  function setQualityActive(key) {
+    for (let i = 0; i < qualityOptions.length; i++) {
+      const o = qualityOptions[i];
+      o.classList.toggle('active', o.getAttribute('data-value') === key);
+    }
+    qualityLabel.textContent = QUALITY_PRESETS[key].label;
+  }
+
+  function openQualityMenu() {
+    qualityDropdown.classList.add('open');
+    qualityTrigger.setAttribute('aria-expanded', 'true');
+  }
+  function closeQualityMenu() {
+    qualityDropdown.classList.remove('open');
+    qualityTrigger.setAttribute('aria-expanded', 'false');
+  }
+  function toggleQualityMenu() {
+    if (qualityDropdown.classList.contains('open')) closeQualityMenu();
+    else openQualityMenu();
+  }
+
+  qualityTrigger.addEventListener('click', function (evt) {
+    evt.stopPropagation();
+    toggleQualityMenu();
+  });
+
+  for (let i = 0; i < qualityOptions.length; i++) {
+    (function (opt) {
+      opt.addEventListener('click', function (evt) {
+        evt.stopPropagation();
+        currentQuality = opt.getAttribute('data-value');
+        setQualityActive(currentQuality);
+        closeQualityMenu();
+        applyQuality(currentQuality);
+      });
+    })(qualityOptions[i]);
+  }
+
+  document.addEventListener('click', function (evt) {
+    if (!qualityDropdown.contains(evt.target)) closeQualityMenu();
+  });
+  document.addEventListener('keydown', function (evt) {
+    if (evt.key === 'Escape') closeQualityMenu();
+  });
+
+  setQualityActive(currentQuality);
+  applyQuality(currentQuality);
+
+  /* ============================================================
+     通用：多色列表填充组件
+     ============================================================ */
+  function fillColorList(container, colors, onChange) {
+    if (!Array.isArray(colors) || colors.length === 0) {
+      colors = ['#000000'];
+    }
+
+    function emit() {
+      onChange(colors);
+    }
+
+    function rebuild() {
+      container.innerHTML = '';
+
+      colors.forEach(function (col, i) {
+        const chip = document.createElement('div');
+        chip.className = 'color-chip';
+
+        const inp = document.createElement('input');
+        inp.type = 'color';
+        inp.value = col;
+        inp.addEventListener('input', function () {
+          colors[i] = inp.value;
+          emit();
+        });
+        chip.appendChild(inp);
+
+        if (colors.length > 1) {
+          const del = document.createElement('button');
+          del.className = 'color-chip-del';
+          del.type = 'button';
+          del.textContent = '×';
+          del.title = '删除此颜色';
+          del.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            colors.splice(i, 1);
+            rebuild();
+            emit();
+          });
+          chip.appendChild(del);
+        }
+
+        container.appendChild(chip);
+      });
+
+      if (colors.length < 8) {
+        const add = document.createElement('button');
+        add.className = 'color-add';
+        add.type = 'button';
+        add.textContent = '+';
+        add.title = '添加颜色（从左到右渐变）';
+        add.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          const last = colors[colors.length - 1] || '#ffffff';
+          colors.push(last);
+          rebuild();
+          emit();
+        });
+        container.appendChild(add);
+      }
+    }
+
+    rebuild();
+  }
+
+  /* ============================================================
+     编辑器
+     ============================================================ */
+  const editor = {
+    open: false,
+    flagIndex: -1,
+    flag: null,
+    canvas: document.getElementById('editorCanvas'),
+    ctx: null,
+    rect: { x: 0, y: 0, w: 0, h: 0 },
+    selectedId: null,
+    dragging: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    elemStartX: 0,
+    elemStartY: 0,
+    showEffect: false,
+    animStart: 0,
+    effectData: null,
+    effectSprites: [],
+    effectSpriteSize: 0,
+    raf: 0,
+    dirty: true,
+
+    doodleMode: false,
+    doodleDrawing: false,
+    currentStroke: null,
+    brushSize: 0.04,
+    brushColors: ['#ff3366'],
+
+    baseColors: ['#e8231f']
+  };
+  editor.ctx = editor.canvas.getContext('2d');
+
+  const editorModal = document.getElementById('editorModal');
+  const editorBaseColorList = document.getElementById('editorBaseColorList');
+  const editorShowEffect = document.getElementById('editorShowEffect');
+  const editorProps = document.getElementById('editorProps');
+  const editorTitle = document.getElementById('editorTitle');
+
+  function resizeEditorCanvas() {
+    const wrap = editor.canvas.parentElement;
+    const availW = wrap.clientWidth - 24;
+    const availH = wrap.clientHeight - 24;
+    const ar = 1.5;
+    let w = availW;
+    let h = w / ar;
+    if (h > availH) { h = availH; w = h * ar; }
+    w = Math.max(80, w);
+    h = Math.max(53, h);
+
+    editor.canvas.width = Math.round(w * DPR);
+    editor.canvas.height = Math.round(h * DPR);
+    editor.canvas.style.width = w + 'px';
+    editor.canvas.style.height = h + 'px';
+    editor.ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    editor.rect = { x: 0, y: 0, w, h };
+  }
+
+  function renderBaseColors() {
+    fillColorList(editorBaseColorList, editor.baseColors, function (colors) {
+      editor.baseColors = colors;
+      editor.flag.baseColor = colors.length === 1 ? colors[0] : colors.slice();
+      editor.dirty = true;
+      rebuildEditorEffect();
+    });
+  }
+
+  function openEditor(flagIdx) {
+    editor.open = true;
+    editor.flagIndex = flagIdx;
+    editor.flag = JSON.parse(JSON.stringify(state.flags[flagIdx]));
+    if (!editor.flag.strokes) editor.flag.strokes = [];
+    editor.baseColors = normalizeColors(editor.flag.baseColor).slice();
+
+    editor.selectedId = null;
+    editor.showEffect = false;
+    editor.doodleMode = false;
+    editor.doodleDrawing = false;
+    editor.currentStroke = null;
+
+    editorShowEffect.checked = false;
+    editorTitle.textContent = '编辑：' + editor.flag.name;
+
+    renderBaseColors();
+
+    editorModal.classList.add('open');
+    resizeEditorCanvas();
+    rebuildEditorEffect();
+    renderProps();
+    editor.dirty = true;
+    if (!editor.raf) editor.raf = requestAnimationFrame(editorLoop);
+  }
+
+  function closeEditor(save) {
+    if (save && editor.flag) {
+      state.flags[editor.flagIndex] = editor.flag;
+      if (editor.flagIndex === state.activeIdx) {
+        requestRebuild();
+      }
+    }
+    editor.open = false;
+    editorModal.classList.remove('open');
+    if (editor.raf) { cancelAnimationFrame(editor.raf); editor.raf = 0; }
+    editor.flag = null;
+    editor.effectData = null;
+    editor.effectSprites = [];
+    editor.currentStroke = null;
+    editor.doodleDrawing = false;
+  }
+
+  function rebuildEditorEffect() {
+    if (!editor.flag) return;
+    const data = buildCirclesFor(editor.flag, editor.rect, P.B, P.A, P.X);
+    editor.effectData = data;
+    editor.effectSpriteSize = SPRITE_SIZE;
+    editor.effectSprites = data.palette.map(makeSpriteForColor);
+  }
+
+  function editorLoop(now) {
+    if (!editor.open) { editor.raf = 0; return; }
+    if (!editor.animStart) editor.animStart = now;
+    const t = (now - editor.animStart) / 1000;
+
+    if (editor.dirty) {
+      editor.dirty = false;
+      if (!editor.showEffect) drawEditorFlat();
+    }
+    if (editor.showEffect) {
+      drawEditorAnimated(t);
+    }
+
+    editor.raf = requestAnimationFrame(editorLoop);
+  }
+
+  function drawEditorFlat() {
+    const c = editor.ctx;
+    const rect = editor.rect;
+    c.clearRect(0, 0, rect.w, rect.h);
+
+    applyBgFill(c, editor.flag.baseColor, rect);
+    c.fillRect(rect.x, rect.y, rect.w, rect.h);
+
+    /* 从末尾（最旧）到开头（最新）绘制，索引 0（最新）位于最上层 */
+    for (let i = editor.flag.elements.length - 1; i >= 0; i--) {
+      drawElementOn(c, editor.flag.elements[i], rect);
+    }
+
+    drawStrokesOn(c, editor.flag.strokes, rect);
+    if (editor.currentStroke) drawStrokesOn(c, [editor.currentStroke], rect);
+
+    if (editor.selectedId) {
+      const elem = editor.flag.elements.find(function (e) { return e.id === editor.selectedId; });
+      if (elem) drawSelectionOutline(c, elem, rect);
+    }
+  }
+
+  function drawEditorAnimated(t) {
+    const c = editor.ctx;
+    const rect = editor.rect;
+    c.clearRect(0, 0, rect.w, rect.h);
+
+    const data = editor.effectData;
+    if (!data) return;
+
+    const A = P.A;
+    const omega = Math.PI * 2 / Math.max(0.05, P.C);
+    const size = editor.effectSpriteSize;
+    const half = size / 2;
+
+    for (let i = 0; i < data.count; i++) {
+      const sp = editor.effectSprites[data.cols[i]];
+      if (!sp) continue;
+      const a = data.pts[i * 3 + 2] + omega * t;
+      const s = Math.sin(a);
+      const cc = Math.cos(a);
+      const dx = data.pts[i * 3] - A * s;
+      const dy = data.pts[i * 3 + 1] - A + A * cc;
+      c.drawImage(sp, dx - half, dy - half, size, size);
+    }
+
+    if (editor.currentStroke) {
+      drawStrokesOn(c, [editor.currentStroke], rect);
+    }
+
+    if (editor.selectedId) {
+      const elem = editor.flag.elements.find(function (e) { return e.id === editor.selectedId; });
+      if (elem) drawSelectionOutline(c, elem, rect);
+    }
+  }
+
+  function drawSelectionOutline(c, elem, rect) {
+    const fw = rect.w;
+    const ex = rect.x + elem.x * fw;
+    const ey = rect.y + elem.y * rect.h;
+    const s = elem.size * fw;
+
+    c.save();
+    c.strokeStyle = '#00d4ff';
+    c.lineWidth = 1.5;
+    c.setLineDash([4, 3]);
+
+    if (elem.type === 'circle') {
+      c.beginPath(); c.arc(ex, ey, s + 4, 0, Math.PI * 2); c.stroke();
+    } else if (elem.type === 'rect') {
+      const w = (elem.w || 0.1) * fw;
+      const h = (elem.h || 0.1) * fw;
+      c.strokeRect(ex - w / 2 - 3, ey - h / 2 - 3, w + 6, h + 6);
+    } else if (elem.type === 'star') {
+      const rot = getElemRotation(elem, rect);
+      const poly = makeStarPoly(ex, ey, s + 3, rot);
+      c.beginPath();
+      for (let i = 0; i < poly.length; i += 2) {
+        if (i === 0) c.moveTo(poly[i], poly[i + 1]); else c.lineTo(poly[i], poly[i + 1]);
+      }
+      c.closePath(); c.stroke();
+    } else if (elem.type === 'triangle') {
+      const rot = elem.rotation || 0;
+      const poly = makeTrianglePoly(ex, ey, s + 3, rot);
+      c.beginPath();
+      for (let i = 0; i < poly.length; i += 2) {
+        if (i === 0) c.moveTo(poly[i], poly[i + 1]); else c.lineTo(poly[i], poly[i + 1]);
+      }
+      c.closePath(); c.stroke();
+    } else if (elem.type === 'text') {
+      const tw = textWidthApprox(elem, fw);
+      c.strokeRect(ex - tw / 2 - 4, ey - s / 2 - 4, tw + 8, s + 8);
+    }
+
+    c.restore();
+  }
+
+  /* ============================================================
+     编辑器：指针交互
+     ============================================================ */
+  function editorPointerPos(evt) {
+    const r = editor.canvas.getBoundingClientRect();
+    return { x: evt.clientX - r.left, y: evt.clientY - r.top };
+  }
+
+  /* 从数组开头（最新添加，最上层）开始查找，优先命中上层元素 */
+  function hitTestElem(px, py) {
+    for (let i = 0; i < editor.flag.elements.length; i++) {
+      if (elementContains(editor.flag.elements[i], px, py, editor.rect)) {
+        return editor.flag.elements[i];
+      }
+    }
+    return null;
+  }
+
+  editor.canvas.addEventListener('pointerdown', function (evt) {
+    if (!editor.open) return;
+
+    const pos = editorPointerPos(evt);
+
+    if (editor.doodleMode) {
+      evt.preventDefault();
+      editor.canvas.setPointerCapture(evt.pointerId);
+
+      const x = (pos.x - editor.rect.x) / editor.rect.w;
+      const y = (pos.y - editor.rect.y) / editor.rect.h;
+
+      editor.currentStroke = {
+        size: editor.brushSize,
+        color: editor.brushColors.length === 1 ? editor.brushColors[0] : editor.brushColors.slice(),
+        points: [{ x: x, y: y }]
+      };
+      editor.doodleDrawing = true;
+      editor.dirty = true;
+      return;
+    }
+
+    if (editor.showEffect) return;
+
+    evt.preventDefault();
+    editor.canvas.setPointerCapture(evt.pointerId);
+
+    const elem = hitTestElem(pos.x, pos.y);
+
+    if (elem) {
+      editor.selectedId = elem.id;
+      editor.dragging = true;
+      editor.dragStartX = pos.x;
+      editor.dragStartY = pos.y;
+      editor.elemStartX = elem.x;
+      editor.elemStartY = elem.y;
+      renderProps();
+      editor.dirty = true;
+    } else {
+      editor.selectedId = null;
+      renderProps();
+      editor.dirty = true;
+    }
+  });
+
+  editor.canvas.addEventListener('pointermove', function (evt) {
+    if (!editor.open) return;
+
+    const pos = editorPointerPos(evt);
+
+    if (editor.doodleDrawing && editor.currentStroke) {
+      evt.preventDefault();
+      const x = (pos.x - editor.rect.x) / editor.rect.w;
+      const y = (pos.y - editor.rect.y) / editor.rect.h;
+      const pts = editor.currentStroke.points;
+      const last = pts[pts.length - 1];
+      const dx = (x - last.x) * editor.rect.w;
+      const dy = (y - last.y) * editor.rect.h;
+      if (dx * dx + dy * dy > 2 * 2) {
+        pts.push({ x: x, y: y });
+        editor.dirty = true;
+      }
+      return;
+    }
+
+    if (!editor.dragging) return;
+    evt.preventDefault();
+    const elem = editor.flag.elements.find(function (e) { return e.id === editor.selectedId; });
+    if (!elem) return;
+
+    const dx = (pos.x - editor.dragStartX) / editor.rect.w;
+    const dy = (pos.y - editor.dragStartY) / editor.rect.h;
+    elem.x = Math.max(-0.2, Math.min(1.2, editor.elemStartX + dx));
+    elem.y = Math.max(-0.2, Math.min(1.2, editor.elemStartY + dy));
+
+    editor.dirty = true;
+  });
+
+  function endDrag() {
+    if (editor.doodleDrawing && editor.currentStroke) {
+      editor.flag.strokes.push(editor.currentStroke);
+      editor.currentStroke = null;
+      editor.doodleDrawing = false;
+      rebuildEditorEffect();
+      editor.dirty = true;
+      return;
+    }
+
+    if (!editor.dragging) return;
+    editor.dragging = false;
+    rebuildEditorEffect();
+  }
+  editor.canvas.addEventListener('pointerup', endDrag);
+  editor.canvas.addEventListener('pointercancel', endDrag);
+
+  /* ============================================================
+     编辑器：添加元素
+     新元素插入到数组开头（索引 0），渲染时最后绘制，位于旗面最上层
+     ============================================================ */
+  function addElement(type) {
+    if (!editor.flag) return;
+
+    const elem = {
+      id: uid(),
+      type: type,
+      x: 0.5, y: 0.5,
+      color: '#ffde00'
+    };
+
+    if (type === 'circle') { elem.size = 0.08; }
+    else if (type === 'rect') { elem.size = 0.08; elem.w = 0.16; elem.h = 0.12; }
+    else if (type === 'star') { elem.size = 0.08; elem.rotation = 0; }
+    else if (type === 'triangle') { elem.size = 0.08; elem.rotation = 0; }
+    else if (type === 'text') { elem.size = 0.10; elem.text = '文字'; }
+
+    /* 新元素插入到开头，确保显示优先级最高 */
+    editor.flag.elements.unshift(elem);
+    editor.selectedId = elem.id;
+    editor.doodleMode = false;
+    editor.dirty = true;
+    rebuildEditorEffect();
+    renderProps();
+  }
+
+  document.querySelectorAll('[data-add]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      addElement(btn.getAttribute('data-add'));
+    });
+  });
+
+  /* ============================================================
+     编辑器：属性面板
+     ============================================================ */
+  function renderProps() {
+    editorProps.innerHTML = '';
+
+    const doodleSection = document.createElement('div');
+    doodleSection.className = 'doodle-section';
+
+    const doodleTitle = document.createElement('h3');
+    doodleTitle.textContent = '涂鸦';
+    doodleSection.appendChild(doodleTitle);
+
+    const modeRow = document.createElement('div');
+    modeRow.className = 'prop-row';
+    const modeLab = document.createElement('label');
+    modeLab.textContent = '涂鸦模式';
+    const modeBtn = document.createElement('button');
+    modeBtn.className = 'btn ghost';
+    modeBtn.type = 'button';
+    modeBtn.textContent = editor.doodleMode ? '开启中' : '关闭';
+    if (editor.doodleMode) modeBtn.classList.add('active');
+    modeBtn.addEventListener('click', function () {
+      editor.doodleMode = !editor.doodleMode;
+      if (!editor.doodleMode) {
+        editor.currentStroke = null;
+        editor.doodleDrawing = false;
+      }
+      renderProps();
+      editor.dirty = true;
+    });
+    modeRow.appendChild(modeLab);
+    modeRow.appendChild(modeBtn);
+    doodleSection.appendChild(modeRow);
+
+    const sizeRow = document.createElement('div');
+    sizeRow.className = 'prop-row';
+    const sizeLab = document.createElement('label');
+    sizeLab.textContent = '笔刷粗细';
+    sizeLab.style.minWidth = '48px';
+    const sizeInp = document.createElement('input');
+    sizeInp.type = 'range';
+    sizeInp.min = '0.005';
+    sizeInp.max = '0.2';
+    sizeInp.step = '0.005';
+    sizeInp.value = editor.brushSize;
+    sizeInp.setAttribute('autocomplete', 'off');
+    sizeInp.addEventListener('input', function () {
+      editor.brushSize = parseFloat(sizeInp.value);
+    });
+    sizeRow.appendChild(sizeLab);
+    sizeRow.appendChild(sizeInp);
+    doodleSection.appendChild(sizeRow);
+
+    const brushColorRow = document.createElement('div');
+    brushColorRow.className = 'prop-color-row';
+    const bcl = document.createElement('label');
+    bcl.textContent = '笔刷颜色（多色横向渐变）';
+    brushColorRow.appendChild(bcl);
+    const brushList = document.createElement('div');
+    brushList.className = 'color-list';
+    brushColorRow.appendChild(brushList);
+    fillColorList(brushList, editor.brushColors, function (colors) {
+      editor.brushColors = colors;
+    });
+    doodleSection.appendChild(brushColorRow);
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'btn ghost';
+    clearBtn.type = 'button';
+    clearBtn.textContent = '清除全部涂鸦';
+    clearBtn.style.width = '100%';
+    clearBtn.style.color = '#ff8b7a';
+    clearBtn.style.marginTop = '6px';
+    clearBtn.addEventListener('click', function () {
+      editor.flag.strokes = [];
+      editor.currentStroke = null;
+      editor.doodleDrawing = false;
+      rebuildEditorEffect();
+      editor.dirty = true;
+    });
+    doodleSection.appendChild(clearBtn);
+
+    editorProps.appendChild(doodleSection);
+
+    if (!editor.selectedId) {
+      const d = document.createElement('div');
+      d.className = 'prop-empty';
+      d.textContent = '点击画布中的元素进行编辑';
+      editorProps.appendChild(d);
+      return;
+    }
+
+    const elem = editor.flag.elements.find(function (e) { return e.id === editor.selectedId; });
+    if (!elem) {
+      const d = document.createElement('div');
+      d.className = 'prop-empty';
+      d.textContent = '点击画布中的元素进行编辑';
+      editorProps.appendChild(d);
+      return;
+    }
+
+    const title = document.createElement('h3');
+    const names = { text: '文字', circle: '圆形', rect: '矩形', star: '星形', triangle: '三角形' };
+    title.textContent = names[elem.type] || elem.type;
+    editorProps.appendChild(title);
+
+    addPropColor('颜色（多色横向渐变）', elem.color, function (v) {
+      elem.color = v;
+      editor.dirty = true;
+      rebuildEditorEffect();
+    });
+
+    if (elem.type === 'text') {
+      addPropText('内容', elem.text || '', function (v) {
+        elem.text = v;
+        editor.dirty = true;
+        rebuildEditorEffect();
+      });
+    }
+
+    if (elem.type === 'rect') {
+      addPropRange('宽度', elem.w || 0.16, 0.02, 0.6, 0.01, function (v) {
+        elem.w = v; editor.dirty = true; rebuildEditorEffect();
+      });
+      addPropRange('高度', elem.h || 0.12, 0.02, 0.6, 0.01, function (v) {
+        elem.h = v; editor.dirty = true; rebuildEditorEffect();
+      });
+    } else {
+      const label = elem.type === 'star' ? '半径' : (elem.type === 'text' ? '字号' : '尺寸');
+      addPropRange(label, elem.size, 0.01, 0.5, 0.005, function (v) {
+        elem.size = v; editor.dirty = true; rebuildEditorEffect();
+      });
+    }
+
+    if ((elem.type === 'star' && !elem.pointTo) || elem.type === 'triangle') {
+      addPropRange('旋转', (elem.rotation || 0), -Math.PI, Math.PI, 0.05, function (v) {
+        elem.rotation = v; editor.dirty = true; rebuildEditorEffect();
+      });
+    }
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn ghost';
+    delBtn.style.width = '100%';
+    delBtn.style.marginTop = '10px';
+    delBtn.style.color = '#ff8b7a';
+    delBtn.textContent = '删除此元素';
+    delBtn.addEventListener('click', function () {
+      editor.flag.elements = editor.flag.elements.filter(function (e) { return e.id !== elem.id; });
+      editor.selectedId = null;
+      editor.dirty = true;
+      rebuildEditorEffect();
+      renderProps();
+    });
+    editorProps.appendChild(delBtn);
+  }
+
+  function addPropColor(label, value, onChange) {
+    const colors = Array.isArray(value) ? value.slice() : [value || '#000000'];
+
+    const row = document.createElement('div');
+    row.className = 'prop-color-row';
+
+    const lab = document.createElement('label');
+    lab.textContent = label;
+    row.appendChild(lab);
+
+    const list = document.createElement('div');
+    list.className = 'color-list';
+    row.appendChild(list);
+
+    fillColorList(list, colors, function (c) {
+      onChange(c.length === 1 ? c[0] : c.slice());
+    });
+
+    editorProps.appendChild(row);
+  }
+
+  function addPropText(label, value, onChange) {
+    const row = document.createElement('div');
+    row.className = 'prop-row';
+    const lab = document.createElement('label');
+    lab.textContent = label;
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = value;
+    inp.setAttribute('autocomplete', 'off');
+    inp.setAttribute('autocorrect', 'off');
+    inp.setAttribute('autocapitalize', 'off');
+    inp.setAttribute('spellcheck', 'false');
+    inp.setAttribute('autofill', 'off');
+    inp.setAttribute('data-form-type', 'other');
+    inp.addEventListener('input', function () { onChange(inp.value); });
+    row.appendChild(lab);
+    row.appendChild(inp);
+    editorProps.appendChild(row);
+  }
+
+  function addPropRange(label, value, min, max, step, onChange) {
+    const row = document.createElement('div');
+    row.className = 'prop-row';
+    const lab = document.createElement('label');
+    lab.textContent = label;
+    lab.style.minWidth = '32px';
+    const inp = document.createElement('input');
+    inp.type = 'range';
+    inp.min = min; inp.max = max; inp.step = step; inp.value = value;
+    inp.setAttribute('autocomplete', 'off');
+    inp.addEventListener('input', function () { onChange(parseFloat(inp.value)); });
+    row.appendChild(lab);
+    row.appendChild(inp);
+    editorProps.appendChild(row);
+  }
+
+  /* ============================================================
+     编辑器：底部按钮
+     ============================================================ */
+  editorShowEffect.addEventListener('change', function () {
+    editor.showEffect = editorShowEffect.checked;
+    if (editor.showEffect) {
+      editor.animStart = 0;
+      if (!editor.effectData) rebuildEditorEffect();
+    } else {
+      editor.dirty = true;
+    }
+  });
+
+  document.getElementById('editorSave').addEventListener('click', function () {
+    closeEditor(true);
+  });
+  document.getElementById('editorCancel').addEventListener('click', function () {
+    closeEditor(false);
+  });
+
+  /* ============================================================
+     旗列表
+     ============================================================ */
+  const flagListModal = document.getElementById('flagListModal');
+  const flagListBody = document.getElementById('flagListBody');
+
+  function makeThumbnail(flagDef, w, h) {
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(w * DPR);
+    cv.height = Math.round(h * DPR);
+    cv.style.width = w + 'px';
+    cv.style.height = h + 'px';
+    const c = cv.getContext('2d');
+    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    drawFlatFlag(c, flagDef, { x: 0, y: 0, w: w, h: h });
+    return cv;
+  }
+
+  function renderFlagList() {
+    flagListBody.innerHTML = '';
+    state.flags.forEach(function (f, i) {
+      const card = document.createElement('div');
+      card.className = 'flag-card' + (i === state.activeIdx ? ' active' : '');
+
+      const thumb = makeThumbnail(f, 140, 93);
+      card.appendChild(thumb);
+
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = f.name;
+      card.appendChild(name);
+
+      if (state.flags.length > 1) {
+        const del = document.createElement('button');
+        del.className = 'del';
+        del.textContent = '×';
+        del.addEventListener('click', function (ev) {
+          ev.stopPropagation();
+          state.flags.splice(i, 1);
+          if (state.activeIdx >= state.flags.length) {
+            state.activeIdx = state.flags.length - 1;
+          } else if (i < state.activeIdx) {
+            state.activeIdx--;
+          }
+          requestRebuild();
+          renderFlagList();
+        });
+        card.appendChild(del);
+      }
+
+      card.addEventListener('click', function () {
+        state.activeIdx = i;
+        requestRebuild();
+        flagListModal.classList.remove('open');
+      });
+
+      flagListBody.appendChild(card);
+    });
+  }
+
+  document.getElementById('btnList').addEventListener('click', function () {
+    renderFlagList();
+    flagListModal.classList.add('open');
+  });
+  document.getElementById('btnListNew').addEventListener('click', function () {
+    const f = createBlankFlag('自定义旗 ' + (state.flags.length + 1));
+    state.flags.push(f);
+    const idx = state.flags.length - 1;
+    flagListModal.classList.remove('open');
+    openEditor(idx);
+  });
+
+  /* ============================================================
+     自定义旗按钮
+     ============================================================ */
+  document.getElementById('btnCustom').addEventListener('click', function () {
+    const f = createBlankFlag('自定义旗 ' + (state.flags.length + 1));
+    state.flags.push(f);
+    const idx = state.flags.length - 1;
+    openEditor(idx);
+  });
+
+  /* ============================================================
+     模态框关闭
+     ============================================================ */
+  document.querySelectorAll('[data-close]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      const modal = btn.closest('.modal');
+      if (modal === editorModal) {
+        closeEditor(false);
+      } else {
+        modal.classList.remove('open');
+      }
+    });
+  });
+
+  document.querySelectorAll('.modal').forEach(function (modal) {
+    modal.addEventListener('click', function (evt) {
+      if (evt.target === modal) {
+        if (modal === editorModal) {
+          closeEditor(false);
+        } else {
+          modal.classList.remove('open');
+        }
+      }
+    });
+  });
+
+  /* ============================================================
+     启动
+     =====================================此文件由坤坤工作室创建================== */
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
