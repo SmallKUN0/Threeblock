@@ -1,0 +1,2721 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0e1116">
+<title>无限走廊 · Three.js</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0e1116; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+  canvas { display: block; touch-action: none; }
+  #crosshair { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 15; }
+  #crosshair::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #ffffff; box-shadow: 0 0 4px rgba(0,0,0,.65); transition: width .16s ease, height .16s ease, background .16s ease, border .16s ease; }
+  #crosshair.active::before { width: 24px; height: 24px; background: transparent; border: 2px solid #ffffff; box-shadow: 0 0 8px rgba(0,0,0,.55); }
+  #crosshair.active.locked::before { border-color: #ff8f6b; box-shadow: 0 0 10px rgba(255,110,70,.6); }
+  #joyBase { position: fixed; left: max(22px, env(safe-area-inset-left)); bottom: max(26px, env(safe-area-inset-bottom)); width: 128px; height: 128px; border-radius: 50%; border: 2px solid rgba(255,255,255,.20); background: rgba(255,255,255,.05); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); z-index: 12; pointer-events: none; transition: border-color .2s ease, background .2s ease; }
+  #joyBase.active { border-color: rgba(255,255,255,.45); background: rgba(255,255,255,.10); }
+  #joyKnob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: rgba(255,255,255,.30); border: 2px solid rgba(255,255,255,.5); will-change: transform; }
+  #takeBtn { position: fixed; right: max(24px, env(safe-area-inset-right)); bottom: max(38px, env(safe-area-inset-bottom)); width: 92px; height: 92px; border-radius: 50%; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 15px; letter-spacing: 1.5px; color: #fff; background: rgba(20, 26, 34, 0.42); border: 2px solid rgba(255, 255, 255, 0.30); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); cursor: pointer; z-index: 14; touch-action: manipulation; transition: transform .12s ease, background .2s ease, border-color .2s ease, box-shadow .2s ease; display: flex; align-items: center; justify-content: center; padding: 0; }
+  #takeBtn:active { transform: scale(.93); }
+  #takeBtn.ready { border-color: rgba(255, 205, 140, .95); background: rgba(255, 178, 92, .30); box-shadow: 0 0 22px rgba(255, 180, 100, .45); }
+  #takeBtn.locked { border-color: rgba(255, 130, 110, .85); background: rgba(200, 70, 50, .28); box-shadow: 0 0 22px rgba(255, 90, 60, .40); }
+  #takeBtn.pick { border-color: rgba(140, 220, 255, .95); background: rgba(80, 170, 220, .30); box-shadow: 0 0 22px rgba(100, 190, 255, .45); }
+  #hint { position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 13px; color: #fff; background: rgba(0,0,0,.38); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); padding: 8px 18px; border-radius: 999px; pointer-events: none; white-space: nowrap; letter-spacing: .5px; opacity: 1; transition: opacity .8s ease; z-index: 13; }
+  #loading { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; background: #0e1116; color: #7f96b3; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 14px; letter-spacing: 3px; transition: opacity .6s ease; }
+  @media (max-width: 768px) { #hint { font-size: 12px; padding: 7px 14px; } #joyBase { width: 112px; height: 112px; } #joyKnob { width: 48px; height: 48px; margin: -24px 0 0 -24px; } #takeBtn { width: 82px; height: 82px; font-size: 14px; } }
+</style>
+</head>
+<body>
+
+<div id="loading">正在构建走廊…</div>
+<div id="hint">WASD 移动 · 左键拖动转视角 · E / Take 互动</div>
+
+<div id="crosshair"></div>
+<div id="joyBase"><div id="joyKnob"></div></div>
+<button id="takeBtn">TAKE</button>
+
+<script>
+  window.addEventListener('load', function () {
+    setTimeout(function () {
+      var el = document.getElementById('loading');
+      if (el) {
+        el.style.opacity = '0';
+        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 700);
+      }
+    }, 400);
+  });
+</script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* =========================================================
+   0. 渲染器 / 场景 / 相机
+   ========================================================= */
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: 'high-performance',
+  stencil: false
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.autoUpdate = false;
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(renderer.domElement);
+
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+
+const FOG_COLOR = 0x8a7458;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(FOG_COLOR);
+scene.fog = new THREE.Fog(FOG_COLOR, 2.4, 13.6);
+
+const camera = new THREE.PerspectiveCamera(
+  72, window.innerWidth / window.innerHeight, 0.05, 32
+);
+scene.add(camera);
+
+const heldGroup = new THREE.Group();
+heldGroup.position.set(0.12, -0.34, -0.55);
+camera.add(heldGroup);
+
+/* =========================================================
+   1. Canvas 纹理工具
+   ========================================================= */
+function newCanvas(w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  return [c, c.getContext('2d')];
+}
+
+function addFinePixelGrid(ctx, w, h, cell, alpha) {
+  ctx.save();
+  ctx.strokeStyle = `rgba(0,0,0,${alpha})`;
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= w; x += cell) {
+    const px = Math.floor(x) + 0.5;
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, h); ctx.stroke();
+  }
+  for (let y = 0; y <= h; y += cell) {
+    const py = Math.floor(y) + 0.5;
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(w, py); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function addScratches(ctx, w, h, count, light, dark) {
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (let i = 0; i < count; i++) {
+    const x0 = Math.random() * w;
+    const y0 = Math.random() * h;
+    const len = 6 + Math.random() * 72;
+    const ang = Math.random() * Math.PI * 2;
+    ctx.strokeStyle = Math.random() > 0.5 ? light : dark;
+    ctx.lineWidth = Math.random() < 0.72 ? 0.55 : 1.1;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function addDustSpecks(ctx, w, h, count, darkAlpha = 0.05, lightAlpha = 0.05) {
+  ctx.save();
+  for (let i = 0; i < count; i++) {
+    const x = Math.random() * w;
+    const y = Math.random() * h;
+    const r = 0.35 + Math.random() * 1.55;
+    const dark = Math.random() > 0.4;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = dark
+      ? `rgba(62,50,36,${(darkAlpha * (0.35 + Math.random() * 0.9)).toFixed(3)})`
+      : `rgba(255,250,235,${(lightAlpha * (0.35 + Math.random() * 0.9)).toFixed(3)})`;
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function addNoise(ctx, w, h, amount) {
+  const n = document.createElement('canvas');
+  n.width = n.height = 64;
+  const nctx = n.getContext('2d');
+  const img = nctx.createImageData(64, 64);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const v = Math.random() * 255;
+    d[i] = d[i + 1] = d[i + 2] = v;
+    d[i + 3] = 255;
+  }
+  nctx.putImageData(img, 0, 0);
+  ctx.save();
+  ctx.globalAlpha = amount;
+  ctx.globalCompositeOperation = 'overlay';
+  ctx.fillStyle = ctx.createPattern(n, 'repeat');
+  ctx.fillRect(0, 0, w, h);
+  ctx.restore();
+}
+
+function applyTextureQuality(t) {
+  t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.anisotropy = MAX_ANISO;
+  t.needsUpdate = true;
+  return t;
+}
+
+function finishTexture(canvas, rx = 1, ry = 1) {
+  const t = new THREE.CanvasTexture(canvas);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(rx, ry);
+  t.colorSpace = THREE.SRGBColorSpace;
+  applyTextureQuality(t);
+  return t;
+}
+
+function makeWallCanvas() {
+  const S = 512;
+  const [c, ctx] = newCanvas(S, S);
+  ctx.fillStyle = '#f1ece2'; ctx.fillRect(0, 0, S, S);
+  addFinePixelGrid(ctx, S, S, 32, 0.026);
+  addScratches(ctx, S, S, 110, 'rgba(255,255,255,0.42)', 'rgba(0,0,0,0.04)');
+  addDustSpecks(ctx, S, S, 190, 0.042, 0.05);
+  addNoise(ctx, S, S, 0.09);
+  return c;
+}
+
+function makeWoodCanvas(baseHex, grainRGB) {
+  const S = 512;
+  const [c, ctx] = newCanvas(S, S);
+  ctx.fillStyle = baseHex; ctx.fillRect(0, 0, S, S);
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 70; i++) {
+    const y0 = Math.random() * S;
+    const amp = 1.5 + Math.random() * 7;
+    const freq = 0.006 + Math.random() * 0.022;
+    const phase = Math.random() * Math.PI * 2;
+    ctx.strokeStyle = `rgba(${grainRGB},${0.04 + Math.random() * 0.11})`;
+    ctx.lineWidth = 0.5 + Math.random() * 1.5;
+    ctx.beginPath();
+    for (let x = 0; x <= S; x += 3) {
+      const yy = y0 + Math.sin(x * freq + phase) * amp;
+      if (x === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+    }
+    ctx.stroke();
+  }
+  for (let i = 0; i < 45; i++) {
+    ctx.strokeStyle = `rgba(${grainRGB},${0.03 + Math.random() * 0.06})`;
+    ctx.lineWidth = 0.5 + Math.random();
+    const x = Math.random() * S, y = Math.random() * S;
+    const len = 20 + Math.random() * 90;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.lineTo(x + len, y + (Math.random() - 0.5) * 6);
+    ctx.stroke();
+  }
+  ctx.restore();
+  addFinePixelGrid(ctx, S, S, 32, 0.028);
+  addScratches(ctx, S, S, 130, 'rgba(255,240,215,0.16)', 'rgba(70,45,20,0.10)');
+  addDustSpecks(ctx, S, S, 200, 0.05, 0.045);
+  addNoise(ctx, S, S, 0.11);
+  return c;
+}
+
+function makeFloorCanvas() {
+  const S = 512;
+  const [c, ctx] = newCanvas(S, S);
+  ctx.fillStyle = '#cbc2b1'; ctx.fillRect(0, 0, S, S);
+  const n = 2, tile = S / n;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const v = 208 + Math.floor(Math.random() * 20);
+    ctx.fillStyle = `rgb(${v},${v - 6},${v - 16})`;
+    ctx.fillRect(i * tile + 2, j * tile + 2, tile - 4, tile - 4);
+  }
+  addFinePixelGrid(ctx, S, S, 32, 0.04);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(95,85,70,0.32)';
+  ctx.lineWidth = 2.5;
+  for (let k = 0; k <= n; k++) {
+    const p = k * tile;
+    ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, S); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(S, p); ctx.stroke();
+  }
+  ctx.restore();
+  addScratches(ctx, S, S, 150, 'rgba(255,255,255,0.14)', 'rgba(0,0,0,0.07)');
+  addDustSpecks(ctx, S, S, 280, 0.055, 0.05);
+  addNoise(ctx, S, S, 0.16);
+  return c;
+}
+
+function makeCeilingCanvas() {
+  const S = 512;
+  const [c, ctx] = newCanvas(S, S);
+  ctx.fillStyle = '#f5f2ea'; ctx.fillRect(0, 0, S, S);
+  for (let i = 0; i < 8; i++) {
+    const x = Math.random() * S, y = Math.random() * S;
+    const r = 60 + Math.random() * 130;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, `rgba(255,252,244,${0.06 + Math.random() * 0.05})`);
+    g.addColorStop(1, 'rgba(255,252,244,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+  }
+  addFinePixelGrid(ctx, S, S, 26, 0.032);
+  addScratches(ctx, S, S, 90, 'rgba(255,255,255,0.38)', 'rgba(0,0,0,0.03)');
+  addDustSpecks(ctx, S, S, 160, 0.036, 0.045);
+  addNoise(ctx, S, S, 0.08);
+  return c;
+}
+
+function drawChalkText(ctx, w, h, text) {
+  const FONT = s => `bold ${s}px "PingFang SC", "Microsoft YaHei", "Segoe UI", "Arial", sans-serif`;
+  const maxW = w * 0.78;
+  let fs = Math.floor(h * 0.38);
+  ctx.font = FONT(fs);
+  let tw = ctx.measureText(text).width;
+  if (tw > maxW) {
+    fs = Math.max(20, Math.floor(fs * maxW / tw));
+    ctx.font = FONT(fs);
+    tw = ctx.measureText(text).width;
+  }
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate(-0.032);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(235, 245, 238, 0.55)';
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = 'rgba(236, 246, 239, 0.86)';
+  ctx.fillText(text, 0, 0);
+  ctx.shadowBlur = 4;
+  ctx.fillStyle = 'rgba(250, 255, 252, 0.62)';
+  ctx.fillText(text, 1.4, 1.0);
+  ctx.restore();
+}
+
+function makeBoardCanvas(w, h, text) {
+  const [c, ctx] = newCanvas(w, h);
+  ctx.fillStyle = '#1d3a2e'; ctx.fillRect(0, 0, w, h);
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (let i = 0; i < 220; i++) {
+    ctx.strokeStyle = `rgba(225,238,230,${0.008 + Math.random() * 0.024})`;
+    ctx.lineWidth = 0.8 + Math.random() * 3.2;
+    const x0 = Math.random() * w, y0 = Math.random() * h;
+    const len = 30 + Math.random() * 200;
+    const ang = (Math.random() - 0.5) * 0.55;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len);
+    ctx.stroke();
+  }
+  ctx.restore();
+  addFinePixelGrid(ctx, w, h, 26, 0.05);
+  addScratches(ctx, w, h, 130, 'rgba(215,232,220,0.09)', 'rgba(0,0,0,0.14)');
+  addDustSpecks(ctx, w, h, 240, 0.05, 0.06);
+  addNoise(ctx, w, h, 0.10);
+  if (text) drawChalkText(ctx, w, h, text);
+  return c;
+}
+
+function makePagesCanvas() {
+  const [c, ctx] = newCanvas(256, 64);
+  ctx.fillStyle = '#f2ead9'; ctx.fillRect(0, 0, 256, 64);
+  ctx.strokeStyle = 'rgba(170,148,112,0.42)';
+  ctx.lineWidth = 0.6;
+  for (let x = 1; x < 256; x += 2) {
+    ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, 64); ctx.stroke();
+  }
+  for (let i = 0; i < 900; i++) {
+    ctx.fillStyle = `rgba(120,100,70,${Math.random() * 0.05})`;
+    ctx.fillRect(Math.random() * 256, Math.random() * 64, 1, 1);
+  }
+  return c;
+}
+
+function makeCoverCanvas(base, accent, pattern) {
+  const S = 256;
+  const [c, ctx] = newCanvas(S, S);
+  ctx.fillStyle = base; ctx.fillRect(0, 0, S, S);
+  for (let i = 0; i < 3200; i++) {
+    ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.028})`;
+    ctx.fillRect(Math.random() * S, Math.random() * S, 1.5, 1.5);
+  }
+  for (let i = 0; i < 1400; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.04})`;
+    ctx.fillRect(Math.random() * S, Math.random() * S, 1.2, 1.2);
+  }
+  ctx.save();
+  ctx.strokeStyle = accent; ctx.fillStyle = accent;
+  if (pattern === 'border') {
+    ctx.lineWidth = 5; ctx.strokeRect(16, 16, S - 32, S - 32);
+    ctx.lineWidth = 1.6; ctx.strokeRect(28, 28, S - 56, S - 56);
+  } else if (pattern === 'stripes') {
+    for (let y = 46; y < S - 46; y += 32) ctx.fillRect(36, y, S - 72, 9);
+  } else if (pattern === 'title') {
+    ctx.fillRect(S * 0.22, S * 0.22, S * 0.56, 9);
+    ctx.fillRect(S * 0.28, S * 0.32, S * 0.44, 5);
+    ctx.fillRect(S * 0.30, S * 0.43, S * 0.40, 4);
+  } else if (pattern === 'geometric') {
+    ctx.lineWidth = 2.6;
+    for (let r = 26; r <= 96; r += 18) {
+      ctx.beginPath(); ctx.arc(S / 2, S / 2, r, 0, Math.PI * 2); ctx.stroke();
+    }
+  } else if (pattern === 'leather') {
+    ctx.globalAlpha = 0.22;
+    for (let i = 0; i < 900; i++) {
+      const x = Math.random() * S, y = Math.random() * S;
+      ctx.beginPath(); ctx.arc(x, y, 0.8 + Math.random() * 1.6, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 3; ctx.strokeRect(24, 24, S - 48, S - 48);
+  }
+  ctx.restore();
+  return c;
+}
+
+function makeOpenPageCanvas() {
+  const W = 256, H = 340;
+  const [c, ctx] = newCanvas(W, H);
+  ctx.fillStyle = '#f6f0e1'; ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 2600; i++) {
+    ctx.fillStyle = `rgba(150,130,95,${Math.random() * 0.05})`;
+    ctx.fillRect(Math.random() * W, Math.random() * H, 1.4, 1.0);
+  }
+  for (let i = 0; i < 1200; i++) {
+    ctx.fillStyle = `rgba(255,255,250,${Math.random() * 0.06})`;
+    ctx.fillRect(Math.random() * W, Math.random() * H, 1.2, 1.2);
+  }
+  const eg = ctx.createLinearGradient(0, 0, 0, H);
+  eg.addColorStop(0, 'rgba(190,165,120,0.12)');
+  eg.addColorStop(0.16, 'rgba(190,165,120,0)');
+  eg.addColorStop(0.84, 'rgba(190,165,120,0)');
+  eg.addColorStop(1, 'rgba(190,165,120,0.14)');
+  ctx.fillStyle = eg; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(96,120,152,0.30)'; ctx.lineWidth = 1.3;
+  const topY = 46, gap = 19;
+  for (let y = topY; y < H - 30; y += gap) {
+    const py = Math.floor(y) + 0.5;
+    ctx.beginPath(); ctx.moveTo(20, py); ctx.lineTo(W - 20, py); ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(180,90,90,0.24)'; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(34.5, 26); ctx.lineTo(34.5, H - 26); ctx.stroke();
+  ctx.strokeStyle = 'rgba(58,66,84,0.40)'; ctx.lineWidth = 1.7;
+  ctx.lineCap = 'round';
+  for (let y = topY; y < H - 34; y += gap) {
+    if (Math.random() < 0.34) continue;
+    let x = 42;
+    const maxX = W - 26 - Math.random() * 60;
+    while (x < maxX) {
+      const seg = 6 + Math.random() * 20;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 1 + (Math.random() - 0.5) * 1.6);
+      ctx.lineTo(x + seg, y - 1 + (Math.random() - 0.5) * 1.6);
+      ctx.stroke();
+      x += seg + 4 + Math.random() * 6;
+    }
+  }
+  return c;
+}
+
+/* =========================================================
+   2. 纹理实例
+   ========================================================= */
+const wallTexBase    = finishTexture(makeWallCanvas(), 1, 1);
+const woodDarkTex    = finishTexture(makeWoodCanvas('#a5744a', '80,50,25'), 1.3, 1.3);
+const woodDoorTex    = finishTexture(makeWoodCanvas('#b9884f', '95,62,32'), 1, 1.6);
+const CR_floorTex    = finishTexture(makeFloorCanvas(), 6, 7);
+const CR_ceilTexBase = finishTexture(makeCeilingCanvas(), 1, 1);
+const CR_woodDeskTex = finishTexture(makeWoodCanvas('#e0c193', '120,85,50'), 1.3, 1.3);
+const CR_woodChairTex= finishTexture(makeWoodCanvas('#c99f6b', '105,72,40'), 1.3, 1.3);
+const CR_pagesTex    = finishTexture(makePagesCanvas(), 1, 1);
+const CR_openPageTex = finishTexture(makeOpenPageCanvas(), 1, 1);
+
+/* =========================================================
+   3. 走廊材质
+   ========================================================= */
+const M = {
+  woodDark: new THREE.MeshStandardMaterial({ map: woodDarkTex, roughness: 0.0, metalness: 0.0 }),
+  doorWood: new THREE.MeshStandardMaterial({ map: woodDoorTex, roughness: 0.0, metalness: 0.0 }),
+  panel:    new THREE.MeshStandardMaterial({ map: woodDarkTex, roughness: 0.0, metalness: 0.0 }),
+  metal:    new THREE.MeshStandardMaterial({ color: 0x545a63, roughness: 0.0, metalness: 0.0 })
+};
+
+const WALL_TEX_SCALE = 2.4;
+const wallMatCache = new Map();
+
+function wallMaterial(w, h) {
+  const key = `${w.toFixed(3)}|${h.toFixed(3)}`;
+  const cached = wallMatCache.get(key);
+  if (cached) return cached;
+  const t = wallTexBase.clone();
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(Math.max(0.6, w / WALL_TEX_SCALE), Math.max(0.6, h / WALL_TEX_SCALE));
+  t.colorSpace = THREE.SRGBColorSpace;
+  applyTextureQuality(t);
+  const mat = new THREE.MeshStandardMaterial({ map: t, roughness: 0.0, metalness: 0.0 });
+  wallMatCache.set(key, mat);
+  return mat;
+}
+
+/* =========================================================
+   4. 走廊尺寸常量
+   ========================================================= */
+const WALL_H = 3.4;
+const WALL_T = 0.20;
+const HALF_W = 2.2;
+const SEG_LEN = 8;
+const SEG_COUNT = 10;
+const SPAN = SEG_LEN * SEG_COUNT;
+
+const DOOR_W = 0.94;
+const DOOR_H = 2.10;
+const DOOR_OPEN_ANGLE = 1.45;
+const JAMB_INSET = 0.03;
+const HEAD_DROP = 0.02;
+
+const SKY_GLASS_COLOR = 0x87ceeb;
+
+const DOOR_LEAF_W = DOOR_W - 0.06;
+
+/* =========================================================
+   5. 体积光工具
+   ========================================================= */
+function createBeamMaterial(colorHex, intensity) {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uColor:     { value: new THREE.Color(colorHex) },
+      uIntensity: { value: intensity }
+    },
+    vertexShader: /* glsl */`
+      varying vec3 vWorldPos;
+      varying vec3 vWorldNrm;
+      varying vec2 vUvB;
+      void main() {
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        vWorldNrm = normalize(mat3(modelMatrix) * normal);
+        vUvB = uv;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      uniform vec3  uColor;
+      uniform float uIntensity;
+      varying vec3 vWorldPos;
+      varying vec3 vWorldNrm;
+      varying vec2 vUvB;
+
+      void main() {
+        vec3 V = normalize(cameraPosition - vWorldPos);
+        vec3 N = normalize(vWorldNrm);
+        float ndv = clamp(abs(dot(N, V)), 0.0, 1.0);
+        float thickness = pow(ndv, 1.15);
+
+        float t = clamp(vUvB.y, 0.0, 1.0);
+        float smoothT = t * t * (3.0 - 2.0 * t);
+        float fadeFar  = smoothstep(0.0, 0.42, t);
+        float fadeNear = 1.0 - smoothstep(0.88, 1.0, t);
+        float grad = pow(smoothT, 1.6) * fadeFar * fadeNear;
+
+        float a = uIntensity * grad * thickness;
+        gl_FragColor = vec4(uColor, a);
+      }
+    `,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide,
+    toneMapped: false
+  });
+}
+
+function roundedRectProfile(halfA, halfB, cornerSeg, rFactor) {
+  const r  = Math.min(halfA, halfB) * rFactor;
+  const ca = halfA - r;
+  const cb = halfB - r;
+  const corners = [
+    [ ca,  cb, 0],
+    [-ca,  cb, Math.PI / 2],
+    [-ca, -cb, Math.PI],
+    [ ca, -cb, Math.PI * 1.5]
+  ];
+  const pts = [];
+  for (let k = 0; k < 4; k++) {
+    const [oa, ob, a0] = corners[k];
+    for (let i = 0; i <= cornerSeg; i++) {
+      const a = a0 + (i / cornerSeg) * (Math.PI / 2);
+      pts.push([oa + Math.cos(a) * r, ob + Math.sin(a) * r]);
+    }
+  }
+  return pts;
+}
+
+function createSlabBeamGeometry(paneW, paneH, dir, length, cornerSeg = 5, rFactor = 0.50) {
+  const prof = roundedRectProfile(paneH / 2, paneW / 2, cornerSeg, rFactor);
+  const n = prof.length;
+  const dx = dir.x * length;
+  const dy = dir.y * length;
+  const dz = dir.z * length;
+  const pos = [], uv = [], idx = [];
+  for (let i = 0; i < n; i++) {
+    pos.push(0, prof[i][0], prof[i][1]);
+    uv.push(i / n, 1);
+  }
+  for (let i = 0; i < n; i++) {
+    pos.push(dx, prof[i][0] + dy, prof[i][1] + dz);
+    uv.push(i / n, 0);
+  }
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    idx.push(i, j, n + j);
+    idx.push(i, n + j, n + i);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+const CORRIDOR_BEAM_DIR = new THREE.Vector3(0.78, -0.52, 0.35).normalize();
+const CORRIDOR_BEAM_LEN = 4.5;
+const corridorBeamMat = createBeamMaterial(0xffcd92, 0.14);
+
+/* =========================================================
+   6. 走廊模块原型
+   ========================================================= */
+const proto = new THREE.Group();
+
+/* 地板 */
+{
+  const floorMat = wallMaterial(HALF_W * 2, SEG_LEN);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(HALF_W * 2, SEG_LEN), floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, 0, SEG_LEN / 2);
+  floor.receiveShadow = true;
+  proto.add(floor);
+}
+
+/* 天花板 */
+{
+  const ceilMat = wallMaterial(HALF_W * 2, SEG_LEN);
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(HALF_W * 2, SEG_LEN), ceilMat);
+  ceil.rotation.x = Math.PI / 2;
+  ceil.position.set(0, WALL_H, SEG_LEN / 2);
+  ceil.receiveShadow = true;
+  proto.add(ceil);
+}
+
+/* 左侧墙 */
+{
+  const left = new THREE.Mesh(
+    new THREE.BoxGeometry(WALL_T, WALL_H, SEG_LEN),
+    wallMaterial(SEG_LEN, WALL_H)
+  );
+  left.position.set(-HALF_W, WALL_H / 2, SEG_LEN / 2);
+  left.castShadow = true;
+  left.receiveShadow = true;
+  proto.add(left);
+}
+
+/* 窗户 */
+{
+  const WIN_W  = 0.42;
+  const WIN_H  = 1.70;
+  const WIN_CY = 1.55;
+  const BAR    = 0.07;
+  const MUL_W  = 0.05;
+  const WIN_X  = -HALF_W + WALL_T / 2 + 0.015;
+  const WIN_Z_LIST = [SEG_LEN * 0.25, SEG_LEN * 0.50, SEG_LEN * 0.75];
+
+  WIN_Z_LIST.forEach(WIN_CZ => {
+    const jambGeo = new THREE.BoxGeometry(BAR, WIN_H, BAR);
+    [-1, 1].forEach(s => {
+      const jamb = new THREE.Mesh(jambGeo, M.woodDark);
+      jamb.position.set(WIN_X, WIN_CY, WIN_CZ + s * (WIN_W / 2 - BAR / 2));
+      jamb.castShadow = true;
+      proto.add(jamb);
+    });
+    const railGeo = new THREE.BoxGeometry(BAR, BAR, WIN_W - BAR * 2);
+    [-1, 1].forEach(s => {
+      const rail = new THREE.Mesh(railGeo, M.woodDark);
+      rail.position.set(WIN_X, WIN_CY + s * (WIN_H / 2 - BAR / 2), WIN_CZ);
+      rail.castShadow = true;
+      proto.add(rail);
+    });
+    const mullion = new THREE.Mesh(
+      new THREE.BoxGeometry(BAR, WIN_H - BAR * 2, MUL_W),
+      M.woodDark
+    );
+    mullion.position.set(WIN_X, WIN_CY, WIN_CZ);
+    mullion.castShadow = true;
+    proto.add(mullion);
+
+    const glassH = WIN_H - BAR * 2;
+    const glassW = (WIN_W - BAR * 2 - MUL_W) / 2;
+    const glassMat = new THREE.MeshBasicMaterial({ color: SKY_GLASS_COLOR });
+    const glassGeo = new THREE.BoxGeometry(0.02, glassH, glassW);
+
+    [-1, 1].forEach(s => {
+      const glassZ = WIN_CZ + s * (MUL_W / 2 + glassW / 2);
+      const glass = new THREE.Mesh(glassGeo, glassMat);
+      glass.position.set(-HALF_W + WALL_T / 2, WIN_CY, glassZ);
+      proto.add(glass);
+
+      const beamGeo = createSlabBeamGeometry(
+        glassW * 0.98, glassH * 0.98,
+        CORRIDOR_BEAM_DIR, CORRIDOR_BEAM_LEN
+      );
+      const beam = new THREE.Mesh(beamGeo, corridorBeamMat);
+      beam.position.set(-HALF_W + WALL_T / 2 - 0.005, WIN_CY, glassZ);
+      beam.renderOrder = 10;
+      proto.add(beam);
+    });
+  });
+}
+
+/* 右侧墙带门洞 */
+const doorZ0 = SEG_LEN / 2 - DOOR_W / 2;
+const doorZ1 = SEG_LEN / 2 + DOOR_W / 2;
+{
+  const segA = new THREE.Mesh(
+    new THREE.BoxGeometry(WALL_T, WALL_H, doorZ0),
+    wallMaterial(doorZ0, WALL_H)
+  );
+  segA.position.set(HALF_W, WALL_H / 2, doorZ0 / 2);
+  segA.castShadow = true; segA.receiveShadow = true;
+  proto.add(segA);
+
+  const backLen = SEG_LEN - doorZ1;
+  const segB = new THREE.Mesh(
+    new THREE.BoxGeometry(WALL_T, WALL_H, backLen),
+    wallMaterial(backLen, WALL_H)
+  );
+  segB.position.set(HALF_W, WALL_H / 2, doorZ1 + backLen / 2);
+  segB.castShadow = true; segB.receiveShadow = true;
+  proto.add(segB);
+
+  const aboveH = WALL_H - DOOR_H;
+  const segC = new THREE.Mesh(
+    new THREE.BoxGeometry(WALL_T, aboveH, DOOR_W),
+    wallMaterial(DOOR_W, aboveH)
+  );
+  segC.position.set(HALF_W, DOOR_H + aboveH / 2, SEG_LEN / 2);
+  segC.castShadow = true; segC.receiveShadow = true;
+  proto.add(segC);
+}
+
+/* 门框 */
+{
+  const jambGeo = new THREE.BoxGeometry(WALL_T + 0.06, DOOR_H, 0.08);
+  [-1, 1].forEach(s => {
+    const jamb = new THREE.Mesh(jambGeo, M.woodDark);
+    jamb.position.set(HALF_W, DOOR_H / 2, SEG_LEN / 2 + s * (DOOR_W / 2 + 0.04 - JAMB_INSET));
+    jamb.castShadow = true;
+    proto.add(jamb);
+  });
+  const head = new THREE.Mesh(
+    new THREE.BoxGeometry(WALL_T + 0.06, 0.08, DOOR_W + 0.24),
+    M.woodDark
+  );
+  head.position.set(HALF_W, DOOR_H + 0.04 - HEAD_DROP, SEG_LEN / 2);
+  head.castShadow = true;
+  proto.add(head);
+  const sill = new THREE.Mesh(
+    new THREE.BoxGeometry(WALL_T + 0.10, 0.03, DOOR_W + 0.16),
+    M.woodDark
+  );
+  sill.position.set(HALF_W, 0.015, SEG_LEN / 2);
+  sill.castShadow = true;
+  proto.add(sill);
+}
+
+/* 门扇 */
+{
+  const pivot = new THREE.Group();
+  pivot.name = 'doorPivot';
+  pivot.position.set(HALF_W, 0, SEG_LEN / 2 - DOOR_W / 2 + 0.03);
+  proto.add(pivot);
+
+  const leafW = DOOR_W - 0.06;
+  const leafH = DOOR_H - 0.06;
+  const leafT = 0.05;
+
+  const leaf = new THREE.Mesh(
+    new THREE.BoxGeometry(leafT, leafH, leafW),
+    M.doorWood
+  );
+  leaf.name = 'doorLeaf';
+  leaf.position.set(0, leafH / 2 + 0.03, leafW / 2);
+  leaf.castShadow = true;
+  pivot.add(leaf);
+
+  [1, -1].forEach(dir => {
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(leafT * 0.45, leafH - 0.5, leafW - 0.26),
+      M.panel
+    );
+    panel.position.set(dir * (leafT / 2 - 0.006), leafH / 2 + 0.03, leafW / 2);
+    pivot.add(panel);
+  });
+  [1, -1].forEach(dir => {
+    const base = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.025, 0.025, 0.05, 10),
+      M.metal
+    );
+    base.rotation.z = Math.PI / 2;
+    base.position.set(dir * (leafT / 2 + 0.02), 1.02, leafW - 0.10);
+    pivot.add(base);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.038, 12, 10), M.metal);
+    knob.position.set(dir * (leafT / 2 + 0.06), 1.02, leafW - 0.10);
+    pivot.add(knob);
+  });
+}
+
+/* 走廊天花板灯 */
+const corridorLampShellMat = new THREE.MeshStandardMaterial({
+  color: 0xf4f4f1, roughness: 0.55, metalness: 0.05
+});
+
+{
+  const lampY = WALL_H - 0.06;
+  const lampZ = SEG_LEN / 2;
+
+  const shell = new THREE.Mesh(
+    new THREE.BoxGeometry(1.78, 0.05, 0.36),
+    corridorLampShellMat
+  );
+  shell.position.set(0, WALL_H - 0.005, lampZ);
+  shell.name = 'corridorLampShell';
+  proto.add(shell);
+
+  const barMat = new THREE.MeshStandardMaterial({
+    color: 0xffe4c2, emissive: 0xff9f47, emissiveIntensity: 1.15, roughness: 1.0
+  });
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.07, 0.30), barMat);
+  bar.position.set(0, lampY, lampZ);
+  bar.name = 'corridorLampBar';
+  proto.add(bar);
+
+  const pl = new THREE.PointLight(0xffa95c, 2.6, 8, 2);
+  pl.position.set(0, WALL_H - 0.35, lampZ);
+  pl.castShadow = false;
+  pl.name = 'corridorLampLight';
+  proto.add(pl);
+}
+
+/* 走廊开关（右墙门后） */
+const corridorSwitchMat = {
+  plate:  new THREE.MeshStandardMaterial({ color: 0xf2eee4, roughness: 0.55, metalness: 0.0 }),
+  rocker: new THREE.MeshStandardMaterial({ color: 0xe9e5db, roughness: 0.48, metalness: 0.0 }),
+  hole:   new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.92, metalness: 0.0 })
+};
+
+{
+  const panel = new THREE.Group();
+  panel.name = 'corridorSwitchPanel';
+  panel.position.set(HALF_W - WALL_T / 2 - 0.008, 1.28, SEG_LEN * 0.72);
+  panel.rotation.y = -Math.PI / 2;
+
+  const plate = new THREE.Mesh(
+    new THREE.BoxGeometry(0.17, 0.13, 0.016),
+    corridorSwitchMat.plate
+  );
+  plate.name = 'corridorSwitchPlate';
+  plate.receiveShadow = true;
+  panel.add(plate);
+
+  [[-0.070, 0.048], [0.070, 0.048], [-0.070, -0.048], [0.070, -0.048]].forEach(([sx, sy]) => {
+    const screw = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.005, 0.005, 0.006, 8), M.metal
+    );
+    screw.rotation.x = Math.PI / 2;
+    screw.position.set(sx, sy, 0.008);
+    panel.add(screw);
+  });
+
+  const hole = new THREE.Mesh(
+    new THREE.BoxGeometry(0.044, 0.066, 0.008),
+    corridorSwitchMat.hole
+  );
+  hole.position.set(0, 0, 0.007);
+  panel.add(hole);
+
+  const rockerPivot = new THREE.Group();
+  rockerPivot.name = 'corridorSwitchPivot';
+  rockerPivot.position.set(0, 0, 0.011);
+
+  const rocker = new THREE.Mesh(
+    new THREE.BoxGeometry(0.034, 0.054, 0.014),
+    corridorSwitchMat.rocker
+  );
+  rocker.castShadow = true;
+  rockerPivot.add(rocker);
+  panel.add(rockerPivot);
+  proto.add(panel);
+}
+
+/* =========================================================
+   7. 教室常量与共用材质
+   ========================================================= */
+const CR_W = 12, CR_D = 14, CR_H = 3.4, CR_WT = 0.2;
+const CR_DOOR_X0 = -4.78, CR_DOOR_X1 = -3.84, CR_DOOR_H = 2.10;
+const CR_DOOR_CX = (CR_DOOR_X0 + CR_DOOR_X1) / 2;
+const CR_WIN_Y0 = 1.00, CR_WIN_Y1 = 2.80, CR_WIN_W = 3.00;
+const CR_WIN_CENTERS = [-3.0, 3.0];
+
+const CR_BEAM_DIR = new THREE.Vector3(-0.7517, -0.4811, 0.4510).normalize();
+const CR_BEAM_LEN = 5.5;
+
+const CM = {
+  ceiling:   new THREE.MeshStandardMaterial({ color: 0xf3efe6, roughness: 1.0,  metalness: 0.0 }),
+  floor:     new THREE.MeshStandardMaterial({ map: CR_floorTex, roughness: 0.80, metalness: 0.0 }),
+  deskTop:   new THREE.MeshStandardMaterial({ map: CR_woodDeskTex,  roughness: 0.72, metalness: 0.0 }),
+  deskBody:  new THREE.MeshStandardMaterial({ map: CR_woodChairTex, roughness: 0.85, metalness: 0.0 }),
+  chairSeat: new THREE.MeshStandardMaterial({ map: CR_woodChairTex, roughness: 0.75, metalness: 0.0 }),
+  doorWood:  new THREE.MeshStandardMaterial({ map: woodDoorTex,  roughness: 0.68, metalness: 0.0 }),
+  metal:     new THREE.MeshStandardMaterial({ color: 0x545a63, roughness: 0.48, metalness: 0.62 }),
+  frame:     new THREE.MeshStandardMaterial({ color: 0xf4f4f1, roughness: 0.55, metalness: 0.05 }),
+  glass:     new THREE.MeshPhysicalMaterial({
+               color: 0xd8ecff, roughness: 0.06, metalness: 0.0,
+               transparent: true, opacity: 0.20,
+               side: THREE.DoubleSide, depthWrite: false
+             }),
+  bin:       new THREE.MeshStandardMaterial({ color: 0x8b939c, roughness: 0.42, metalness: 0.68, side: THREE.DoubleSide }),
+  boardSide: new THREE.MeshStandardMaterial({ color: 0x183024, roughness: 0.96, metalness: 0.0 })
+};
+
+const CR_BOOK_PAGE_MAT = new THREE.MeshStandardMaterial({
+  map: CR_pagesTex, roughness: 0.92, metalness: 0.0
+});
+const CR_OPEN_PAGE_MAT = new THREE.MeshStandardMaterial({
+  map: CR_openPageTex, roughness: 0.90, metalness: 0.0
+});
+const CR_OPEN_COVER_MAT = new THREE.MeshStandardMaterial({
+  color: 0x7a2f2f, roughness: 0.72, metalness: 0.0
+});
+const CR_PEN_BARREL_MATS = [
+  new THREE.MeshStandardMaterial({ color: 0x2b4b8f, roughness: 0.34, metalness: 0.20 }),
+  new THREE.MeshStandardMaterial({ color: 0xb03a3a, roughness: 0.34, metalness: 0.20 }),
+  new THREE.MeshStandardMaterial({ color: 0x2f7a4a, roughness: 0.34, metalness: 0.20 }),
+  new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.40, metalness: 0.25 }),
+  new THREE.MeshStandardMaterial({ color: 0xe0a020, roughness: 0.34, metalness: 0.20 })
+];
+const CR_PEN_CAP_MAT = new THREE.MeshStandardMaterial({ color: 0x33363c, roughness: 0.55, metalness: 0.35 });
+const CR_PEN_TIP_MAT = new THREE.MeshStandardMaterial({ color: 0xbfc4cc, roughness: 0.30, metalness: 0.75 });
+
+const BOOK_STYLES = [
+  { w: 0.225, d: 0.305, t: 0.036, base: '#8b2f2f', accent: '#d4af37', pattern: 'border' },
+  { w: 0.200, d: 0.280, t: 0.028, base: '#1e3a6e', accent: '#a8c4e8', pattern: 'stripes' },
+  { w: 0.240, d: 0.320, t: 0.044, base: '#2c5c3a', accent: '#e8d8a8', pattern: 'title' },
+  { w: 0.210, d: 0.290, t: 0.032, base: '#b8862f', accent: '#4a2c10', pattern: 'geometric' },
+  { w: 0.230, d: 0.310, t: 0.026, base: '#f0e8d8', accent: '#8b2f2f', pattern: 'title' },
+  { w: 0.190, d: 0.270, t: 0.038, base: '#2b2b2b', accent: '#b8b8b8', pattern: 'border' },
+  { w: 0.220, d: 0.300, t: 0.034, base: '#5a2a4e', accent: '#e0b8d8', pattern: 'leather' },
+  { w: 0.205, d: 0.285, t: 0.030, base: '#2a4a5a', accent: '#c0d8e8', pattern: 'geometric' }
+];
+BOOK_STYLES.forEach(s => {
+  const tex = finishTexture(makeCoverCanvas(s.base, s.accent, s.pattern), 1, 1);
+  s.coverMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.68, metalness: 0.0 });
+  s.spineMat = new THREE.MeshStandardMaterial({ color: s.base, roughness: 0.68, metalness: 0.0 });
+});
+
+const CR_SWITCH_MAT = {
+  plate:  new THREE.MeshStandardMaterial({ color: 0xf2eee4, roughness: 0.55, metalness: 0.0 }),
+  rocker: new THREE.MeshStandardMaterial({ color: 0xe9e5db, roughness: 0.48, metalness: 0.0 }),
+  hole:   new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.92, metalness: 0.0 })
+};
+
+/* =========================================================
+   8. 教室工具函数
+   ========================================================= */
+function crMakeBox(w, h, d, mat, castS = true, recvS = true) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.castShadow = castS;
+  m.receiveShadow = recvS;
+  return m;
+}
+function crMakeCyl(rt, rb, h, seg, mat) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+function enableMeshShadows(root) {
+  root.traverse(o => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+    }
+  });
+}
+
+const pickableObjects = [];
+const sittableObjects = [];
+
+function createClassroomWindow(zc, parent, beamMat) {
+  const g = new THREE.Group();
+  const yc = (CR_WIN_Y0 + CR_WIN_Y1) / 2;
+  const H  = CR_WIN_Y1 - CR_WIN_Y0;
+  const fx = CR_W / 2 + 0.06;
+  const fw = 0.08;
+  const fd = 0.30;
+
+  const top = crMakeBox(fd, fw, CR_WIN_W, CM.frame);
+  top.position.set(fx, CR_WIN_Y1 - fw / 2, zc);
+  g.add(top);
+
+  const bot = crMakeBox(fd, fw, CR_WIN_W, CM.frame);
+  bot.position.set(fx, CR_WIN_Y0 + fw / 2, zc);
+  g.add(bot);
+
+  const lf = crMakeBox(fd, H, fw, CM.frame);
+  lf.position.set(fx, yc, zc - CR_WIN_W / 2 + fw / 2);
+  g.add(lf);
+
+  const rf = crMakeBox(fd, H, fw, CM.frame);
+  rf.position.set(fx, yc, zc + CR_WIN_W / 2 - fw / 2);
+  g.add(rf);
+
+  const mullionV = crMakeBox(fd * 0.8, H, 0.06, CM.frame);
+  mullionV.position.set(fx, yc, zc);
+  g.add(mullionV);
+
+  const mullionH = crMakeBox(fd * 0.8, 0.05, CR_WIN_W, CM.frame);
+  mullionH.position.set(fx, yc + 0.02, zc);
+  g.add(mullionH);
+
+  const GW = CR_WIN_W - fw * 2;
+  const GH = H - fw * 2;
+  const MULL_V_W = 0.06;
+  const MULL_H_W = 0.05;
+
+  const paneW = (GW - MULL_V_W) / 2;
+  const paneH = (GH - MULL_H_W) / 2;
+
+  const zOff = MULL_V_W / 2 + paneW / 2;
+  const yOff = MULL_H_W / 2 + paneH / 2;
+
+  const glassX = CR_W / 2 + 0.11;
+
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sz, sy]) => {
+    const pz = zc + sz * zOff;
+    const py = yc + sy * yOff;
+
+    const pane = new THREE.Mesh(new THREE.PlaneGeometry(paneW, paneH), CM.glass);
+    pane.rotation.y = -Math.PI / 2;
+    pane.position.set(glassX, py, pz);
+    pane.castShadow = false;
+    pane.receiveShadow = false;
+    g.add(pane);
+
+    const beamGeo = createSlabBeamGeometry(paneW * 0.98, paneH * 0.98, CR_BEAM_DIR, CR_BEAM_LEN);
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.set(glassX - 0.015, py, pz);
+    beam.renderOrder = 10;
+    g.add(beam);
+  });
+
+  const sill = crMakeBox(0.22, 0.05, CR_WIN_W + 0.16, CM.frame);
+  sill.position.set(CR_W / 2 - 0.05, CR_WIN_Y0 - 0.02, zc);
+  g.add(sill);
+
+  parent.add(g);
+}
+
+function createBlackboard(text) {
+  const g = new THREE.Group();
+  const BW = 4.6, BH = 1.5;
+
+  const frame = crMakeBox(BW + 0.2, BH + 0.2, 0.07, M.woodDark);
+  g.add(frame);
+
+  const bw = 1024, bh = 334;
+  const tex = finishTexture(makeBoardCanvas(bw, bh, text), 1, 1);
+  const faceMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.96, metalness: 0.0 });
+
+  const face = new THREE.Mesh(
+    new THREE.BoxGeometry(BW, BH, 0.05),
+    [CM.boardSide, CM.boardSide, CM.boardSide, CM.boardSide, faceMat, CM.boardSide]
+  );
+  face.position.z = 0.035;
+  face.castShadow = true;
+  face.receiveShadow = true;
+  g.add(face);
+
+  const tray = crMakeBox(BW + 0.1, 0.05, 0.12, M.woodDark);
+  tray.position.set(0, -BH / 2 - 0.14, 0.11);
+  g.add(tray);
+
+  const chalkMat = new THREE.MeshStandardMaterial({ color: 0xf7f5ef, roughness: 0.88, metalness: 0.0 });
+  const CHALK_R = 0.0078, CHALK_L = 0.058;
+  const trayTopY = -BH / 2 - 0.14 + 0.025;
+  const trayZ    = 0.11;
+
+  [{ x: -0.78, yaw: 0.12 }, { x: -0.42, yaw: -0.17 }, { x: -0.05, yaw: 0.07 },
+   { x: 0.38, yaw: -0.10 }, { x: 0.86, yaw: 0.15 }].forEach((s, i) => {
+    const chalk = new THREE.Mesh(
+      new THREE.CylinderGeometry(CHALK_R, CHALK_R, CHALK_L * (i === 3 ? 0.62 : 1), 10),
+      chalkMat
+    );
+    chalk.position.set(s.x, trayTopY + CHALK_R, trayZ);
+    chalk.rotation.z = Math.PI / 2;
+    chalk.rotation.y = s.yaw;
+    chalk.castShadow = true;
+    chalk.receiveShadow = true;
+    g.add(chalk);
+  });
+
+  return g;
+}
+
+function createPodium() {
+  const g = new THREE.Group();
+  const PW = 1.15, PD = 0.62, PH = 0.78;
+
+  const body = crMakeBox(PW, PH, PD, M.woodDark);
+  body.position.y = PH / 2;
+  g.add(body);
+
+  const top = crMakeBox(PW + 0.1, 0.055, PD + 0.1, CM.deskTop);
+  top.position.y = PH + 0.028;
+  g.add(top);
+
+  const base = crMakeBox(PW - 0.14, 0.08, PD - 0.14, M.woodDark);
+  base.position.y = 0.04;
+  g.add(base);
+
+  const sideL = crMakeBox(0.03, PH - 0.16, PD - 0.06, CM.deskTop);
+  sideL.position.set(-PW / 2 - 0.014, PH / 2, 0);
+  g.add(sideL);
+  const sideR = sideL.clone();
+  sideR.position.x = PW / 2 + 0.014;
+  g.add(sideR);
+
+  return g;
+}
+
+function createDesk() {
+  const g = new THREE.Group();
+  const TW = 1.15, TD = 0.58, TH = 0.76, TOP_T = 0.05;
+
+  const top = crMakeBox(TW, TOP_T, TD, CM.deskTop);
+  top.position.y = TH - TOP_T / 2;
+  g.add(top);
+
+  const cubTop = TH - TOP_T, cubH = 0.17, cubBot = cubTop - cubH;
+  const cubW = TW - 0.10, cubD = TD - 0.08;
+
+  const bottom = crMakeBox(cubW, 0.02, cubD, CM.deskBody);
+  bottom.position.set(0, cubBot + 0.01, 0);
+  g.add(bottom);
+
+  const sideL = crMakeBox(0.025, cubH, cubD, CM.deskBody);
+  sideL.position.set(-cubW / 2 + 0.0125, cubBot + cubH / 2, 0);
+  g.add(sideL);
+  const sideR = sideL.clone();
+  sideR.position.x = cubW / 2 - 0.0125;
+  g.add(sideR);
+
+  const back = crMakeBox(cubW, cubH, 0.025, CM.deskBody);
+  back.position.set(0, cubBot + cubH / 2, -cubD / 2 + 0.0125);
+  g.add(back);
+
+  const frontLip = crMakeBox(cubW, 0.035, 0.02, CM.deskBody);
+  frontLip.position.set(0, cubTop - 0.02, cubD / 2 - 0.01);
+  g.add(frontLip);
+
+  const legR = 0.022, legH = cubTop;
+  const lx = TW / 2 - 0.07, lz = TD / 2 - 0.07;
+  [[-lx, -lz], [lx, -lz], [-lx, lz], [lx, lz]].forEach(([x, z]) => {
+    const leg = crMakeCyl(legR, legR, legH, 8, CM.metal);
+    leg.position.set(x, legH / 2, z);
+    g.add(leg);
+  });
+
+  const bar = crMakeBox(TW - 0.14, 0.025, 0.025, CM.metal);
+  bar.position.set(0, 0.18, -lz);
+  g.add(bar);
+  const bar2 = bar.clone();
+  bar2.position.z = lz;
+  g.add(bar2);
+
+  return g;
+}
+
+function createChair() {
+  const g = new THREE.Group();
+  const SEAT_Y = 0.44, SW = 0.46, SD = 0.46, ST = 0.05;
+
+  const seat = crMakeBox(SW, ST, SD, CM.chairSeat);
+  seat.position.y = SEAT_Y;
+  g.add(seat);
+
+  const back = crMakeBox(0.44, 0.42, 0.05, CM.chairSeat);
+  back.position.set(0, SEAT_Y + 0.29, 0.205);
+  back.rotation.x = 0.10;
+  g.add(back);
+
+  [-0.18, 0.18].forEach(x => {
+    const post = crMakeCyl(0.017, 0.017, 0.32, 8, CM.metal);
+    post.position.set(x, SEAT_Y + 0.14, 0.20);
+    g.add(post);
+  });
+
+  const legH = SEAT_Y;
+  [[-0.19, -0.19], [0.19, -0.19], [-0.19, 0.19], [0.19, 0.19]].forEach(([x, z]) => {
+    const leg = crMakeCyl(0.019, 0.019, legH, 8, CM.metal);
+    leg.position.set(x, legH / 2, z);
+    g.add(leg);
+  });
+
+  const bar = crMakeBox(0.40, 0.02, 0.02, CM.metal);
+  bar.position.set(0, 0.16, -0.19);
+  g.add(bar);
+  const bar2 = bar.clone();
+  bar2.position.z = 0.19;
+  g.add(bar2);
+
+  return g;
+}
+
+function createBook(style) {
+  const g = new THREE.Group();
+  const { w, d, t, coverMat, spineMat } = style;
+  const ct = 0.003, spineW = 0.014;
+  const coreW = w - spineW, coreD = d - 0.012, coreH = t - ct * 2;
+
+  const core = new THREE.Mesh(new THREE.BoxGeometry(coreW, coreH, coreD), CR_BOOK_PAGE_MAT);
+  core.position.x = spineW / 2;
+  core.castShadow = true; core.receiveShadow = true;
+  g.add(core);
+
+  const coverTop = new THREE.Mesh(new THREE.BoxGeometry(w, ct, d), coverMat);
+  coverTop.position.y = t / 2 - ct / 2;
+  coverTop.castShadow = true; coverTop.receiveShadow = true;
+  g.add(coverTop);
+
+  const coverBot = new THREE.Mesh(new THREE.BoxGeometry(w, ct, d), coverMat);
+  coverBot.position.y = -t / 2 + ct / 2;
+  coverBot.castShadow = true; coverBot.receiveShadow = true;
+  g.add(coverBot);
+
+  const spine = new THREE.Mesh(new THREE.BoxGeometry(spineW, t, d), spineMat);
+  spine.position.x = -w / 2 + spineW / 2;
+  spine.castShadow = true; spine.receiveShadow = true;
+  g.add(spine);
+
+  g.userData.isPickable = true;
+  g.userData.pickKind = 'book';
+  return g;
+}
+
+function addBookStack(parent, cx, cz, surfaceY, surfaceW, surfaceD, opts = {}) {
+  const minCount = opts.minCount ?? 1;
+  const maxCount = opts.maxCount ?? 5;
+  const count = minCount + Math.floor(Math.random() * (maxCount - minCount + 1));
+  const baseRot = Math.random() * Math.PI * 2;
+  const cxOff = (Math.random() - 0.5) * surfaceW * 0.22;
+  const czOff = (Math.random() - 0.5) * surfaceD * 0.22;
+  let y = surfaceY;
+
+  for (let i = 0; i < count; i++) {
+    const style = BOOK_STYLES[Math.floor(Math.random() * BOOK_STYLES.length)];
+    const book = createBook(style);
+    const jx = (Math.random() - 0.5) * 0.035;
+    const jz = (Math.random() - 0.5) * 0.035;
+    book.position.set(cx + cxOff + jx, y + style.t / 2, cz + czOff + jz);
+    book.rotation.y = baseRot + (Math.random() - 0.5) * 0.55;
+    book.rotation.z = (Math.random() - 0.5) * 0.05;
+    book.rotation.x = (Math.random() - 0.5) * 0.05;
+    parent.add(book);
+    pickableObjects.push(book);
+    y += style.t + 0.0018;
+  }
+}
+
+function addBooksInCubby(parent, cx, cz) {
+  const CUBBY_FLOOR_Y = 0.56;
+  const count = 1 + Math.floor(Math.random() * 2);
+  const baseRot = Math.random() * Math.PI * 2;
+  let y = CUBBY_FLOOR_Y;
+
+  for (let i = 0; i < count; i++) {
+    const style = BOOK_STYLES[Math.floor(Math.random() * BOOK_STYLES.length)];
+    const book = createBook(style);
+    book.position.set(
+      cx + (Math.random() - 0.5) * 0.34,
+      y + style.t / 2,
+      cz + (Math.random() - 0.5) * 0.05
+    );
+    book.rotation.y = baseRot + (Math.random() - 0.5) * 0.70;
+    book.rotation.z = (Math.random() - 0.5) * 0.11;
+    book.rotation.x = (Math.random() - 0.5) * 0.09;
+    parent.add(book);
+    pickableObjects.push(book);
+    y += style.t + 0.0022;
+  }
+}
+
+function createOpenBook() {
+  const g = new THREE.Group();
+  const PW = 0.148, PD = 0.208, PT = 0.0055, CT = 0.004, TILT = 0.095;
+  const pivotY = PW * Math.sin(TILT) + PT / 2 + CT;
+
+  [-1, 1].forEach(s => {
+    const pivot = new THREE.Group();
+    pivot.position.y = pivotY;
+    pivot.rotation.z = -s * TILT;
+
+    const page = new THREE.Mesh(new THREE.BoxGeometry(PW, PT, PD), CR_OPEN_PAGE_MAT);
+    page.position.x = s * PW / 2;
+    page.castShadow = true; page.receiveShadow = true;
+    pivot.add(page);
+
+    const cover = new THREE.Mesh(
+      new THREE.BoxGeometry(PW + 0.010, CT, PD + 0.010),
+      CR_OPEN_COVER_MAT
+    );
+    cover.position.set(s * PW / 2, -PT / 2 - CT / 2 - 0.0008, 0);
+    cover.castShadow = true; cover.receiveShadow = true;
+    pivot.add(cover);
+
+    g.add(pivot);
+  });
+
+  const spine = new THREE.Mesh(
+    new THREE.BoxGeometry(0.018, PT + CT + 0.002, PD + 0.010),
+    CR_OPEN_COVER_MAT
+  );
+  spine.position.y = pivotY - PT / 2 - CT / 2 + 0.001;
+  spine.castShadow = true; spine.receiveShadow = true;
+  g.add(spine);
+
+  g.userData.isPickable = true;
+  g.userData.pickKind = 'book';
+  return g;
+}
+
+function addOpenBookOnDesk(parent, cx, cz, surfaceY) {
+  const book = createOpenBook();
+  book.position.set(
+    cx + (Math.random() - 0.5) * 0.20,
+    surfaceY,
+    cz + (Math.random() - 0.5) * 0.06
+  );
+  book.rotation.y = (Math.random() - 0.5) * 0.75;
+  book.rotation.x = (Math.random() - 0.5) * 0.030;
+  book.rotation.z = (Math.random() - 0.5) * 0.030;
+  parent.add(book);
+  pickableObjects.push(book);
+}
+
+function createPen(barrelMat) {
+  const g = new THREE.Group();
+  const RL = 0.110, R = 0.0042;
+
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(R, R, RL, 10), barrelMat);
+  barrel.rotation.z = Math.PI / 2;
+  barrel.castShadow = true; barrel.receiveShadow = true;
+  g.add(barrel);
+
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.08, R * 1.08, 0.030, 10), CR_PEN_CAP_MAT);
+  cap.rotation.z = Math.PI / 2;
+  cap.position.x = RL / 2 + 0.015;
+  cap.castShadow = true; cap.receiveShadow = true;
+  g.add(cap);
+
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(R * 0.92, 0.020, 10), CR_PEN_TIP_MAT);
+  tip.rotation.z = Math.PI / 2;
+  tip.position.x = -RL / 2 - 0.010;
+  tip.castShadow = true; tip.receiveShadow = true;
+  g.add(tip);
+
+  const clip = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.004, 0.008), CR_PEN_CAP_MAT);
+  clip.position.set(RL / 2 - 0.002, R * 1.35, 0);
+  clip.castShadow = true;
+  g.add(clip);
+
+  g.userData.isPickable = true;
+  g.userData.pickKind = 'pen';
+  return g;
+}
+
+function addPensOnDesk(parent, cx, cz, surfaceY) {
+  const n = Math.random() < 0.70 ? 1 : 2;
+  const side = Math.random() < 0.5 ? -1 : 1;
+  for (let i = 0; i < n; i++) {
+    const barrelMat = CR_PEN_BARREL_MATS[Math.floor(Math.random() * CR_PEN_BARREL_MATS.length)];
+    const pen = createPen(barrelMat);
+    pen.position.set(
+      cx + side * (0.30 + Math.random() * 0.16) + (Math.random() - 0.5) * 0.05,
+      surfaceY + 0.0046,
+      cz + 0.13 + (Math.random() - 0.5) * 0.12
+    );
+    pen.rotation.y = (Math.random() - 0.5) * 2.6;
+    parent.add(pen);
+    pickableObjects.push(pen);
+  }
+}
+
+function createBin(parent, x, z) {
+  const g = new THREE.Group();
+  const R = 0.20, HB = 0.62;
+
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(R, R * 0.84, HB, 24, 1, true),
+    CM.bin
+  );
+  body.position.y = HB / 2;
+  body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+
+  const bottom = new THREE.Mesh(new THREE.CircleGeometry(R * 0.84, 24), CM.bin);
+  bottom.rotation.x = -Math.PI / 2;
+  bottom.position.y = 0.012;
+  bottom.receiveShadow = true;
+  g.add(bottom);
+
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(R, 0.022, 8, 26), CM.bin);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = HB;
+  rim.castShadow = true;
+  g.add(rim);
+
+  g.position.set(x, 0, z);
+  parent.add(g);
+}
+
+/* =========================================================
+   9. 构建教室
+   ---------------------------------------------------------
+   本次修改：家具碰撞箱尺寸恢复为大整块（之前版本），并
+   新增教室三面墙壁的 AABB 碰撞箱，彻底把玩家锁在教室内。
+   ========================================================= */
+function buildClassroom() {
+  const g = new THREE.Group();
+  g.name = 'classroom';
+
+  const state = {
+    doorPivot: null,
+    doorTarget: 0,
+    doorOpen: false,
+    fanBlades: null,
+    fanSpinning: false,
+    fanSpeed: 0,
+    lightsOn: true,
+    lightLevel: 1,
+    lampMats: [],
+    lampLights: [],
+    lightSwitchPivot: null,
+    fanSwitchPivot: null,
+    beamMat: null,
+    syncSwitches: null,
+    colliders: []
+  };
+
+  state.beamMat = createBeamMaterial(0xffcd92, 0.16);
+
+  /* 地板 */
+  const floorMesh = new THREE.Mesh(new THREE.PlaneGeometry(CR_W, CR_D), CM.floor);
+  floorMesh.rotation.x = -Math.PI / 2;
+  floorMesh.receiveShadow = true;
+  g.add(floorMesh);
+
+  /* 天花板 */
+  const ceilMesh = crMakeBox(CR_W, CR_WT, CR_D, CM.ceiling, true, true);
+  ceilMesh.position.set(0, CR_H + CR_WT / 2, 0);
+  g.add(ceilMesh);
+
+  {
+    const t = CR_ceilTexBase.clone();
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(CR_W / 2.4, CR_D / 2.4);
+    t.colorSpace = THREE.SRGBColorSpace;
+    applyTextureQuality(t);
+    const ceilPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(CR_W, CR_D),
+      new THREE.MeshStandardMaterial({ map: t, roughness: 1.0, metalness: 0.0 })
+    );
+    ceilPlane.rotation.x = Math.PI / 2;
+    ceilPlane.position.set(0, CR_H - 0.002, 0);
+    ceilPlane.receiveShadow = true;
+    g.add(ceilPlane);
+  }
+
+  /* 左墙 */
+  const leftWall = new THREE.Mesh(new THREE.BoxGeometry(CR_WT, CR_H, CR_D), wallMaterial(CR_D, CR_H));
+  leftWall.position.set(-CR_W / 2 - CR_WT / 2, CR_H / 2, 0);
+  leftWall.castShadow = leftWall.receiveShadow = true;
+  g.add(leftWall);
+
+  /* 后墙 */
+  const backWall = new THREE.Mesh(new THREE.BoxGeometry(CR_W, CR_H, CR_WT), wallMaterial(CR_W, CR_H));
+  backWall.position.set(0, CR_H / 2, CR_D / 2 + CR_WT / 2);
+  backWall.castShadow = backWall.receiveShadow = true;
+  g.add(backWall);
+
+  /* 右墙（两个窗洞） */
+  const wallX = CR_W / 2 + CR_WT / 2;
+  {
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(CR_WT, CR_WIN_Y0, CR_D), wallMaterial(CR_D, CR_WIN_Y0));
+    seg.position.set(wallX, CR_WIN_Y0 / 2, 0);
+    seg.castShadow = seg.receiveShadow = true;
+    g.add(seg);
+  }
+  {
+    const h = CR_H - CR_WIN_Y1;
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(CR_WT, h, CR_D), wallMaterial(CR_D, h));
+    seg.position.set(wallX, (CR_H + CR_WIN_Y1) / 2, 0);
+    seg.castShadow = seg.receiveShadow = true;
+    g.add(seg);
+  }
+  [[-CR_D / 2, CR_WIN_CENTERS[0] - CR_WIN_W / 2],
+   [CR_WIN_CENTERS[0] + CR_WIN_W / 2, CR_WIN_CENTERS[1] - CR_WIN_W / 2],
+   [CR_WIN_CENTERS[1] + CR_WIN_W / 2, CR_D / 2]].forEach(([z0, z1]) => {
+    const h = CR_WIN_Y1 - CR_WIN_Y0;
+    const d = z1 - z0;
+    const pier = new THREE.Mesh(new THREE.BoxGeometry(CR_WT, h, d), wallMaterial(d, h));
+    pier.position.set(wallX, (CR_WIN_Y0 + CR_WIN_Y1) / 2, (z0 + z1) / 2);
+    pier.castShadow = pier.receiveShadow = true;
+    g.add(pier);
+  });
+
+  /* 窗户 */
+  CR_WIN_CENTERS.forEach(zc => createClassroomWindow(zc, g, state.beamMat));
+
+  /* 黑板 */
+  const frontBoard = createBlackboard('1+1=3？');
+  frontBoard.position.set(0, 1.85, -CR_D / 2 + 0.06);
+  g.add(frontBoard);
+
+  const backBoard = createBlackboard('Who is Chicken？');
+  backBoard.position.set(0, 1.80, CR_D / 2 - 0.06);
+  backBoard.rotation.y = Math.PI;
+  g.add(backBoard);
+
+  /* 讲台 */
+  const podium = createPodium();
+  podium.position.set(0, 0, -5.9);
+  enableMeshShadows(podium);
+  g.add(podium);
+
+  /* =====================================================
+     碰撞箱（局部坐标；(cx, cz) 换算为世界 (9.3+cz, segZ-0.31-cx)）
+     hw = 沿局部 x 的半宽 → 世界 z 方向半深
+     hd = 沿局部 z 的半深 → 世界 x 方向半宽
+     ===================================================== */
+
+  /* 讲台（大整块） */
+  state.colliders.push({ x: 0, z: -5.9, hw: 0.65, hd: 0.40 });
+
+  /* 桌椅 */
+  const deskProto  = createDesk();
+  const chairProto = createChair();
+  enableMeshShadows(deskProto);
+  enableMeshShadows(chairProto);
+
+  const COLS = [-3.75, -1.25, 1.25, 3.75];
+  const ROWS = [-3.20, -1.70, -0.20, 1.30, 2.80];
+  const deskTopPositions = [];
+
+  for (const z of ROWS) {
+    for (const x of COLS) {
+      const desk = deskProto.clone();
+      desk.position.set(x, 0, z);
+      g.add(desk);
+
+      const chair = chairProto.clone();
+      chair.position.set(x, 0, z + 0.62);
+      g.add(chair);
+      chair.traverse(o => {
+        if (o.isMesh) o.userData.sittable = chair;
+      });
+      sittableObjects.push(chair);
+
+      /* 桌椅合并大整块（之前版本的尺寸） */
+      state.colliders.push({ x: x, z: z + 0.31, hw: 0.62, hd: 0.80 });
+
+      deskTopPositions.push({ x, z });
+    }
+  }
+
+  const teacherChair = chairProto.clone();
+  teacherChair.position.set(1.05, 0, -5.9);
+  teacherChair.rotation.y = -0.35;
+  teacherChair.traverse(o => {
+    if (o.isMesh) o.userData.sittable = teacherChair;
+  });
+  sittableObjects.push(teacherChair);
+  g.add(teacherChair);
+  /* 教师椅（之前版本） */
+  state.colliders.push({ x: 1.05, z: -5.9, hw: 0.35, hd: 0.35 });
+
+  /* 桌面 / 抽屉内容 */
+  deskTopPositions.forEach(({ x, z }) => {
+    addBooksInCubby(g, x, z);
+    const roll = Math.random();
+    if (roll < 0.46) {
+      addBookStack(g, x, z, 0.76, 1.15, 0.58, { minCount: 1, maxCount: 4 });
+    } else if (roll < 0.82) {
+      addOpenBookOnDesk(g, x, z, 0.76);
+    }
+    if (Math.random() < 0.45) {
+      addPensOnDesk(g, x, z, 0.76);
+    }
+  });
+
+  addBookStack(g, 0, -5.9, 0.8355, 1.25, 0.72, { minCount: 2, maxCount: 4 });
+
+  /* 垃圾桶（之前版本） */
+  createBin(g, -5.15, 5.75);
+  createBin(g, 5.15, 6.20);
+  state.colliders.push({ x: -5.15, z: 5.75, hw: 0.25, hd: 0.25 });
+  state.colliders.push({ x: 5.15, z: 6.20, hw: 0.25, hd: 0.25 });
+
+  /* 后墙木门 */
+  (function createBackDoor() {
+    const dg = new THREE.Group();
+    const DW = 0.92, DH = 2.10, DT = 0.06;
+    const JAMB_W = 0.0805, HEAD_H = 0.092;
+
+    const frameTop = crMakeBox(DW + 0.14, HEAD_H, DT + 0.04, M.woodDark);
+    frameTop.position.set(0, DH + HEAD_H / 2, 0);
+    dg.add(frameTop);
+
+    [-1, 1].forEach(s => {
+      const jamb = crMakeBox(JAMB_W, DH, DT + 0.04, M.woodDark);
+      jamb.position.set(s * (DW / 2 + JAMB_W / 2), DH / 2, 0);
+      dg.add(jamb);
+    });
+
+    const panel = crMakeBox(DW, DH, DT, CM.doorWood);
+    panel.position.set(0, DH / 2, 0.01);
+    dg.add(panel);
+
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 12), CM.metal);
+    knob.position.set(DW / 2 - 0.12, 1.02, 0.05);
+    knob.castShadow = true;
+    dg.add(knob);
+
+    dg.position.set(CR_DOOR_CX, 0, CR_D / 2 - 0.02);
+    dg.rotation.y = Math.PI;
+    g.add(dg);
+  })();
+
+  /* 天花板灯具 */
+  const LAMP_POS = [
+    [-3.2, -3.6], [3.2, -3.6],
+    [-3.2,  2.4], [3.2,  2.4]
+  ];
+
+  LAMP_POS.forEach(([x, z]) => {
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xffe4c2, emissive: 0xff9f47, emissiveIntensity: 1.15, roughness: 1.0
+    });
+    state.lampMats.push(mat);
+
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.07, 0.30), mat);
+    bar.position.set(x, CR_H - 0.06, z);
+    bar.castShadow = false; bar.receiveShadow = false;
+    g.add(bar);
+
+    const shell = crMakeBox(1.78, 0.05, 0.36, CM.frame, false, false);
+    shell.position.set(x, CR_H - 0.005, z);
+    g.add(shell);
+
+    const pl = new THREE.PointLight(0xffa95c, 4.0, 12, 2);
+    pl.position.set(x, CR_H - 0.35, z);
+    pl.castShadow = false;
+    g.add(pl);
+    state.lampLights.push(pl);
+  });
+
+  /* 吊扇 */
+  const FAN_Y = 2.78;
+  const FAN_BLADE_LIFT = 0.12;
+
+  (function createCeilingFan() {
+    const fg = new THREE.Group();
+    const metalMat = new THREE.MeshStandardMaterial({ color: 0xd8d4cc, roughness: 0.45, metalness: 0.55 });
+    const darkMetal = new THREE.MeshStandardMaterial({ color: 0x9a958c, roughness: 0.55, metalness: 0.50 });
+
+    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.095, 0.06, 20), metalMat);
+    canopy.position.y = CR_H - 0.03;
+    canopy.castShadow = true; canopy.receiveShadow = true;
+    fg.add(canopy);
+
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.48, 12), darkMetal);
+    rod.position.y = CR_H - 0.30;
+    rod.castShadow = true;
+    fg.add(rod);
+
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.100, 0.15, 24), metalMat);
+    motor.position.y = FAN_Y + 0.145;
+    motor.castShadow = true; motor.receiveShadow = true;
+    fg.add(motor);
+
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.062, 0.045, 20), darkMetal);
+    cap.position.y = FAN_Y + 0.050;
+    cap.castShadow = true;
+    fg.add(cap);
+
+    const bladeMat = new THREE.MeshStandardMaterial({
+      color: 0xd9a441, roughness: 0.38, metalness: 0.62
+    });
+    const bladeGeo = new THREE.BoxGeometry(0.70, 0.016, 0.17);
+    const BLADE_COUNT = 4;
+
+    const blades = new THREE.Group();
+    for (let i = 0; i < BLADE_COUNT; i++) {
+      const pivot = new THREE.Group();
+      pivot.rotation.y = (i / BLADE_COUNT) * Math.PI * 2;
+
+      const leaf = new THREE.Mesh(bladeGeo, bladeMat);
+      leaf.position.set(0.45, 0, 0);
+      leaf.rotation.x = 0.17;
+      leaf.castShadow = true; leaf.receiveShadow = true;
+      pivot.add(leaf);
+
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.022, 0.05), darkMetal);
+      arm.position.set(0.135, 0, 0);
+      arm.castShadow = true;
+      pivot.add(arm);
+
+      blades.add(pivot);
+    }
+    blades.position.y = FAN_Y + FAN_BLADE_LIFT;
+    fg.add(blades);
+
+    state.fanBlades = blades;
+    g.add(fg);
+  })();
+
+  /* 墙面开关 */
+  (function createWallSwitches() {
+    const panel = new THREE.Group();
+    panel.position.set(-3.35, 1.28, -CR_D / 2 + 0.008);
+
+    const plate = new THREE.Mesh(
+      new THREE.BoxGeometry(0.17, 0.13, 0.016),
+      CR_SWITCH_MAT.plate
+    );
+    plate.castShadow = false; plate.receiveShadow = true;
+    panel.add(plate);
+
+    [[-0.070, 0.048], [0.070, 0.048], [-0.070, -0.048], [0.070, -0.048]].forEach(([sx, sy]) => {
+      const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.006, 8), CM.metal);
+      screw.rotation.x = Math.PI / 2;
+      screw.position.set(sx, sy, 0.008);
+      panel.add(screw);
+    });
+
+    function addSwitch(xOff, kind) {
+      const hole = new THREE.Mesh(
+        new THREE.BoxGeometry(0.044, 0.066, 0.008),
+        CR_SWITCH_MAT.hole
+      );
+      hole.position.set(xOff, 0, 0.007);
+      panel.add(hole);
+
+      const pivot = new THREE.Group();
+      pivot.position.set(xOff, 0, 0.011);
+
+      const rocker = new THREE.Mesh(
+        new THREE.BoxGeometry(0.034, 0.054, 0.014),
+        CR_SWITCH_MAT.rocker
+      );
+      rocker.castShadow = true;
+      rocker.userData.crSwitch = true;
+      rocker.userData.crKind = kind;
+      pivot.add(rocker);
+
+      panel.add(pivot);
+      return pivot;
+    }
+
+    state.lightSwitchPivot = addSwitch(-0.042, 'light');
+    state.fanSwitchPivot   = addSwitch( 0.042, 'fan');
+    g.add(panel);
+  })();
+
+  function syncSwitches() {
+    if (state.lightSwitchPivot) state.lightSwitchPivot.rotation.x = state.lightsOn ? -0.34 : 0.34;
+    if (state.fanSwitchPivot)   state.fanSwitchPivot.rotation.x   = state.fanSpinning ? -0.34 : 0.34;
+  }
+  syncSwitches();
+  state.syncSwitches = syncSwitches;
+
+  /* =====================================================
+     教室墙壁碰撞箱（三面：不包含门洞侧）
+     ---------------------------------------------------
+     局部 lx=-6.1 侧墙 → 世界 z = segZ + 5.79 侧
+     局部 lx=+6.1 侧墙 → 世界 z = segZ - 6.41 侧
+     局部 lz=+7.1 后墙  → 世界 x = 16.4 侧
+     ===================================================== */
+  state.colliders.push({ x: -6.1, z: 0, hw: 0.1, hd: 7.0 });   // 侧墙 1
+  state.colliders.push({ x:  6.1, z: 0, hw: 0.1, hd: 7.0 });   // 侧墙 2
+  state.colliders.push({ x:  0.0, z: 7.1, hw: 6.0, hd: 0.1 }); // 后墙
+
+  return { group: g, state };
+}
+
+/* =========================================================
+   10. 克隆走廊模块 + 插入教室
+   ========================================================= */
+const segments = [];
+const doors = [];
+const doorLeaves = [];
+const segLightStates = [];
+const segSwitchPivots = [];
+const corridorSwitchMeshes = [];
+
+const CLASSROOM_SEG_INDICES = new Set([0, 3, 6]);
+const classroomInstances = [];
+
+for (let i = 0; i < SEG_COUNT; i++) {
+  const seg = proto.clone(true);
+  seg.userData.index = i;
+  scene.add(seg);
+  segments.push(seg);
+
+  const pivot = seg.getObjectByName('doorPivot');
+  const leaf = seg.getObjectByName('doorLeaf');
+  const hasRoom = CLASSROOM_SEG_INDICES.has(i);
+
+  const rec = { pivot, leaf, open: false, target: 0, hasRoom };
+  doors.push(rec);
+  doorLeaves.push(leaf);
+
+  const lampBar = seg.getObjectByName('corridorLampBar');
+  const lampLight = seg.getObjectByName('corridorLampLight');
+  segLightStates.push({ mat: lampBar.material, light: lampLight, on: true, level: 1 });
+
+  const switchPivot = seg.getObjectByName('corridorSwitchPivot');
+  segSwitchPivots.push(switchPivot);
+
+  const plateMesh = seg.getObjectByName('corridorSwitchPlate');
+  if (plateMesh) {
+    plateMesh.userData.corridorSwitchSeg = i;
+    corridorSwitchMeshes.push(plateMesh);
+  }
+
+  /* 插入教室 */
+  if (hasRoom) {
+    try {
+      const cls = buildClassroom();
+      cls.group.rotation.y = Math.PI / 2;
+      cls.group.position.set(9.3, 0, -0.31);
+      seg.add(cls.group);
+
+      classroomInstances.push({ group: cls.group, state: cls.state, seg });
+
+      cls.group.traverse(o => {
+        if (o.isMesh && o.userData.crSwitch) {
+          o.userData.classroomRef = cls.state;
+        }
+      });
+    } catch (e) {
+      console.error('教室构建失败:', e);
+    }
+  }
+}
+
+/* 收集教室开关网格 */
+const classroomSwitchMeshes = [];
+classroomInstances.forEach(inst => {
+  inst.group.traverse(o => {
+    if (o.isMesh && o.userData.crSwitch) {
+      classroomSwitchMeshes.push(o);
+    }
+  });
+});
+
+/* =========================================================
+   11. 光照
+   ========================================================= */
+const amb = new THREE.AmbientLight(0xffcaa0, 0.22);
+scene.add(amb);
+
+const hemi = new THREE.HemisphereLight(0xffd0a0, 0x2b2018, 0.46);
+scene.add(hemi);
+
+const sun = new THREE.DirectionalLight(0xffc27a, 1.30);
+sun.position.set(17, 13, -9);
+sun.target.position.set(-1.5, 0, 1.5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left   = -16;
+sun.shadow.camera.right  =  16;
+sun.shadow.camera.top    =  16;
+sun.shadow.camera.bottom = -16;
+sun.shadow.camera.near   = 0.5;
+sun.shadow.camera.far    = 60;
+sun.shadow.bias          = -0.0008;
+sun.shadow.normalBias    = 0.03;
+scene.add(sun);
+scene.add(sun.target);
+
+const skyFill = new THREE.DirectionalLight(0xffb877, 0.34);
+skyFill.position.set(9, 4, 0);
+skyFill.target.position.set(-2, 1, 0);
+skyFill.castShadow = false;
+scene.add(skyFill);
+scene.add(skyFill.target);
+
+const fill = new THREE.DirectionalLight(0xffd8b0, 0.45);
+fill.position.set(-11, 6, 10);
+fill.castShadow = false;
+scene.add(fill);
+
+renderer.shadowMap.needsUpdate = true;
+
+/* =========================================================
+   12. 后期处理
+   ========================================================= */
+const rt = new THREE.WebGLRenderTarget(1, 1, {
+  minFilter: THREE.LinearFilter,
+  magFilter: THREE.LinearFilter,
+  type: THREE.HalfFloatType,
+  depthBuffer: true,
+  stencilBuffer: false
+});
+
+const postScene = new THREE.Scene();
+const postCamera = new THREE.Camera();
+
+const postMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    tDiffuse: { value: rt.texture },
+    uAmount: { value: 0.0016 }
+  },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = vec4(position.xy, 0.0, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse;
+    uniform float uAmount;
+    varying vec2 vUv;
+    vec3 acesFilm(vec3 x) {
+      return clamp(
+        (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14),
+        0.0, 1.0
+      );
+    }
+    void main() {
+      vec2 dir = (vUv - 0.5) * uAmount;
+      vec4 cr = texture2D(tDiffuse, vUv + dir);
+      vec4 cg = texture2D(tDiffuse, vUv);
+      vec4 cb = texture2D(tDiffuse, vUv - dir);
+      vec3 col = vec3(cr.r, cg.g, cb.b);
+      col = acesFilm(col * 1.18);
+      col = pow(col, vec3(1.0 / 2.2));
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `,
+  depthTest: false,
+  depthWrite: false
+});
+
+const postQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMaterial);
+postQuad.frustumCulled = false;
+postScene.add(postQuad);
+
+/* =========================================================
+   13. 玩家状态
+   ========================================================= */
+const MAX_SPEED = 4.4;
+const EYE_HEIGHT = 1.62;
+const SIT_HEIGHT = EYE_HEIGHT * 0.5;
+
+const player = {
+  pos: new THREE.Vector3(0, EYE_HEIGHT, 0),
+  vel: new THREE.Vector3(),
+  speed: 0,
+  yaw: Math.PI,
+  pitch: 0,
+  sitting: false,
+  sitChair: null,
+  preSitPos: new THREE.Vector3(),
+  preSitYaw: 0,
+  preSitPitch: 0
+};
+
+let heldItem = null;
+
+const qTarget = new THREE.Quaternion();
+const qSmooth = new THREE.Quaternion();
+const tmpEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+const qSway = new THREE.Quaternion();
+const tmpSwayEuler = new THREE.Euler(0, 0, 0, 'YXZ');
+
+tmpEuler.set(player.pitch, player.yaw, 0, 'YXZ');
+qSmooth.setFromEuler(tmpEuler);
+
+const fwdVec = new THREE.Vector3();
+const rightVec = new THREE.Vector3();
+const moveDir = new THREE.Vector3();
+
+/* =========================================================
+   14. 输入
+   ========================================================= */
+const keys = Object.create(null);
+
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  if (k === 'e' || k === ' ') {
+    e.preventDefault();
+    doInteract();
+  }
+});
+window.addEventListener('keyup', e => {
+  keys[e.key.toLowerCase()] = false;
+});
+window.addEventListener('contextmenu', e => e.preventDefault());
+
+const canvas = renderer.domElement;
+
+let lookPointerId = null;
+let lookX = 0, lookY = 0;
+
+let joyPointerId = null;
+const joyVec = new THREE.Vector2(0, 0);
+const JOY_RADIUS = 52;
+
+const joyBase = document.getElementById('joyBase');
+const joyKnob = document.getElementById('joyKnob');
+let joyCenterX = 0, joyCenterY = 0;
+
+function refreshJoyCenter() {
+  const r = joyBase.getBoundingClientRect();
+  joyCenterX = r.left + r.width / 2;
+  joyCenterY = r.top + r.height / 2;
+}
+refreshJoyCenter();
+
+function setJoystick(cx, cy) {
+  let dx = cx - joyCenterX;
+  let dy = cy - joyCenterY;
+  const len = Math.hypot(dx, dy);
+  if (len > JOY_RADIUS) {
+    dx = dx / len * JOY_RADIUS;
+    dy = dy / len * JOY_RADIUS;
+  }
+  joyVec.set(dx / JOY_RADIUS, dy / JOY_RADIUS);
+  joyKnob.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+}
+
+function resetJoystick() {
+  joyVec.set(0, 0);
+  joyKnob.style.transform = 'translate(0px, 0px)';
+  joyBase.classList.remove('active');
+}
+
+canvas.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse') {
+    if (e.button !== 0) return;
+    lookPointerId = e.pointerId;
+    lookX = e.clientX; lookY = e.clientY;
+    canvas.setPointerCapture?.(e.pointerId);
+  } else {
+    if (e.clientX < window.innerWidth * 0.5 && joyPointerId === null) {
+      joyPointerId = e.pointerId;
+      joyBase.classList.add('active');
+      refreshJoyCenter();
+      setJoystick(e.clientX, e.clientY);
+      canvas.setPointerCapture?.(e.pointerId);
+    } else if (lookPointerId === null) {
+      lookPointerId = e.pointerId;
+      lookX = e.clientX; lookY = e.clientY;
+      canvas.setPointerCapture?.(e.pointerId);
+    }
+  }
+  hideHint();
+}, { passive: true });
+
+window.addEventListener('pointermove', e => {
+  if (e.pointerId === lookPointerId) {
+    const dx = e.clientX - lookX;
+    const dy = e.clientY - lookY;
+    lookX = e.clientX; lookY = e.clientY;
+    const sens = e.pointerType === 'mouse' ? 0.0026 : 0.0044;
+    player.yaw -= dx * sens;
+    player.pitch -= dy * sens;
+    player.pitch = Math.max(-1.35, Math.min(1.35, player.pitch));
+  }
+  if (e.pointerId === joyPointerId) {
+    setJoystick(e.clientX, e.clientY);
+  }
+}, { passive: true });
+
+function endPointer(e) {
+  if (e.pointerId === lookPointerId) lookPointerId = null;
+  if (e.pointerId === joyPointerId) {
+    joyPointerId = null;
+    resetJoystick();
+  }
+}
+window.addEventListener('pointerup', endPointer, { passive: true });
+window.addEventListener('pointercancel', endPointer, { passive: true });
+
+window.addEventListener('blur', () => {
+  for (const k in keys) keys[k] = false;
+  lookPointerId = null;
+  joyPointerId = null;
+  resetJoystick();
+});
+
+/* =========================================================
+   15. 互动
+   ========================================================= */
+const raycaster = new THREE.Raycaster();
+raycaster.far = 6;
+
+const crosshairEl = document.getElementById('crosshair');
+const takeBtn = document.getElementById('takeBtn');
+const hintEl = document.getElementById('hint');
+
+let currentDoor = null;
+let currentSwitchSeg = -1;
+let currentClassroomState = null;
+let currentClassroomSwitchKind = null;
+let currentSittable = null;
+let currentPickable = null;
+
+const tmpVecA = new THREE.Vector3();
+
+function sitOnChair(chair) {
+  player.sitting = true;
+  player.sitChair = chair;
+
+  player.preSitPos.copy(player.pos);
+  player.preSitYaw = player.yaw;
+  player.preSitPitch = player.pitch;
+
+  const chairWorld = new THREE.Vector3();
+  chair.getWorldPosition(chairWorld);
+
+  player.pos.set(chairWorld.x, SIT_HEIGHT, chairWorld.z);
+  player.pitch = 0;
+}
+
+function standUp() {
+  player.sitting = false;
+  player.sitChair = null;
+  player.pos.copy(player.preSitPos);
+  player.yaw = player.preSitYaw;
+  player.pitch = player.preSitPitch;
+}
+
+function pickUpItem(root) {
+  if (root.parent) root.parent.remove(root);
+
+  const idx = pickableObjects.indexOf(root);
+  if (idx >= 0) pickableObjects.splice(idx, 1);
+
+  root.position.set(0, 0, 0);
+  root.rotation.set(0, 0, 0);
+  root.scale.set(1, 1, 1);
+
+  const kind = root.userData.pickKind;
+  if (kind === 'book') {
+    root.rotation.x = -Math.PI * 0.18;
+    root.rotation.y = 0.12;
+  } else if (kind === 'pen') {
+    root.rotation.y = Math.PI / 2;
+    root.rotation.z = 0.35;
+  }
+
+  heldGroup.add(root);
+  heldGroup.visible = true;
+  heldItem = root;
+}
+
+function dropHeldItem() {
+  if (!heldItem) return;
+
+  const item = heldItem;
+  heldGroup.remove(item);
+  heldGroup.visible = false;
+  heldItem = null;
+
+  scene.add(item);
+  item.position.set(player.pos.x, 0.04, player.pos.z);
+
+  if (item.userData.pickKind === 'book') {
+    item.rotation.set(0, player.yaw, 0);
+  } else if (item.userData.pickKind === 'pen') {
+    item.rotation.set(0, player.yaw + Math.PI / 2, 0);
+    item.position.y = 0.02;
+  }
+
+  pickableObjects.push(item);
+}
+
+function doInteract() {
+  if (heldItem) {
+    dropHeldItem();
+    return;
+  }
+
+  if (player.sitting) {
+    standUp();
+    return;
+  }
+
+  if (currentPickable) {
+    pickUpItem(currentPickable);
+    return;
+  }
+
+  if (currentSittable) {
+    sitOnChair(currentSittable);
+    return;
+  }
+
+  if (currentClassroomState && currentClassroomSwitchKind) {
+    const s = currentClassroomState;
+    if (currentClassroomSwitchKind === 'light') {
+      s.lightsOn = !s.lightsOn;
+    } else {
+      s.fanSpinning = !s.fanSpinning;
+    }
+    if (s.syncSwitches) s.syncSwitches();
+    return;
+  }
+
+  if (currentSwitchSeg >= 0) {
+    const st = segLightStates[currentSwitchSeg];
+    st.on = !st.on;
+    segSwitchPivots[currentSwitchSeg].rotation.x = st.on ? -0.34 : 0.34;
+    return;
+  }
+
+  if (!currentDoor) return;
+
+  if (!currentDoor.hasRoom) {
+    hintEl.textContent = '这扇门已上锁';
+    hintEl.style.opacity = '1';
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(hideHint, 1600);
+    return;
+  }
+
+  currentDoor.open = !currentDoor.open;
+  currentDoor.target = currentDoor.open ? DOOR_OPEN_ANGLE : 0;
+}
+
+takeBtn.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  e.stopPropagation();
+  doInteract();
+});
+takeBtn.addEventListener('click', e => e.preventDefault());
+
+const HINT_DOOR_OPEN   = '按下 TAKE 开关门';
+const HINT_DOOR_LOCKED = '这扇门已上锁';
+const HINT_LIGHT       = '按下 TAKE 开关灯';
+const HINT_FAN         = '按下 TAKE 开关吊扇';
+const HINT_SIT         = '按下 TAKE 坐下';
+const HINT_PICK        = '按下 TAKE 拾取';
+const HINT_STAND       = '按下 TAKE 起身';
+const HINT_DROP        = '按下 Out 放下';
+
+function hideHint() { hintEl.style.opacity = '0'; }
+let hintTimer = setTimeout(hideHint, 8000);
+
+/* =========================================================
+   16. 自适应
+   ========================================================= */
+function onResize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const dpr = Math.min(window.devicePixelRatio, 2);
+
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(w, h);
+  rt.setSize(Math.max(1, Math.floor(w * dpr)), Math.max(1, Math.floor(h * dpr)));
+
+  requestAnimationFrame(refreshJoyCenter);
+}
+window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', () => setTimeout(onResize, 260));
+onResize();
+
+const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+if (isTouch) {
+  hintEl.textContent = '左半屏摇杆移动 · 右半屏拖动转视角 · TAKE 互动';
+}
+
+/* =========================================================
+   17. 走廊循环 + 剔除
+   ========================================================= */
+const CULL_DIST = 46 * 0.4;
+
+function updateSegments() {
+  const pz = player.pos.z;
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    let z = i * SEG_LEN;
+    z += Math.round((pz - z) / SPAN) * SPAN;
+    seg.position.z = z;
+    const centerZ = z + SEG_LEN * 0.5;
+    const dist = Math.abs(centerZ - pz);
+    seg.visible = dist < CULL_DIST;
+  }
+}
+
+/* =========================================================
+   18. 碰撞检测
+   ---------------------------------------------------------
+   · 走廊左右墙：基于玩家 x 坐标判断
+     - 玩家 px > innerRightX → 已越过右墙（教室侧），完全
+       跳过左右墙夹取（由教室墙壁碰撞接管，防止传送）
+     - 玩家 px ≤ innerRightX → 走廊侧，正常夹取
+   · 教室家具 + 墙壁：大整块 AABB 实体碰撞，正确推出，
+     推挤时清除该轴速度
+   · 门扇：线段跟随旋转
+   ========================================================= */
+const PLAYER_RADIUS = 0.28;
+
+function resolveCollisions(px, pz) {
+  const innerLeftX  = -HALF_W + WALL_T / 2;
+  const innerRightX =  HALF_W - WALL_T / 2;
+
+  /* 走廊左墙：始终实心 */
+  if (px < innerLeftX + PLAYER_RADIUS) {
+    px = innerLeftX + PLAYER_RADIUS;
+  }
+
+  /* 玩家是否已越过右墙内表面（进入教室一侧） */
+  const beyondRightWall = px > innerRightX + 0.001;
+
+  if (!beyondRightWall) {
+    /* 走廊侧：应用右墙夹取，但门洞处放行 */
+    let inOpenDoorway = false;
+    for (let i = 0; i < doors.length; i++) {
+      const door = doors[i];
+      const seg = door.pivot.parent;
+      if (!seg || !seg.visible) continue;
+      if (door.pivot.rotation.y < 0.30) continue;
+
+      const segZ = seg.position.z;
+      const doorwayCenterZ = segZ + SEG_LEN / 2;
+      if (Math.abs(pz - doorwayCenterZ) < DOOR_W / 2 + 0.15) {
+        inOpenDoorway = true;
+        break;
+      }
+    }
+
+    if (!inOpenDoorway && px > innerRightX - PLAYER_RADIUS) {
+      px = innerRightX - PLAYER_RADIUS;
+    }
+  }
+  /* 教室侧：完全跳过右墙夹取 */
+
+  /* 教室家具 + 教室墙壁 AABB 碰撞（大整块实体） */
+  for (let i = 0; i < classroomInstances.length; i++) {
+    const inst = classroomInstances[i];
+    if (!inst.seg.visible) continue;
+
+    const segZ = inst.seg.position.z;
+    const colliders = inst.state.colliders;
+
+    for (let k = 0; k < colliders.length; k++) {
+      const c = colliders[k];
+      /* 教室旋转 90°：局部 (cx, cz) → 世界 (9.3 + cz, segZ - 0.31 - cx) */
+      const wx = 9.3 + c.z;
+      const wz = segZ - 0.31 - c.x;
+      const halfX = c.hd;   /* 世界 x 方向半宽 = 局部 z 方向半深 */
+      const halfZ = c.hw;   /* 世界 z 方向半深 = 局部 x 方向半宽 */
+
+      const dx = px - wx;
+      const dz = pz - wz;
+      const overlapX = halfX + PLAYER_RADIUS - Math.abs(dx);
+      const overlapZ = halfZ + PLAYER_RADIUS - Math.abs(dz);
+
+      if (overlapX > 0 && overlapZ > 0) {
+        /* 沿最小重叠轴推出到 AABB 外表面；同时清零指向墙的速度 */
+        if (overlapX < overlapZ) {
+          const dir = dx >= 0 ? 1 : -1;
+          px = wx + dir * (halfX + PLAYER_RADIUS);
+          if (dir > 0 && player.vel.x < 0) player.vel.x = 0;
+          if (dir < 0 && player.vel.x > 0) player.vel.x = 0;
+        } else {
+          const dir = dz >= 0 ? 1 : -1;
+          pz = wz + dir * (halfZ + PLAYER_RADIUS);
+          if (dir > 0 && player.vel.z < 0) player.vel.z = 0;
+          if (dir < 0 && player.vel.z > 0) player.vel.z = 0;
+        }
+      }
+    }
+  }
+
+  /* 门扇碰撞：线段跟随门扇旋转 */
+  for (let i = 0; i < doors.length; i++) {
+    const door = doors[i];
+    const seg = door.pivot.parent;
+    if (!seg || !seg.visible) continue;
+
+    const segZ = seg.position.z;
+    const pivotX = HALF_W;
+    const pivotZ = segZ + SEG_LEN / 2 - DOOR_W / 2 + 0.03;
+
+    const angle = door.pivot.rotation.y;
+    const dirX = Math.sin(angle);
+    const dirZ = Math.cos(angle);
+
+    const endX = pivotX + dirX * DOOR_LEAF_W;
+    const endZ = pivotZ + dirZ * DOOR_LEAF_W;
+
+    const segX = endX - pivotX;
+    const segZ2 = endZ - pivotZ;
+    const segLenSq = segX * segX + segZ2 * segZ2;
+    if (segLenSq < 1e-6) continue;
+
+    let t = ((px - pivotX) * segX + (pz - pivotZ) * segZ2) / segLenSq;
+    t = Math.max(0, Math.min(1, t));
+
+    const cx = pivotX + segX * t;
+    const cz = pivotZ + segZ2 * t;
+
+    let ddx = px - cx;
+    let ddz = pz - cz;
+    let dist = Math.hypot(ddx, ddz);
+
+    const minDist = PLAYER_RADIUS + 0.05;
+
+    if (dist < minDist) {
+      if (dist < 1e-4) {
+        const nx = -dirZ;
+        const nz = dirX;
+        const nlen = Math.hypot(nx, nz) || 1;
+        ddx = nx / nlen;
+        ddz = nz / nlen;
+        dist = 1;
+      }
+      const push = (minDist - dist) / dist;
+      px += ddx * push;
+      pz += ddz * push;
+    }
+  }
+
+  return { x: px, z: pz };
+}
+
+/* =========================================================
+   19. 主循环
+   ========================================================= */
+let bobPhase = 0;
+let lastTime = performance.now();
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+
+  /* 移动输入：只在坐下时禁用；拿起物品仍可移动 */
+  let ix = 0, iy = 0;
+  if (!player.sitting) {
+    if (keys['w'] || keys['arrowup'])    iy += 1;
+    if (keys['s'] || keys['arrowdown'])  iy -= 1;
+    if (keys['a'] || keys['arrowleft'])  ix -= 1;
+    if (keys['d'] || keys['arrowright']) ix += 1;
+    ix += joyVec.x;
+    iy += -joyVec.y;
+  }
+
+  let mag = Math.hypot(ix, iy);
+  if (mag > 1) { ix /= mag; iy /= mag; mag = 1; }
+
+  const yaw = player.yaw;
+  fwdVec.set(-Math.sin(yaw), 0, -Math.cos(yaw));
+  rightVec.set(Math.cos(yaw), 0, -Math.sin(yaw));
+
+  moveDir.set(0, 0, 0)
+    .addScaledVector(fwdVec, iy)
+    .addScaledVector(rightVec, ix);
+
+  if (moveDir.lengthSq() > 1e-6) moveDir.normalize();
+
+  const desired = moveDir.clone().multiplyScalar(MAX_SPEED * mag);
+  const accelK = 1 - Math.exp(-dt / 0.14);
+  player.vel.lerp(desired, accelK);
+
+  player.speed = player.vel.length();
+
+  /* 门扇旋转更新（先于碰撞） */
+  const doorK = 1 - Math.exp(-dt / 0.13);
+  for (let i = 0; i < doors.length; i++) {
+    const d = doors[i];
+    d.pivot.rotation.y += (d.target - d.pivot.rotation.y) * doorK;
+  }
+
+  if (!player.sitting) {
+    player.pos.addScaledVector(player.vel, dt);
+  } else {
+    player.vel.set(0, 0, 0);
+    player.speed = 0;
+  }
+  updateSegments();
+
+  if (!player.sitting) {
+    const resolved = resolveCollisions(player.pos.x, player.pos.z);
+    player.pos.x = resolved.x;
+    player.pos.z = resolved.z;
+  }
+
+  /* 视角 */
+  tmpEuler.set(player.pitch, player.yaw, 0, 'YXZ');
+  qTarget.setFromEuler(tmpEuler);
+
+  const rotK = 1 - Math.exp(-dt / 0.10);
+  qSmooth.slerp(qTarget, rotK);
+
+  /* 头部摇晃 */
+  const speedRatio = Math.min(1, player.speed / MAX_SPEED);
+  bobPhase += player.speed * dt * 2.4;
+  const bobAmp = speedRatio;
+  const bobY = Math.sin(bobPhase * 2.0) * 0.030 * bobAmp;
+  const bobX = Math.cos(bobPhase * 2.0) * 0.024 * bobAmp;
+  const swayYaw   = Math.sin(bobPhase) * 0.0075 * bobAmp;
+  const swayPitch = Math.cos(bobPhase * 2.0) * 0.0050 * bobAmp;
+  const swayRoll  = Math.sin(bobPhase) * 0.0110 * bobAmp;
+
+  tmpSwayEuler.set(swayPitch, swayYaw, swayRoll, 'YXZ');
+  qSway.setFromEuler(tmpSwayEuler);
+
+  camera.position.copy(player.pos);
+  camera.position.y += bobY;
+  camera.position.addScaledVector(rightVec, bobX * 0.6);
+  camera.quaternion.copy(qSmooth);
+  camera.quaternion.multiply(qSway);
+
+  /* FOV */
+  const targetFov = 70 + 10 * speedRatio;
+  const fovK = 1 - Math.exp(-dt / 0.16);
+  if (Math.abs(camera.fov - targetFov) > 0.01) {
+    camera.fov += (targetFov - camera.fov) * fovK;
+    camera.updateProjectionMatrix();
+  }
+
+  /* 走廊灯 */
+  for (let i = 0; i < segLightStates.length; i++) {
+    const st = segLightStates[i];
+    st.level += ((st.on ? 1 : 0) - st.level) * (1 - Math.exp(-dt / 0.16));
+    st.mat.emissiveIntensity = 1.15 * st.level;
+    st.light.intensity = 2.6 * st.level;
+  }
+
+  /* 教室动画 */
+  for (let i = 0; i < classroomInstances.length; i++) {
+    const inst = classroomInstances[i];
+    if (!inst.seg.visible) continue;
+
+    const s = inst.state;
+
+    if (s.doorPivot) {
+      s.doorPivot.rotation.y += (s.doorTarget - s.doorPivot.rotation.y) * 0.12;
+    }
+
+    s.lightLevel += ((s.lightsOn ? 1 : 0) - s.lightLevel) * 0.10;
+    for (let k = 0; k < s.lampMats.length; k++) {
+      s.lampMats[k].emissiveIntensity = 1.15 * s.lightLevel;
+    }
+    for (let k = 0; k < s.lampLights.length; k++) {
+      s.lampLights[k].intensity = 4.0 * s.lightLevel;
+    }
+
+    const targetSpeed = s.fanSpinning ? 0.075 : 0;
+    s.fanSpeed += (targetSpeed - s.fanSpeed) * 0.035;
+    if (s.fanSpeed > 0.00002 && s.fanBlades) {
+      s.fanBlades.rotation.y += s.fanSpeed;
+    } else {
+      s.fanSpeed = 0;
+    }
+  }
+
+  /* 阳光跟随 */
+  sun.position.set(player.pos.x + 17, 13, player.pos.z - 9);
+  sun.target.position.set(player.pos.x - 1.5, 0, player.pos.z + 1.5);
+  sun.target.updateMatrixWorld();
+
+  skyFill.position.set(player.pos.x + 9, 4, player.pos.z);
+  skyFill.target.position.set(player.pos.x - 2, 1, player.pos.z);
+  skyFill.target.updateMatrixWorld();
+
+  /* 射线检测 */
+  scene.updateMatrixWorld();
+  raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+
+  let foundDoor = null;
+  let foundSwitchSeg = -1;
+  let foundClassroomState = null;
+  let foundClassroomSwitchKind = null;
+  let foundSittable = null;
+  let foundPickable = null;
+
+  if (!heldItem) {
+    const pickHits = raycaster.intersectObjects(pickableObjects, true);
+    if (pickHits.length > 0 && pickHits[0].distance <= 2.4) {
+      let obj = pickHits[0].object;
+      while (obj && !obj.userData.isPickable) obj = obj.parent;
+      if (obj && obj.userData.isPickable) foundPickable = obj;
+    }
+  }
+
+  if (!foundPickable && !heldItem) {
+    const sitHits = raycaster.intersectObjects(sittableObjects, true);
+    if (sitHits.length > 0 && sitHits[0].distance <= 1.8) {
+      let obj = sitHits[0].object;
+      while (obj && !obj.userData.sittable) obj = obj.parent;
+      if (obj && obj.userData.sittable) foundSittable = obj.userData.sittable;
+    }
+  }
+
+  if (!foundPickable && !foundSittable) {
+    const hits = raycaster.intersectObjects(doorLeaves, false);
+    if (hits.length > 0) {
+      const leafMesh = hits[0].object;
+      const pivot = leafMesh.parent;
+      leafMesh.getWorldPosition(tmpVecA);
+      const dx = tmpVecA.x - player.pos.x;
+      const dz = tmpVecA.z - player.pos.z;
+      const horizDist = Math.hypot(dx, dz);
+      if (horizDist <= 2.0) {
+        foundDoor = doors.find(d => d.pivot === pivot) || null;
+      }
+    }
+  }
+
+  if (!foundPickable && !foundSittable && !foundDoor) {
+    const swHits = raycaster.intersectObjects(corridorSwitchMeshes, false);
+    if (swHits.length > 0) {
+      const idx = swHits[0].object.userData.corridorSwitchSeg;
+      if (swHits[0].distance <= 2.6) foundSwitchSeg = idx;
+    }
+  }
+
+  if (!foundPickable && !foundSittable && !foundDoor && foundSwitchSeg < 0) {
+    const crHits = raycaster.intersectObjects(classroomSwitchMeshes, false);
+    if (crHits.length > 0 && crHits[0].distance <= 2.6) {
+      const obj = crHits[0].object;
+      foundClassroomState = obj.userData.classroomRef;
+      foundClassroomSwitchKind = obj.userData.crKind || 'light';
+    }
+  }
+
+  currentDoor = foundDoor;
+  currentSwitchSeg = foundSwitchSeg;
+  currentClassroomState = foundClassroomState;
+  currentClassroomSwitchKind = foundClassroomSwitchKind;
+  currentSittable = foundSittable;
+  currentPickable = foundPickable;
+
+  let btnText = 'TAKE';
+  let btnClass = '';
+  let hintText = '';
+  let showHint = false;
+
+  if (heldItem) {
+    btnText = 'Out';
+    btnClass = 'pick';
+    hintText = HINT_DROP;
+    showHint = true;
+  } else if (player.sitting) {
+    btnText = 'TAKE';
+    btnClass = 'ready';
+    hintText = HINT_STAND;
+    showHint = true;
+  } else if (foundPickable) {
+    btnText = 'TAKE';
+    btnClass = 'pick';
+    hintText = HINT_PICK;
+    showHint = true;
+  } else if (foundSittable) {
+    btnText = 'TAKE';
+    btnClass = 'ready';
+    hintText = HINT_SIT;
+    showHint = true;
+  } else if (foundClassroomState && foundClassroomSwitchKind) {
+    btnText = 'TAKE';
+    btnClass = 'ready';
+    hintText = foundClassroomSwitchKind === 'light' ? HINT_LIGHT : HINT_FAN;
+    showHint = true;
+  } else if (foundSwitchSeg >= 0) {
+    btnText = 'TAKE';
+    btnClass = 'ready';
+    hintText = HINT_LIGHT;
+    showHint = true;
+  } else if (foundDoor) {
+    if (!foundDoor.hasRoom) {
+      btnText = 'LOCKED';
+      btnClass = 'locked';
+      hintText = HINT_DOOR_LOCKED;
+    } else {
+      btnText = foundDoor.open ? 'CLOSE' : 'TAKE';
+      btnClass = 'ready';
+      hintText = HINT_DOOR_OPEN;
+    }
+    showHint = true;
+  }
+
+  takeBtn.textContent = btnText;
+  takeBtn.classList.toggle('ready', btnClass === 'ready');
+  takeBtn.classList.toggle('locked', btnClass === 'locked');
+  takeBtn.classList.toggle('pick', btnClass === 'pick');
+
+  if (showHint) {
+    if (hintEl.textContent !== hintText) hintEl.textContent = hintText;
+    hintEl.style.opacity = '1';
+    clearTimeout(hintTimer);
+  } else {
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(hideHint, 1200);
+  }
+
+  crosshairEl.classList.toggle('active', showHint && btnClass !== 'locked');
+  crosshairEl.classList.toggle('locked', btnClass === 'locked');
+
+  postMaterial.uniforms.uAmount.value = 0.0012 + 0.0026 * speedRatio;
+
+  if (player.speed > 0.02) {
+    renderer.shadowMap.needsUpdate = true;
+  }
+
+  renderer.setRenderTarget(rt);
+  renderer.render(scene, camera);
+  renderer.setRenderTarget(null);
+  renderer.render(postScene, postCamera);
+}
+
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
