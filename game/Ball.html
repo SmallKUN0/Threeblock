@@ -1,0 +1,1875 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<title>无限滚动球体</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #000;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  #scene {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+  }
+
+  #boostBtn {
+    position: fixed;
+    left: max(22px, env(safe-area-inset-left));
+    bottom: max(28px, env(safe-area-inset-bottom));
+    width: 112px;
+    height: 112px;
+    border-radius: 50%;
+    border: 2px solid rgba(130, 175, 255, 0.85);
+    background: radial-gradient(circle at 34% 28%, rgba(105, 160, 255, 0.62), rgba(48, 40, 170, 0.38));
+    color: #e4efff;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-indent: 3px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 0 26px rgba(80, 130, 255, 0.55), inset 0 0 20px rgba(120, 180, 255, 0.35);
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: pointer;
+    z-index: 10;
+    transition: transform 0.09s ease, box-shadow 0.09s ease, background 0.09s ease;
+  }
+  #boostBtn.active {
+    transform: scale(0.93);
+    background: radial-gradient(circle at 34% 28%, rgba(150, 195, 255, 0.85), rgba(80, 70, 220, 0.55));
+    box-shadow: 0 0 42px rgba(120, 180, 255, 0.95), inset 0 0 26px rgba(170, 215, 255, 0.65);
+  }
+
+  #fovLockBtn {
+    position: fixed;
+    left: max(16px, env(safe-area-inset-left));
+    top: max(16px, env(safe-area-inset-top));
+    padding: 9px 16px;
+    border-radius: 22px;
+    border: 1.5px solid rgba(130, 175, 255, 0.7);
+    background: rgba(18, 26, 66, 0.72);
+    color: #cfe2ff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    cursor: pointer;
+    z-index: 20;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  #fovLockBtn.on {
+    background: rgba(85, 125, 255, 0.6);
+    border-color: rgba(160, 200, 255, 0.95);
+    box-shadow: 0 0 18px rgba(110, 160, 255, 0.75);
+  }
+
+  #hint {
+    position: fixed;
+    left: 50%;
+    top: max(18px, env(safe-area-inset-top));
+    transform: translateX(-50%);
+    color: rgba(160, 195, 255, 0.72);
+    font-size: 13px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 10;
+    animation: fadeOut 6s ease forwards;
+  }
+  @keyframes fadeOut {
+    0%, 55% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  #failOverlay, #winOverlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(2, 4, 18, 0.78);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+  }
+  #failOverlay.show, #winOverlay.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  #failOverlay .fail-title, #winOverlay .win-title {
+    font-size: 58px;
+    font-weight: 900;
+    letter-spacing: 10px;
+    text-indent: 10px;
+    color: #cfe2ff;
+    text-shadow: 0 0 24px rgba(90, 140, 255, 0.95), 0 0 60px rgba(150, 80, 255, 0.6);
+    margin-bottom: 10px;
+  }
+  #winOverlay .win-title {
+    color: #fff8d8;
+    text-shadow: 0 0 24px rgba(255, 220, 100, 0.95), 0 0 60px rgba(255, 180, 60, 0.7);
+  }
+  #failOverlay .fail-sub, #winOverlay .win-sub {
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: rgba(150, 185, 255, 0.75);
+    margin-bottom: 46px;
+  }
+  #winOverlay .win-sub {
+    color: rgba(255, 220, 150, 0.85);
+  }
+  #retryBtn, #winRetryBtn {
+    padding: 15px 56px;
+    border-radius: 44px;
+    border: 2px solid rgba(140, 180, 255, 0.9);
+    background: radial-gradient(circle at 40% 30%, rgba(110, 160, 255, 0.55), rgba(60, 40, 190, 0.45));
+    color: #eaf2ff;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-indent: 4px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    box-shadow: 0 0 28px rgba(90, 140, 255, 0.6), inset 0 0 20px rgba(130, 180, 255, 0.3);
+    transition: transform 0.09s ease, box-shadow 0.09s ease;
+  }
+  #winRetryBtn {
+    border-color: rgba(255, 220, 130, 0.9);
+    background: radial-gradient(circle at 40% 30%, rgba(255, 220, 130, 0.5), rgba(200, 130, 30, 0.45));
+    color: #fff8e0;
+    box-shadow: 0 0 28px rgba(255, 200, 80, 0.6), inset 0 0 20px rgba(255, 230, 160, 0.3);
+  }
+  #retryBtn:active, #winRetryBtn:active {
+    transform: scale(0.94);
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<button id="fovLockBtn">锁定FOV: 关</button>
+<div id="hint">方向键/F · 左右换道 · 上跳下滑 · 对准管道口进入</div>
+<button id="boostBtn">加速</button>
+
+<!-- 音效：首次触摸屏幕后持续循环播放 -->
+<audio id="touchSound" src="https://hwmov.a.yximgs.com/upic/2024/02/28/13/BMjAyNDAyMjgxMzIwNDdfMzcyNjUyNjE5NF8xMjYxMzQ5MDE0OTBfMl8z_b_B0bac1c9a3cc15a57168f98e208f54b1e.mp4?clientCacheKey=3xf6mdrfzqppjr4_b.mp4&tt=b&di=7b39f346&bp=10000" preload="auto" loop></audio>
+
+<div id="failOverlay">
+  <div class="fail-title">失败</div>
+  <div class="fail-sub">球撞上了障碍或掉入了深渊</div>
+  <button id="retryBtn">重新开始</button>
+</div>
+
+<div id="winOverlay">
+  <div class="win-title">胜利</div>
+  <div class="win-sub">你找到了传说中的白色方块</div>
+  <button id="winRetryBtn">再来一局</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* =========================================================
+   常量配置
+   ========================================================= */
+const TILE      = 4;
+const GAP       = 0.72;
+const STEP      = TILE + GAP;
+
+const MAX_SPEED = 25;
+const ACCEL     = 30;
+const DECEL     = 2.2;
+
+const BALL_R    = 1.15;
+const GRAVITY   = 42;
+const JUMP_H    = 2 * TILE;
+const JUMP_V    = Math.sqrt(2 * GRAVITY * JUMP_H);
+
+// AI 球参数
+const AI_JUMP_V = Math.sqrt(2 * GRAVITY * 3 * TILE);
+
+const SUPPORT_BUF  = BALL_R * 0.8;
+const SAFE_ROWS    = 8;
+const SAFE_BACK    = 3;
+const DEATH_DIST   = 0.04;
+
+// 拱门参数
+const ARCH_HEIGHT = 3.3;
+const BEAM_HEIGHT = 0.6;
+const PILLAR_W    = 0.5;
+
+// FOV 范围
+const FOV_MIN = 75;
+const FOV_MAX = 135;
+
+// 流式加载
+const LOAD_R   = 56;
+const REMOVE_R = 64;
+
+// 管道参数
+const PIPE_PROB   = 0.045;
+const PIPE_R      = 1.75;
+const PIPE_CLEAR  = 0.06;
+const PIPE_Y      = BALL_R + PIPE_CLEAR;
+const PIPE_TURN_R = STEP;
+
+/* =========================================================
+   渲染器 / 场景 / 相机
+   ========================================================= */
+const canvas   = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,
+  powerPreference: 'high-performance'
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+scene.fog = new THREE.Fog(0x000000, 38, 90);
+
+const camera = new THREE.PerspectiveCamera(
+  FOV_MIN,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  700
+);
+
+/* =========================================================
+   灯光
+   ========================================================= */
+scene.add(new THREE.AmbientLight(0x5a6fbb, 1.35));
+
+const keyLight = new THREE.DirectionalLight(0xbcd6ff, 1.7);
+keyLight.position.set(-8, 14, 7);
+scene.add(keyLight);
+
+const rimLight = new THREE.DirectionalLight(0xc060ff, 0.85);
+rimLight.position.set(9, 5, -8);
+scene.add(rimLight);
+
+const fillLight = new THREE.DirectionalLight(0x3366ff, 0.7);
+fillLight.position.set(0, 3, 12);
+scene.add(fillLight);
+
+/* =========================================================
+   球体纹理（玩家）
+   ========================================================= */
+const TEX_SIZE = 384;
+const GRID_N   = 12;
+const CELL     = TEX_SIZE / GRID_N;
+
+const texCanvas = document.createElement('canvas');
+texCanvas.width  = TEX_SIZE;
+texCanvas.height = TEX_SIZE;
+const tctx = texCanvas.getContext('2d');
+
+const cellsTex = [];
+for (let j = 0; j < GRID_N; j++) {
+  for (let i = 0; i < GRID_N; i++) {
+    cellsTex.push({
+      i, j,
+      hue:   205 + Math.random() * 45,
+      light: 38 + Math.random() * 26,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+function drawBallTexture(t) {
+  tctx.fillStyle = '#04060f';
+  tctx.fillRect(0, 0, TEX_SIZE, TEX_SIZE);
+
+  for (let k = 0; k < cellsTex.length; k++) {
+    const c = cellsTex[k];
+    const hue   = c.hue   + Math.sin(t * 1.6 + c.phase) * 9;
+    const light = c.light + Math.sin(t * 2.3 + c.phase * 1.7) * 6;
+
+    tctx.fillStyle = `hsl(${hue.toFixed(1)}, 96%, ${light.toFixed(1)}%)`;
+    tctx.fillRect(
+      c.i * CELL + 1.2,
+      c.j * CELL + 1.2,
+      CELL - 2.4,
+      CELL - 2.4
+    );
+  }
+}
+
+drawBallTexture(0);
+
+const ballTexture = new THREE.CanvasTexture(texCanvas);
+ballTexture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+ballTexture.colorSpace = THREE.SRGBColorSpace;
+
+/* =========================================================
+   人机球黑白像素纹理
+   ========================================================= */
+const AI_TEX_SIZE = 256;
+const AI_GRID     = 8;
+const AI_GAP_PX   = 3;
+
+const aiCanvas = document.createElement('canvas');
+aiCanvas.width  = AI_TEX_SIZE;
+aiCanvas.height = AI_TEX_SIZE;
+const aiCtx = aiCanvas.getContext('2d');
+
+const aiCells = [];
+for (let j = 0; j < AI_GRID; j++) {
+  for (let i = 0; i < AI_GRID; i++) {
+    aiCells.push({
+      i, j,
+      bright: 0.15 + Math.random() * 0.7,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+function drawAITexture(t) {
+  aiCtx.fillStyle = '#000000';
+  aiCtx.fillRect(0, 0, AI_TEX_SIZE, AI_TEX_SIZE);
+
+  const cellPx = AI_TEX_SIZE / AI_GRID;
+  for (let k = 0; k < aiCells.length; k++) {
+    const c = aiCells[k];
+    const brightness = c.bright + Math.sin(t * 2.5 + c.phase) * 0.18;
+    const v = Math.max(0, Math.min(1, brightness));
+    const gray = Math.floor(v * 255);
+    aiCtx.fillStyle = `rgb(${gray},${gray},${gray})`;
+    aiCtx.fillRect(
+      c.i * cellPx + AI_GAP_PX,
+      c.j * cellPx + AI_GAP_PX,
+      cellPx - AI_GAP_PX * 2,
+      cellPx - AI_GAP_PX * 2
+    );
+  }
+}
+
+drawAITexture(0);
+
+const aiTexture = new THREE.CanvasTexture(aiCanvas);
+aiTexture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+aiTexture.colorSpace = THREE.SRGBColorSpace;
+
+/* =========================================================
+   障碍物像素格纹理
+   ========================================================= */
+const OBST_TEX_SIZE = 512;
+const OBST_GRID     = 8;
+const OBST_GAP_PX   = Math.max(1, Math.round(0.07 * OBST_TEX_SIZE / TILE));
+
+const obstCanvas = document.createElement('canvas');
+obstCanvas.width  = OBST_TEX_SIZE;
+obstCanvas.height = OBST_TEX_SIZE;
+const octx = obstCanvas.getContext('2d');
+
+function buildObstacleTexture() {
+  octx.fillStyle = '#000000';
+  octx.fillRect(0, 0, OBST_TEX_SIZE, OBST_TEX_SIZE);
+
+  const cellPx = OBST_TEX_SIZE / OBST_GRID;
+  octx.fillStyle = '#ffffff';
+  for (let j = 0; j < OBST_GRID; j++) {
+    for (let i = 0; i < OBST_GRID; i++) {
+      octx.fillRect(
+        i * cellPx + OBST_GAP_PX,
+        j * cellPx + OBST_GAP_PX,
+        cellPx - OBST_GAP_PX * 2,
+        cellPx - OBST_GAP_PX * 2
+      );
+    }
+  }
+}
+buildObstacleTexture();
+
+const obstTexture = new THREE.CanvasTexture(obstCanvas);
+obstTexture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+obstTexture.colorSpace = THREE.SRGBColorSpace;
+obstTexture.wrapS = THREE.ClampToEdgeWrapping;
+obstTexture.wrapT = THREE.ClampToEdgeWrapping;
+
+/* =========================================================
+   玩家球体
+   ========================================================= */
+const ballGeo = new THREE.SphereGeometry(BALL_R, 48, 32);
+const ballMat = new THREE.MeshStandardMaterial({
+  map: ballTexture,
+  emissive: 0xffffff,
+  emissiveMap: ballTexture,
+  emissiveIntensity: 0.38,
+  roughness: 0.42,
+  metalness: 0.18
+});
+const ball = new THREE.Mesh(ballGeo, ballMat);
+ball.position.set(0, BALL_R, 0);
+scene.add(ball);
+
+/* =========================================================
+   AI 球体资源
+   ========================================================= */
+const aiGeo = new THREE.SphereGeometry(1, 24, 16);
+
+const aiMatNormal = new THREE.MeshStandardMaterial({
+  map: aiTexture,
+  emissive: 0xffffff,
+  emissiveMap: aiTexture,
+  emissiveIntensity: 0.5,
+  roughness: 0.42,
+  metalness: 0.28
+});
+
+/* =========================================================
+   几何体模板
+   ========================================================= */
+const planeGeo = new THREE.PlaneGeometry(TILE, TILE);
+planeGeo.rotateX(-Math.PI / 2);
+const boxGeo = new THREE.BoxGeometry(TILE, TILE, TILE);
+
+/* =========================================================
+   哈希工具
+   ========================================================= */
+function hashU(i, j, salt) {
+  let x = (Math.imul(i | 0, 0x27D4EB2D) ^
+           Math.imul(j | 0, 0x165667B1) ^
+           Math.imul(salt | 0, 0x9E3779B9)) >>> 0;
+  x = Math.imul(x ^ (x >>> 15), 0x2C1B3C6D) >>> 0;
+  x = Math.imul(x ^ (x >>> 12), 0x297A2D39) >>> 0;
+  x = (x ^ (x >>> 15)) >>> 0;
+  return x / 4294967296;
+}
+
+/* =========================================================
+   格子类型
+   ========================================================= */
+const OBSTACLE_TYPES = ['cube', 'cube2', 'arch', 'mine'];
+
+function rollType(i, j) {
+  if (i >= -SAFE_BACK && i < SAFE_ROWS) return 'flat';
+
+  const rObs = hashU(i, j, 44);
+  if (rObs < 0.10) {
+    const r3 = hashU(i, j, 33);
+    return OBSTACLE_TYPES[Math.min(3, Math.floor(r3 * 4))];
+  }
+
+  const rEmpty = hashU(i, j, 55);
+  if (rEmpty < 0.075) return 'empty';
+
+  return 'flat';
+}
+
+function rollWhite(i, j, type) {
+  if (type !== 'cube' && type !== 'cube2' && type !== 'arch') return false;
+  return hashU(i, j, 999) < 0.001;
+}
+
+/* =========================================================
+   管道
+   ========================================================= */
+function pipeCandidate(i, j) {
+  if (i >= -SAFE_BACK && i < SAFE_ROWS + 2) return false;
+  return hashU(i, j, 77) < PIPE_PROB;
+}
+
+function getPipeInfo(i, j) {
+  if (!pipeCandidate(i, j)) return null;
+  if (pipeCandidate(i - 1, j) || pipeCandidate(i, j - 1)) return null;
+  if (rollType(i, j) !== 'flat') return null;
+
+  const rA = hashU(i, j, 88);
+  const rB = hashU(i ^ 0x5A5A5A5A, j ^ 0x3C3C3C3C, 91);
+  const rC = hashU(i ^ 0x12345678, j ^ 0x87654321, 94);
+
+  let r = (rA * 0.34 + rB * 0.33 + rC * 0.33);
+  r = (r * 2654435761) % 1;
+  if (r < 0) r += 1;
+
+  let kind;
+  if (r < 1 / 3)      kind = 'R';
+  else if (r < 2 / 3) kind = 'L';
+  else                kind = 'U';
+
+  const flip = i < 0;
+  return { i, j, kind, flip };
+}
+
+function pipeArc(info) {
+  const wx = info.i * STEP;
+  const wz = info.j * STEP;
+  const R  = PIPE_TURN_R;
+  const flip = info.flip;
+
+  let cx, cz, a0, a1;
+
+  if (info.kind === 'R') {
+    if (flip) {
+      cx = wx; cz = wz + R;
+      a0 = 3 * Math.PI / 2; a1 = Math.PI;
+    } else {
+      cx = wx; cz = wz - R;
+      a0 = Math.PI / 2; a1 = 0;
+    }
+  } else if (info.kind === 'L') {
+    if (flip) {
+      cx = wx; cz = wz - R;
+      a0 = Math.PI / 2; a1 = Math.PI;
+    } else {
+      cx = wx; cz = wz + R;
+      a0 = -Math.PI / 2; a1 = 0;
+    }
+  } else {
+    if (flip) {
+      cx = wx; cz = wz + R;
+      a0 = 3 * Math.PI / 2; a1 = Math.PI / 2;
+    } else {
+      cx = wx; cz = wz - R;
+      a0 = Math.PI / 2; a1 = -Math.PI / 2;
+    }
+  }
+
+  return { cx, cz, R, a0, a1, wx, wz, flip };
+}
+
+function arcPoint(st, s) {
+  const a = st.a0 + (st.a1 - st.a0) * s;
+  return {
+    x: st.cx + st.R * Math.cos(a),
+    z: st.cz + st.R * Math.sin(a)
+  };
+}
+
+function arcDir(st, s) {
+  const e = 0.002;
+  const s0 = Math.max(0, s - e);
+  const s1 = Math.min(1, s + e);
+  const p0 = arcPoint(st, s0);
+  const p1 = arcPoint(st, s1);
+  let dx = p1.x - p0.x;
+  let dz = p1.z - p0.z;
+  const len = Math.hypot(dx, dz) || 1;
+  return { x: dx / len, z: dz / len };
+}
+
+function pipeCovers(info, absI, absJ) {
+  const di = absI - info.i;
+  const dj = absJ - info.j;
+  const flip = info.flip;
+
+  if (info.kind === 'R') {
+    if (flip) return (di === -1 || di === 0) && (dj === 0 || dj === 1);
+    return (di === 0 || di === 1) && (dj === -1 || dj === 0);
+  }
+  if (info.kind === 'L') {
+    if (flip) return (di === -1 || di === 0) && (dj === -1 || dj === 0);
+    return (di === 0 || di === 1) && (dj === 0 || dj === 1);
+  }
+  if (flip) {
+    if (di === 0 && dj >= 0 && dj <= 2) return true;
+    if (di === -1 && dj === 1) return true;
+    return false;
+  }
+  if (di === 0 && dj >= -2 && dj <= 0) return true;
+  if (di === 1 && dj === -1) return true;
+  return false;
+}
+
+function isCoveredByPipe(i, j) {
+  for (let di = -1; di <= 1; di++) {
+    for (let dj = -2; dj <= 2; dj++) {
+      const info = getPipeInfo(i + di, j + dj);
+      if (info && pipeCovers(info, i, j)) return true;
+    }
+  }
+  return false;
+}
+
+/* =========================================================
+   管道网格
+   ========================================================= */
+class ArcCurve extends THREE.Curve {
+  constructor(cx, cy, cz, R, a0, a1) {
+    super();
+    this.cx = cx; this.cy = cy; this.cz = cz;
+    this.R = R; this.a0 = a0; this.a1 = a1;
+  }
+  getPoint(t, target = new THREE.Vector3()) {
+    const a = this.a0 + (this.a1 - this.a0) * t;
+    return target.set(
+      this.cx + this.R * Math.cos(a),
+      this.cy,
+      this.cz + this.R * Math.sin(a)
+    );
+  }
+}
+
+let pipeMat = null;
+function getPipeMat() {
+  if (!pipeMat) {
+    pipeMat = new THREE.MeshStandardMaterial({
+      color: 0x1b2a5e,
+      emissive: 0x2244cc,
+      emissiveIntensity: 0.55,
+      roughness: 0.32,
+      metalness: 0.65,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.9
+    });
+  }
+  return pipeMat;
+}
+
+const ringMat = new THREE.MeshStandardMaterial({
+  color: 0x9fc4ff,
+  emissive: 0x6699ff,
+  emissiveIntensity: 1.4,
+  roughness: 0.25,
+  metalness: 0.5
+});
+
+function buildPipeMesh(info) {
+  const st = pipeArc(info);
+  const group = new THREE.Group();
+
+  const localCx = st.cx - st.wx;
+  const localCz = st.cz - st.wz;
+
+  const curve = new ArcCurve(localCx, PIPE_Y, localCz, st.R, st.a0, st.a1);
+  const tubeGeo = new THREE.TubeGeometry(curve, 56, PIPE_R, 14, false);
+  const tube = new THREE.Mesh(tubeGeo, getPipeMat());
+  group.add(tube);
+
+  const ringGeo = new THREE.TorusGeometry(PIPE_R, 0.13, 8, 26);
+
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.position.set(0, PIPE_Y, 0);
+  ring.rotation.y = Math.PI / 2;
+  group.add(ring);
+
+  const end = curve.getPoint(1);
+  const dEnd = arcDir(st, 1);
+  const ring2 = new THREE.Mesh(ringGeo, ringMat);
+  ring2.position.copy(end);
+  ring2.rotation.y = Math.atan2(dEnd.x, dEnd.z);
+  group.add(ring2);
+
+  return group;
+}
+
+/* =========================================================
+   对象池
+   ========================================================= */
+const pools = { flat: [], cube: [], cube2: [], arch: [], mine: [] };
+
+function createObj(type) {
+  const group = new THREE.Group();
+  const mats  = [];
+
+  if (type === 'flat') {
+    const m = new THREE.Mesh(planeGeo, new THREE.MeshLambertMaterial());
+    mats.push(m.material);
+    group.add(m);
+
+  } else if (type === 'cube') {
+    const m = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({
+      map: obstTexture, color: 0x4a6ccc
+    }));
+    m.position.y = TILE / 2;
+    mats.push(m.material);
+    group.add(m);
+
+  } else if (type === 'cube2') {
+    const m = new THREE.Mesh(boxGeo, new THREE.MeshLambertMaterial({
+      map: obstTexture, color: 0x4a6ccc
+    }));
+    m.scale.y = 2;
+    m.position.y = TILE;
+    mats.push(m.material);
+    group.add(m);
+
+  } else if (type === 'arch') {
+    const base = new THREE.Mesh(planeGeo, new THREE.MeshLambertMaterial());
+    mats.push(base.material);
+    group.add(base);
+
+    const pillarGeo = new THREE.BoxGeometry(TILE, ARCH_HEIGHT, PILLAR_W);
+
+    const lp = new THREE.Mesh(pillarGeo, new THREE.MeshLambertMaterial({
+      map: obstTexture, color: 0x4a6ccc
+    }));
+    lp.position.set(0, ARCH_HEIGHT / 2, -(TILE / 2 - PILLAR_W / 2));
+    mats.push(lp.material);
+    group.add(lp);
+
+    const rp = new THREE.Mesh(pillarGeo, new THREE.MeshLambertMaterial({
+      map: obstTexture, color: 0x4a6ccc
+    }));
+    rp.position.set(0, ARCH_HEIGHT / 2, (TILE / 2 - PILLAR_W / 2));
+    mats.push(rp.material);
+    group.add(rp);
+
+    const beamGeo = new THREE.BoxGeometry(TILE, BEAM_HEIGHT, TILE - 2 * PILLAR_W);
+    const beam = new THREE.Mesh(beamGeo, new THREE.MeshLambertMaterial({
+      map: obstTexture, color: 0x4a6ccc
+    }));
+    beam.position.set(0, ARCH_HEIGHT + BEAM_HEIGHT / 2, 0);
+    mats.push(beam.material);
+    group.add(beam);
+
+  } else if (type === 'mine') {
+    const m = new THREE.Mesh(planeGeo, new THREE.MeshLambertMaterial());
+    mats.push(m.material);
+    group.add(m);
+  }
+
+  return { group, mats };
+}
+
+/* =========================================================
+   世界格子管理
+   ========================================================= */
+const cells = new Map();
+
+function ckey(i, j) {
+  return (i + 32768) * 65536 + (j + 32768);
+}
+
+function spawnCell(i, j) {
+  const key = ckey(i, j);
+  if (cells.has(key)) return;
+
+  const wx = i * STEP;
+  const wz = j * STEP;
+
+  const info = getPipeInfo(i, j);
+  if (info) {
+    const group = new THREE.Group();
+
+    const gm = new THREE.Mesh(planeGeo, new THREE.MeshLambertMaterial());
+    gm.position.y = 0;
+    group.add(gm);
+
+    const pipeGroup = buildPipeMesh(info);
+    group.add(pipeGroup);
+
+    group.position.set(wx, 0, wz);
+    scene.add(group);
+
+    cells.set(key, {
+      i, j, wx, wz, type: 'pipe',
+      group, mats: [gm.material], yMin: null, yMax: null,
+      rotated: false, isWhite: false
+    });
+    return;
+  }
+
+  let type;
+  if (isCoveredByPipe(i, j)) {
+    type = 'flat';
+  } else {
+    type = rollType(i, j);
+  }
+
+  if (type === 'empty') {
+    cells.set(key, {
+      i, j, wx, wz, type: 'empty',
+      group: null, mats: [], yMin: null, yMax: null,
+      rotated: false, isWhite: false
+    });
+    return;
+  }
+
+  let obj = pools[type].pop();
+  if (!obj) obj = createObj(type);
+
+  obj.group.rotation.y = 0;
+
+  let yMin = null, yMax = null;
+  let rotated = false;
+
+  if (type === 'cube') {
+    yMin = 0; yMax = TILE;
+  } else if (type === 'cube2') {
+    yMin = 0; yMax = 2 * TILE;
+  } else if (type === 'arch') {
+    rotated = hashU(i, j, 55) < 0.5;
+    obj.group.rotation.y = rotated ? Math.PI / 2 : 0;
+    yMin = null; yMax = null;
+  }
+
+  const isWhite = rollWhite(i, j, type);
+  if (isWhite) {
+    for (let m = 0; m < obj.mats.length; m++) {
+      if (obj.mats[m] && obj.mats[m].color) {
+        obj.mats[m].color.setHex(0xffffff);
+      }
+      if (obj.mats[m] && obj.mats[m].emissive) {
+        obj.mats[m].emissive.setHex(0xffffff);
+        obj.mats[m].emissiveIntensity = 0.6;
+      }
+    }
+  } else {
+    for (let m = 0; m < obj.mats.length; m++) {
+      if (obj.mats[m] && obj.mats[m].emissive) {
+        obj.mats[m].emissive.setHex(0x000000);
+        obj.mats[m].emissiveIntensity = 1;
+      }
+    }
+  }
+
+  obj.group.position.set(wx, 0, wz);
+  scene.add(obj.group);
+
+  cells.set(key, {
+    i, j, wx, wz, type,
+    group: obj.group, mats: obj.mats,
+    yMin, yMax, rotated, isWhite
+  });
+}
+
+function despawnCell(key) {
+  const c = cells.get(key);
+  if (!c) return;
+
+  if (c.group) {
+    scene.remove(c.group);
+    if (c.type === 'pipe') {
+      c.group.traverse(o => {
+        if (o.geometry && o.geometry !== planeGeo && o.geometry.dispose) {
+          o.geometry.dispose();
+        }
+      });
+    } else if (pools[c.type]) {
+      pools[c.type].push({ group: c.group, mats: c.mats });
+    }
+  }
+  cells.delete(key);
+}
+
+function ensureCells(px, pz) {
+  const ci = Math.round(px / STEP);
+  const cj = Math.round(pz / STEP);
+  const rad = Math.ceil(LOAD_R / STEP);
+  const r2 = LOAD_R * LOAD_R;
+
+  for (let di = -rad; di <= rad; di++) {
+    for (let dj = -rad; dj <= rad; dj++) {
+      const i = ci + di;
+      const j = cj + dj;
+      const key = ckey(i, j);
+      if (cells.has(key)) continue;
+
+      const wx = i * STEP;
+      const wz = j * STEP;
+      const dx = wx - px;
+      const dz = wz - pz;
+      if (dx * dx + dz * dz > r2) continue;
+
+      spawnCell(i, j);
+    }
+  }
+}
+
+function cullCells(px, pz) {
+  const r2 = REMOVE_R * REMOVE_R;
+  const dead = [];
+  for (const [key, c] of cells) {
+    const dx = c.wx - px;
+    const dz = c.wz - pz;
+    if (dx * dx + dz * dz > r2) dead.push(key);
+  }
+  for (let k = 0; k < dead.length; k++) despawnCell(dead[k]);
+}
+
+function clearWorld() {
+  for (const [key, c] of cells) {
+    if (c.group) {
+      scene.remove(c.group);
+      if (c.type === 'pipe') {
+        c.group.traverse(o => {
+          if (o.geometry && o.geometry !== planeGeo && o.geometry.dispose) {
+            o.geometry.dispose();
+          }
+        });
+      } else if (pools[c.type]) {
+        pools[c.type].push({ group: c.group, mats: c.mats });
+      }
+    }
+  }
+  cells.clear();
+}
+
+/* =========================================================
+   碰撞判定
+   ========================================================= */
+function hasSupport(px, pz) {
+  const lim = TILE / 2 + SUPPORT_BUF;
+
+  const i0 = Math.floor((px - lim) / STEP);
+  const i1 = Math.ceil((px + lim) / STEP);
+  const j0 = Math.floor((pz - lim) / STEP);
+  const j1 = Math.ceil((pz + lim) / STEP);
+
+  for (let i = i0; i <= i1; i++) {
+    for (let j = j0; j <= j1; j++) {
+      const wx = i * STEP;
+      const wz = j * STEP;
+      if (Math.abs(px - wx) > lim) continue;
+      if (Math.abs(pz - wz) > lim) continue;
+
+      const c = cells.get(ckey(i, j));
+      if (!c) return true;
+      if (c.type === 'empty') continue;
+      return true;
+    }
+  }
+  return false;
+}
+
+function sphereAABB(sx, sy, sz, r, minX, minY, minZ, maxX, maxY, maxZ) {
+  const cx = Math.max(minX, Math.min(sx, maxX));
+  const cy = Math.max(minY, Math.min(sy, maxY));
+  const cz = Math.max(minZ, Math.min(sz, maxZ));
+  const dx = sx - cx, dy = sy - cy, dz = sz - cz;
+  return dx * dx + dy * dy + dz * dz < r * r;
+}
+
+function archHits(c, ballBottom, ballTop) {
+  const wx = c.wx, wz = c.wz, rotated = c.rotated;
+  const ballCy = ballY + BALL_R;
+
+  const beamY0 = ARCH_HEIGHT;
+  const beamY1 = ARCH_HEIGHT + BEAM_HEIGHT;
+
+  if (ballTop > beamY0 && ballBottom < beamY1) {
+    let bMinX, bMaxX, bMinZ, bMaxZ;
+    if (rotated) {
+      const halfX = (TILE - 2 * PILLAR_W) / 2;
+      bMinX = wx - halfX; bMaxX = wx + halfX;
+      bMinZ = wz - TILE / 2; bMaxZ = wz + TILE / 2;
+    } else {
+      const halfZ = (TILE - 2 * PILLAR_W) / 2;
+      bMinX = wx - TILE / 2; bMaxX = wx + TILE / 2;
+      bMinZ = wz - halfZ; bMaxZ = wz + halfZ;
+    }
+    if (sphereAABB(ballX, ballCy, ballZ, BALL_R,
+        bMinX, beamY0, bMinZ,
+        bMaxX, beamY1, bMaxZ)) {
+      return true;
+    }
+  }
+
+  const pillarY0 = 0;
+  const pillarY1 = ARCH_HEIGHT;
+
+  if (ballTop > pillarY0 && ballBottom < pillarY1) {
+    const offset = TILE / 2 - PILLAR_W / 2;
+    for (const s of [-1, 1]) {
+      let pMinX, pMaxX, pMinZ, pMaxZ;
+      if (rotated) {
+        const pillarX = wx + s * offset;
+        pMinX = pillarX - PILLAR_W / 2; pMaxX = pillarX + PILLAR_W / 2;
+        pMinZ = wz - TILE / 2; pMaxZ = wz + TILE / 2;
+      } else {
+        const pillarZ = wz + s * offset;
+        pMinX = wx - TILE / 2; pMaxX = wx + TILE / 2;
+        pMinZ = pillarZ - PILLAR_W / 2; pMaxZ = pillarZ + PILLAR_W / 2;
+      }
+      if (sphereAABB(ballX, ballCy, ballZ, BALL_R,
+          pMinX, pillarY0, pMinZ,
+          pMaxX, pillarY1, pMaxZ)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function checkObstacleHit() {
+  const ballBottom = ballY;
+  const ballTop    = ballY + 2 * BALL_R;
+  const lim        = TILE / 2;
+
+  const i0 = Math.floor((ballX - lim) / STEP);
+  const i1 = Math.ceil((ballX + lim) / STEP);
+  const j0 = Math.floor((ballZ - lim) / STEP);
+  const j1 = Math.ceil((ballZ + lim) / STEP);
+
+  for (let i = i0; i <= i1; i++) {
+    for (let j = j0; j <= j1; j++) {
+      const c = cells.get(ckey(i, j));
+      if (!c) continue;
+
+      if (c.type === 'cube' || c.type === 'cube2') {
+        if (Math.abs(ballX - c.wx) > lim) continue;
+        if (Math.abs(ballZ - c.wz) > lim) continue;
+        if (ballTop <= c.yMin || ballBottom >= c.yMax) continue;
+        return { isWhite: c.isWhite };
+      }
+
+      if (c.type === 'arch') {
+        if (archHits(c, ballBottom, ballTop)) {
+          return { isWhite: c.isWhite };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function hitsMine() {
+  if (ballY > 0.35) return false;
+
+  const lim = TILE / 2;
+
+  const i0 = Math.floor((ballX - lim) / STEP);
+  const i1 = Math.ceil((ballX + lim) / STEP);
+  const j0 = Math.floor((ballZ - lim) / STEP);
+  const j1 = Math.ceil((ballZ + lim) / STEP);
+
+  for (let i = i0; i <= i1; i++) {
+    for (let j = j0; j <= j1; j++) {
+      const c = cells.get(ckey(i, j));
+      if (!c || c.type !== 'mine') continue;
+
+      if (Math.abs(ballX - c.wx) > lim) continue;
+      if (Math.abs(ballZ - c.wz) > lim) continue;
+
+      return true;
+    }
+  }
+  return false;
+}
+
+/* =========================================================
+   AI 系统
+   ========================================================= */
+const ais = [];
+let aiSpawnTimer = 2.0;
+
+function trySpawnAI() {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const ang = Math.atan2(dirZ, dirX) + (Math.random() * 2 - 1) * 1.0;
+    const dist = 25 + Math.random() * 30;
+    const sx = ballX + Math.cos(ang) * dist;
+    const sz = ballZ + Math.sin(ang) * dist;
+
+    const ci = Math.round(sx / STEP);
+    const cj = Math.round(sz / STEP);
+    const c = cells.get(ckey(ci, cj));
+    if (!c || c.type !== 'flat') continue;
+
+    const nodes = [];
+    let cx = sx, cz = sz;
+    nodes.push({ x: cx, z: cz });
+
+    const nodeCount = 3 + Math.floor(Math.random() * 6);
+    for (let k = 0; k < nodeCount; k++) {
+      const baseAng = Math.atan2(dirZ, dirX);
+      const turn = (Math.random() * 2 - 1) * 0.85;
+      const a = baseAng + turn;
+      const segLen = (4 + Math.random() * 10) * STEP;
+      cx += Math.cos(a) * segLen;
+      cz += Math.sin(a) * segLen;
+      nodes.push({ x: cx, z: cz });
+    }
+
+    const r = BALL_R * (0.9 + Math.random() * 0.35);
+    const speed = 10 + Math.random() * 10;
+
+    const mesh = new THREE.Mesh(aiGeo, aiMatNormal);
+    mesh.scale.setScalar(r);
+    mesh.position.set(sx, r, sz);
+    scene.add(mesh);
+
+    ais.push({
+      nodes,
+      nodeIdx: 1,
+      x: sx, y: r, z: sz,
+      r, speed,
+      vy: 0,
+      onGround: true,
+      mesh,
+      dead: false,
+      faceX: 0, faceZ: 0
+    });
+
+    return;
+  }
+}
+
+function needJumpAhead(ai, dirX_, dirZ_) {
+  const aheadDist = ai.r + TILE * 0.9;
+  const ax = ai.x + dirX_ * aheadDist;
+  const az = ai.z + dirZ_ * aheadDist;
+
+  const ci = Math.round(ax / STEP);
+  const cj = Math.round(az / STEP);
+
+  for (let di = -1; di <= 1; di++) {
+    for (let dj = -1; dj <= 1; dj++) {
+      const c = cells.get(ckey(ci + di, cj + dj));
+      if (!c) continue;
+      const t = c.type;
+      if (t !== 'cube' && t !== 'cube2' && t !== 'arch' &&
+          t !== 'pipe' && t !== 'empty') continue;
+
+      const dx = ax - c.wx;
+      const dz = az - c.wz;
+      if (Math.abs(dx) < TILE / 2 + ai.r &&
+          Math.abs(dz) < TILE / 2 + ai.r) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function updateAI(ai, dt) {
+  if (ai.dead) return;
+
+  if (ai.nodeIdx >= ai.nodes.length) {
+    ai.dead = true;
+    return;
+  }
+
+  const target = ai.nodes[ai.nodeIdx];
+  const dx = target.x - ai.x;
+  const dz = target.z - ai.z;
+  const dist = Math.hypot(dx, dz);
+
+  if (dist < 0.6) {
+    ai.nodeIdx++;
+    return;
+  }
+
+  const nDirX = dx / dist;
+  const nDirZ = dz / dist;
+
+  ai.faceX += (nDirX - ai.faceX) * Math.min(1, dt * 4);
+  ai.faceZ += (nDirZ - ai.faceZ) * Math.min(1, dt * 4);
+  const fl = Math.hypot(ai.faceX, ai.faceZ) || 1;
+  const fx = ai.faceX / fl;
+  const fz = ai.faceZ / fl;
+
+  const step = ai.speed * dt;
+  ai.x += nDirX * step;
+  ai.z += nDirZ * step;
+
+  if (ai.onGround) {
+    if (needJumpAhead(ai, fx, fz)) {
+      ai.vy = AI_JUMP_V;
+      ai.onGround = false;
+    }
+  }
+
+  if (!ai.onGround) {
+    ai.vy -= GRAVITY * dt;
+    ai.y += ai.vy * dt;
+    if (ai.y <= ai.r) {
+      ai.y = ai.r;
+      ai.vy = 0;
+      ai.onGround = true;
+    }
+  }
+
+  if (nDirX * nDirX + nDirZ * nDirZ > 1e-6) {
+    const axis = new THREE.Vector3(nDirZ, 0, -nDirX).normalize();
+    const quat = new THREE.Quaternion().setFromAxisAngle(axis, (ai.speed * dt) / ai.r);
+    ai.mesh.quaternion.premultiply(quat);
+  }
+
+  ai.mesh.position.set(ai.x, ai.y, ai.z);
+
+  const ddx = ai.x - ballX;
+  const ddz = ai.z - ballZ;
+  if (ddx * ddx + ddz * ddz > REMOVE_R * REMOVE_R * 2) {
+    ai.dead = true;
+  }
+}
+
+function cullAIs() {
+  for (let i = ais.length - 1; i >= 0; i--) {
+    if (ais[i].dead) {
+      scene.remove(ais[i].mesh);
+      ais.splice(i, 1);
+    }
+  }
+}
+
+/* =========================================================
+   状态变量
+   ========================================================= */
+let ballX = 0, ballZ = 0, ballY = 0;
+let vy = 0;
+let onGround = true;
+
+let dirX = 1, dirZ = 0;
+let lat = 0, latTarget = 0;
+
+let speed    = 12;
+let boosting = false;
+
+let camTargetX = 0, camTargetZ = 0;
+let elapsed  = 0;
+let texTimer = 0;
+let aiTexTimer = 0;
+let failed   = false;
+let won      = false;
+
+let pipeState = null;
+let pipeCooldown = 0;
+
+let lastCi = 99999, lastCj = 99999;
+
+let fovLocked = false;
+
+/* =========================================================
+   FOV 锁定开关
+   ========================================================= */
+const fovLockBtn = document.getElementById('fovLockBtn');
+fovLockBtn.addEventListener('click', () => {
+  fovLocked = !fovLocked;
+  fovLockBtn.textContent = fovLocked ? '锁定FOV: 开' : '锁定FOV: 关';
+  fovLockBtn.classList.toggle('on', fovLocked);
+});
+
+/* =========================================================
+   失败 / 胜利 / 重开
+   ========================================================= */
+const failOverlay = document.getElementById('failOverlay');
+const winOverlay  = document.getElementById('winOverlay');
+const boostBtn    = document.getElementById('boostBtn');
+
+function fail() {
+  if (failed || won) return;
+  failed = true;
+  failOverlay.classList.add('show');
+  boosting = false;
+  boostBtn.classList.remove('active');
+}
+
+function win() {
+  if (failed || won) return;
+  won = true;
+  winOverlay.classList.add('show');
+  boosting = false;
+  boostBtn.classList.remove('active');
+}
+
+function restart() {
+  failed = false;
+  won = false;
+
+  ballX = 0; ballZ = 0; ballY = 0;
+  vy = 0; onGround = true;
+
+  dirX = 1; dirZ = 0;
+  lat = 0; latTarget = 0;
+
+  speed = 12;
+  boosting = false;
+  elapsed = 0;
+  pipeState = null;
+  pipeCooldown = 0;
+
+  camTargetX = 0;
+  camTargetZ = 0;
+  lastCi = 99999;
+  lastCj = 99999;
+
+  boostBtn.classList.remove('active');
+
+  for (let i = 0; i < ais.length; i++) {
+    scene.remove(ais[i].mesh);
+  }
+  ais.length = 0;
+  aiSpawnTimer = 2.0;
+
+  clearWorld();
+  ensureCells(ballX, ballZ);
+  cullCells(ballX, ballZ);
+
+  camera.fov = FOV_MIN;
+  camera.updateProjectionMatrix();
+
+  failOverlay.classList.remove('show');
+  winOverlay.classList.remove('show');
+}
+
+document.getElementById('retryBtn').addEventListener('click', restart);
+document.getElementById('winRetryBtn').addEventListener('click', restart);
+
+/* =========================================================
+   交互：触摸 / 鼠标（首次触摸后持续播放音效）
+   ========================================================= */
+let pointerA = null;
+const touchSound = document.getElementById('touchSound');
+let audioStarted = false;      // ★ 音效是否已开始播放
+
+function moveLane(d) {
+  if (pipeState) return;
+  latTarget += d * STEP;
+}
+
+function jump() {
+  if (pipeState) return;
+  if (!onGround) return;
+  onGround = false;
+  vy = JUMP_V;
+}
+
+function fastFall() {
+  if (pipeState) return;
+  if (onGround) return;
+  vy = Math.min(vy, -JUMP_V * 2.2);
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  // ★ 仅首次触摸时启动音频，之后持续循环播放
+  if (!audioStarted && touchSound) {
+    audioStarted = true;
+    touchSound.loop = true;
+    touchSound.play().catch(() => {
+      // 若浏览器仍拦截，重置标志以便下次触摸重试
+      audioStarted = false;
+    });
+  }
+  pointerA = { x: e.clientX, y: e.clientY };
+}, { passive: true });
+
+canvas.addEventListener('pointercancel', () => {
+  pointerA = null;
+}, { passive: true });
+
+canvas.addEventListener('pointerup', (e) => {
+  if (!pointerA) return;
+
+  const ax = pointerA.x;
+  const ay = pointerA.y;
+  pointerA = null;
+
+  const dx = e.clientX - ax;
+  const dy = e.clientY - ay;
+
+  if (Math.hypot(dx, dy) < 16) return;
+
+  if (Math.abs(dy) > Math.abs(dx)) {
+    if (dy < 0) jump();
+    else        fastFall();
+  } else {
+    if (dx > 0) moveLane(1);
+    else        moveLane(-1);
+  }
+}, { passive: true });
+
+/* =========================================================
+   键盘操作
+   ========================================================= */
+window.addEventListener('keydown', (e) => {
+  if (e.repeat) {
+    if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault();
+      boosting = true;
+      boostBtn.classList.add('active');
+    }
+    return;
+  }
+
+  switch (e.key) {
+    case 'f':
+    case 'F':
+      e.preventDefault();
+      boosting = true;
+      boostBtn.classList.add('active');
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      jump();
+      break;
+    case 'ArrowDown':
+      e.preventDefault();
+      fastFall();
+      break;
+    case 'ArrowLeft':
+      e.preventDefault();
+      moveLane(-1);
+      break;
+    case 'ArrowRight':
+      e.preventDefault();
+      moveLane(1);
+      break;
+  }
+}, { passive: false });
+
+window.addEventListener('keyup', (e) => {
+  if (e.key === 'f' || e.key === 'F') {
+    boosting = false;
+    boostBtn.classList.remove('active');
+  }
+});
+
+/* =========================================================
+   加速按钮
+   ========================================================= */
+function startBoost(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  boosting = true;
+  boostBtn.classList.add('active');
+}
+function endBoost() {
+  boosting = false;
+  boostBtn.classList.remove('active');
+}
+
+boostBtn.addEventListener('pointerdown', startBoost, { passive: false });
+boostBtn.addEventListener('pointerup', endBoost);
+boostBtn.addEventListener('pointercancel', endBoost);
+boostBtn.addEventListener('pointerleave', endBoost);
+boostBtn.addEventListener('contextmenu', (e) => e.preventDefault());
+
+/* =========================================================
+   管道交互
+   ========================================================= */
+function enterPipe(info, reverse) {
+  const st = pipeArc(info);
+  const arcLen = st.R * Math.abs(st.a1 - st.a0);
+
+  pipeState = {
+    st,
+    s: reverse ? 0.999 : 0.001,
+    arcLen,
+    reverse: !!reverse,
+    savedX: ballX,
+    savedZ: ballZ,
+    savedDirX: dirX,
+    savedDirZ: dirZ,
+    pipeX: ballX,
+    pipeZ: ballZ
+  };
+
+  const p = arcPoint(st, reverse ? 1 : 0);
+  pipeState.pipeX = p.x;
+  pipeState.pipeZ = p.z;
+  ballY = PIPE_CLEAR;
+  vy = 0;
+  onGround = true;
+
+  lat = 0;
+  latTarget = 0;
+}
+
+function checkPipeInteraction() {
+  if (pipeCooldown > 0) return;
+  if (ballY > 0.1) return;
+
+  const ci = Math.round(ballX / STEP);
+  const cj = Math.round(ballZ / STEP);
+
+  let nearest = null;
+  let nearestD2 = Infinity;
+
+  for (let di = -1; di <= 2; di++) {
+    for (let dj = -2; dj <= 2; dj++) {
+      const info = getPipeInfo(ci + di, cj + dj);
+      if (!info) continue;
+
+      const wx = info.i * STEP;
+      const wz = info.j * STEP;
+      const dx = ballX - wx;
+      const dz = ballZ - wz;
+      const d2 = dx * dx + dz * dz;
+
+      if (d2 < nearestD2) { nearestD2 = d2; nearest = info; }
+    }
+  }
+
+  if (!nearest) return;
+
+  const st = pipeArc(nearest);
+  const startPt = { x: st.wx, z: st.wz };
+  const endPt = arcPoint(st, 1);
+  const endDir = arcDir(st, 1);
+
+  const dxS = ballX - startPt.x;
+  const dzS = ballZ - startPt.z;
+
+  if (nearest.flip) {
+    if (dxS > -1.2 && dxS < 3.0 &&
+        Math.abs(dzS) < PIPE_R * 0.9 &&
+        dirX < -0.3) {
+      enterPipe(nearest, false);
+      return;
+    }
+  } else {
+    if (dxS > -3.0 && dxS < 1.2 &&
+        Math.abs(dzS) < PIPE_R * 0.9 &&
+        dirX > 0.3) {
+      enterPipe(nearest, false);
+      return;
+    }
+  }
+
+  const dxE = ballX - endPt.x;
+  const dzE = ballZ - endPt.z;
+  if (Math.abs(dxE) < PIPE_R * 0.9 &&
+      Math.abs(dzE) < PIPE_R * 0.9) {
+    const dot = dirX * endDir.x + dirZ * endDir.z;
+    if (dot < -0.3) {
+      enterPipe(nearest, true);
+      return;
+    }
+    return;
+  }
+
+  let minD2 = Infinity;
+  for (let k = 0; k <= 20; k++) {
+    const p = arcPoint(st, k / 20);
+    const d2 = (ballX - p.x) ** 2 + (ballZ - p.z) ** 2;
+    if (d2 < minD2) minD2 = d2;
+  }
+
+  const hitR = PIPE_R * 0.75;
+  if (minD2 < hitR * hitR) {
+    fail();
+  }
+}
+
+/* =========================================================
+   颜色更新
+   ========================================================= */
+function updateColors(t) {
+  for (const c of cells.values()) {
+    if (!c.mats.length) continue;
+    if (c.isWhite) continue;
+
+    const p = (c.wx + c.wz) * 0.05 - t * 1.7;
+    const k = Math.sin(p) * 0.5 + 0.5;
+
+    let hue, light;
+
+    if (c.type === 'mine') {
+      hue   = 0.76 - k * 0.16;
+      light = 0.30 + k * 0.19;
+    } else if (c.type === 'cube' || c.type === 'cube2' || c.type === 'arch') {
+      const kr = 1 - k;
+      hue   = 0.60 + kr * 0.16;
+      light = 0.30 + kr * 0.19;
+    } else {
+      hue   = 0.60 + k * 0.16;
+      light = 0.30 + k * 0.19;
+    }
+
+    for (let m = 0; m < c.mats.length; m++) {
+      const mat = c.mats[m];
+      if (!mat || !mat.color) continue;
+      mat.color.setHSL(hue, 0.98, light);
+    }
+  }
+}
+
+/* =========================================================
+   运动更新
+   ========================================================= */
+function updatePipeMotion(dt) {
+  const st = pipeState.st;
+  const ds = (speed * dt) / pipeState.arcLen;
+
+  if (pipeState.reverse) {
+    pipeState.s -= ds;
+  } else {
+    pipeState.s += ds;
+  }
+
+  if (!pipeState.reverse && pipeState.s >= 1) {
+    const p = arcPoint(st, 1);
+    const d = arcDir(st, 1);
+
+    ballX = p.x;
+    ballZ = p.z;
+    dirX = d.x;
+    dirZ = d.z;
+
+    ballY = 0;
+    vy = 0;
+    onGround = true;
+
+    lat = 0;
+    latTarget = 0;
+
+    pipeState = null;
+    pipeCooldown = 0.6;
+    return;
+  }
+
+  if (pipeState.reverse && pipeState.s <= 0) {
+    const d0 = arcDir(st, 0);
+
+    ballX = st.wx;
+    ballZ = st.wz;
+    dirX = -d0.x;
+    dirZ = -d0.z;
+
+    ballY = 0;
+    vy = 0;
+    onGround = true;
+
+    lat = 0;
+    latTarget = 0;
+
+    pipeState = null;
+    pipeCooldown = 0.6;
+    return;
+  }
+
+  const p = arcPoint(st, pipeState.s);
+  const d = arcDir(st, pipeState.s);
+
+  pipeState.pipeX = p.x;
+  pipeState.pipeZ = p.z;
+
+  if (pipeState.reverse) {
+    dirX = -d.x;
+    dirZ = -d.z;
+  } else {
+    dirX = d.x;
+    dirZ = d.z;
+  }
+
+  ballY = PIPE_CLEAR;
+}
+
+function updateNormalMotion(dt) {
+  ballX += dirX * speed * dt;
+  ballZ += dirZ * speed * dt;
+
+  const prevLat = lat;
+  lat += (latTarget - lat) * Math.min(1, dt * 12);
+  const dLat = lat - prevLat;
+
+  if (dLat !== 0) {
+    ballX += -dirZ * dLat;
+    ballZ +=  dirX * dLat;
+  }
+
+  const sup = hasSupport(ballX, ballZ);
+
+  if (onGround && !sup) {
+    onGround = false;
+    vy = 0;
+  }
+
+  if (!onGround) {
+    vy -= GRAVITY * dt;
+    ballY += vy * dt;
+
+    if (sup) {
+      if (ballY <= 0) {
+        ballY = 0;
+        vy = 0;
+        onGround = true;
+      }
+    } else {
+      if (ballY < -DEATH_DIST) {
+        ballY = -DEATH_DIST;
+        vy = 0;
+        fail();
+      }
+    }
+  }
+
+  if (!failed && !won) checkPipeInteraction();
+}
+
+/* =========================================================
+   主循环
+   ========================================================= */
+const clock = new THREE.Clock();
+
+const tmpAxis = new THREE.Vector3();
+const tmpQuat = new THREE.Quaternion();
+
+let camBlend = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min(clock.getDelta(), 0.05);
+  elapsed += dt;
+
+  if (pipeCooldown > 0) pipeCooldown -= dt;
+
+  if (!failed && !won) {
+    if (boosting) {
+      speed = Math.min(MAX_SPEED, speed + ACCEL * dt);
+    } else {
+      speed = Math.max(0, speed - DECEL * dt);
+    }
+
+    if (pipeState) {
+      updatePipeMotion(dt);
+    } else {
+      updateNormalMotion(dt);
+    }
+
+    if (!failed && !won && !pipeState) {
+      const obsHit = checkObstacleHit();
+      if (obsHit) {
+        if (obsHit.isWhite) win();
+        else fail();
+      } else if (hitsMine()) {
+        fail();
+      }
+    }
+
+    const ci = Math.round(ballX / STEP);
+    const cj = Math.round(ballZ / STEP);
+    if (ci !== lastCi || cj !== lastCj) {
+      lastCi = ci;
+      lastCj = cj;
+      ensureCells(ballX, ballZ);
+    }
+    cullCells(ballX, ballZ);
+  }
+
+  /* ============ AI 更新 ============ */
+  if (!failed && !won) {
+    aiSpawnTimer -= dt;
+    if (aiSpawnTimer <= 0 && ais.length < 5) {
+      aiSpawnTimer = 2 + Math.random() * 3;
+      trySpawnAI();
+    }
+
+    for (let i = 0; i < ais.length; i++) {
+      updateAI(ais[i], dt);
+    }
+    cullAIs();
+  }
+
+  /* ============ 球体渲染 ============ */
+  let renderX, renderZ;
+  if (pipeState) {
+    renderX = pipeState.pipeX;
+    renderZ = pipeState.pipeZ;
+  } else {
+    renderX = ballX;
+    renderZ = ballZ;
+  }
+  ball.position.set(renderX, BALL_R + ballY, renderZ);
+
+  if (dirX * dirX + dirZ * dirZ > 1e-6) {
+    tmpAxis.set(dirZ, 0, -dirX).normalize();
+    tmpQuat.setFromAxisAngle(tmpAxis, (speed * dt) / BALL_R);
+    ball.quaternion.premultiply(tmpQuat);
+  }
+
+  /* ============ 相机 ============ */
+  if (!pipeState) {
+    camTargetX += (ballX - camTargetX) * Math.min(1, dt * 7);
+    camTargetZ += (ballZ - camTargetZ) * Math.min(1, dt * 7);
+  }
+
+  const targetBlend = pipeState ? 1 : 0;
+  camBlend += (targetBlend - camBlend) * Math.min(1, dt * 3.5);
+
+  const camDist   = 18 - camBlend * 12;
+  const camHeight = 11 - camBlend * 9;
+
+  camera.position.set(
+    camTargetX - dirX * camDist,
+    camHeight + ballY * 0.22 + camBlend * BALL_R,
+    camTargetZ - dirZ * camDist
+  );
+  camera.lookAt(
+    camTargetX + dirX * 3,
+    1.0 + ballY * 0.35,
+    camTargetZ + dirZ * 3
+  );
+
+  /* FOV */
+  if (!fovLocked) {
+    const fovTarget = FOV_MIN + (FOV_MAX - FOV_MIN) * (speed / MAX_SPEED);
+    if (Math.abs(camera.fov - fovTarget) > 0.02) {
+      camera.fov += (fovTarget - camera.fov) * Math.min(1, dt * 4.5);
+      camera.updateProjectionMatrix();
+    }
+  }
+
+  updateColors(elapsed);
+
+  texTimer += dt;
+  if (texTimer >= 0.08) {
+    texTimer = 0;
+    drawBallTexture(elapsed);
+    ballTexture.needsUpdate = true;
+  }
+
+  aiTexTimer += dt;
+  if (aiTexTimer >= 0.1) {
+    aiTexTimer = 0;
+    drawAITexture(elapsed);
+    aiTexture.needsUpdate = true;
+  }
+
+  renderer.render(scene, camera);
+}
+
+/* =========================================================
+   自适应
+   ========================================================= */
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+window.addEventListener('orientationchange', () => {
+  setTimeout(() => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }, 120);
+});
+
+/* =========================================================
+   启动
+   ========================================================= */
+ensureCells(ballX, ballZ);
+animate();
+</script>
+</body>
+</html>
