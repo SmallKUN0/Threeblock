@@ -1,0 +1,2543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>巢穴 · NEST</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden; background: #000;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  canvas { display: block; }
+
+  #appContainer {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #000;
+    z-index: 1;
+    transform: translate(-50%, -50%);
+    transform-origin: center center;
+    transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0s,
+                height 0s;
+  }
+  #appContainer.portrait {
+    width: 100vh;
+    height: 100vw;
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+
+  #sceneCanvas {
+    position: absolute; inset: 0;
+    touch-action: none;
+    z-index: 1;
+  }
+
+  #backBtn {
+    position: absolute;
+    right: max(18px, env(safe-area-inset-right));
+    top: max(18px, env(safe-area-inset-top));
+    z-index: 30;
+    padding: 10px 22px;
+    font-size: clamp(12px, 3vw, 13.5px);
+    letter-spacing: .12em;
+    color: #ffeef4;
+    background: linear-gradient(135deg, rgba(190, 40, 95, .34), rgba(90, 15, 50, .40));
+    border: 1.5px solid rgba(255, 120, 165, .55);
+    border-radius: 999px;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 0 20px rgba(255, 60, 120, .25);
+    transition: opacity .4s ease, background .25s ease, transform .25s ease, box-shadow .25s ease;
+    font-family: inherit;
+    -webkit-appearance: none;
+    outline: none;
+    opacity: 0; pointer-events: none;
+    white-space: nowrap;
+  }
+  #backBtn.show { opacity: 1; pointer-events: auto; }
+  #backBtn:hover, #backBtn:active {
+    background: linear-gradient(135deg, rgba(230, 55, 120, .55), rgba(130, 20, 70, .60));
+    border-color: rgba(255, 160, 195, .95);
+    box-shadow: 0 0 34px rgba(255, 70, 140, .55);
+    transform: translateY(-1px);
+  }
+
+  #menu {
+    position: absolute; inset: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity .7s ease, transform .7s ease;
+    overflow-y: auto;
+  }
+  #menu.hidden { opacity: 0; transform: scale(1.08); pointer-events: none; }
+  #bgCanvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    display: block;
+  }
+  .menu-inner {
+    position: relative; z-index: 2; text-align: center;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 10px;
+    padding: 30px 18px;
+  }
+  .logo {
+    font-size: clamp(48px, 14vw, 96px);
+    letter-spacing: .35em;
+    text-indent: .35em;
+    font-weight: 900;
+    color: #ffe9ef;
+    text-shadow:
+      0 0 12px rgba(255, 90, 140, .9),
+      0 0 40px rgba(180, 40, 90, .7),
+      0 0 90px rgba(120, 20, 70, .6);
+    animation: breathe 4.5s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { opacity: .92; transform: scale(1); }
+    50%      { opacity: 1;   transform: scale(1.035); }
+  }
+  .sub {
+    font-size: clamp(10px, 2.6vw, 14px);
+    letter-spacing: .9em; text-indent: .9em;
+    color: rgba(255, 180, 205, .65);
+    margin-bottom: 30px;
+  }
+  #startBtn {
+    position: relative;
+    padding: 16px 58px;
+    font-size: clamp(16px, 4.2vw, 19px);
+    letter-spacing: .28em; text-indent: .28em;
+    color: #ffeef4;
+    background: linear-gradient(135deg, rgba(190, 40, 95, .32), rgba(90, 15, 50, .38));
+    border: 1.5px solid rgba(255, 120, 165, .55);
+    border-radius: 999px;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 0 26px rgba(255, 60, 120, .28), inset 0 0 22px rgba(255, 90, 140, .12);
+    transition: all .28s ease;
+    font-family: inherit;
+    -webkit-appearance: none;
+    outline: none;
+  }
+  #startBtn:hover, #startBtn:active {
+    background: linear-gradient(135deg, rgba(230, 55, 120, .5), rgba(130, 20, 70, .55));
+    border-color: rgba(255, 160, 195, .95);
+    box-shadow: 0 0 46px rgba(255, 70, 140, .55), inset 0 0 30px rgba(255, 110, 160, .22);
+    transform: translateY(-2px) scale(1.03);
+  }
+  #startBtn:disabled { opacity: .5; cursor: default; transform: none; }
+
+  #btnFlipScreen {
+    padding: 10px 30px;
+    font-size: clamp(13px, 3.5vw, 15px);
+    letter-spacing: .2em;
+    color: #ffeef4;
+    background: linear-gradient(135deg, rgba(190, 40, 95, .25), rgba(90, 15, 50, .3));
+    border: 1.5px solid rgba(255, 120, 165, .45);
+    border-radius: 999px;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 0 18px rgba(255, 60, 120, .2);
+    transition: all .28s ease;
+    font-family: inherit;
+    -webkit-appearance: none;
+    outline: none;
+    margin-top: 6px;
+  }
+  #btnFlipScreen:hover, #btnFlipScreen:active {
+    background: linear-gradient(135deg, rgba(230, 55, 120, .45), rgba(130, 20, 70, .5));
+    border-color: rgba(255, 160, 195, .9);
+    box-shadow: 0 0 34px rgba(255, 70, 140, .45);
+    transform: translateY(-1px);
+  }
+
+  .asset-loading {
+    margin-top: 8px;
+    font-size: clamp(11px, 2.8vw, 13px);
+    color: rgba(255, 200, 220, .75);
+    letter-spacing: .22em;
+    height: 1.4em;
+  }
+
+  .settings {
+    margin-top: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 18px 22px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid rgba(255, 140, 180, .16);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .set-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+  }
+  .set-label {
+    font-size: clamp(10px, 2.6vw, 12px);
+    letter-spacing: .18em;
+    color: rgba(255, 190, 215, .78);
+    white-space: nowrap;
+  }
+  .set-val {
+    min-width: 42px;
+    text-align: right;
+    font-size: clamp(11px, 2.8vw, 13px);
+    color: #ffb6cf;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .05em;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 140px;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 120, 165, .25);
+    outline: none;
+    cursor: pointer;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ffd6e5, #ff5a9a);
+    box-shadow: 0 0 10px rgba(255, 90, 150, .85);
+    cursor: pointer;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 15px; height: 15px;
+    border: none;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #ffd6e5, #ff5a9a);
+    box-shadow: 0 0 10px rgba(255, 90, 150, .85);
+    cursor: pointer;
+  }
+
+  .toggle-btn {
+    position: relative;
+    padding: 6px 18px;
+    font-size: clamp(10px, 2.6vw, 12px);
+    letter-spacing: .14em;
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: inherit;
+    -webkit-appearance: none;
+    outline: none;
+    transition: all .25s ease;
+    border: 1.5px solid rgba(255, 120, 165, .35);
+    background: rgba(255, 120, 165, .10);
+    color: rgba(255, 200, 220, .65);
+    white-space: nowrap;
+  }
+  .toggle-btn.active {
+    border-color: rgba(255, 160, 195, .95);
+    background: linear-gradient(135deg, rgba(230, 55, 120, .5), rgba(130, 20, 70, .55));
+    color: #fff0f6;
+    box-shadow: 0 0 18px rgba(255, 70, 140, .45), inset 0 0 14px rgba(255, 110, 160, .18);
+  }
+  .toggle-btn:hover { transform: translateY(-1px); }
+
+  .hint {
+    margin-top: 26px;
+    font-size: clamp(10px, 2.7vw, 12.5px);
+    color: rgba(255, 200, 220, .42);
+    letter-spacing: .12em;
+    line-height: 2;
+  }
+
+  #loading {
+    position: absolute; inset: 0; z-index: 60;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 22px;
+    background: #05030a;
+    color: #ffb6cf;
+    letter-spacing: .3em; font-size: 13px;
+    opacity: 0; pointer-events: none;
+    transition: opacity .35s ease;
+  }
+  #loading.show { opacity: 1; pointer-events: all; }
+  .spin {
+    width: 42px; height: 42px; border-radius: 50%;
+    border: 2px solid rgba(255, 120, 165, .18);
+    border-top-color: rgba(255, 120, 165, .95);
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #joystick {
+    position: absolute;
+    left: max(18px, env(safe-area-inset-left));
+    bottom: max(18px, env(safe-area-inset-bottom));
+    width: 132px; height: 132px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.055), rgba(255,255,255,.015));
+    border: 2px solid rgba(255, 150, 190, .22);
+    z-index: 20;
+    touch-action: none;
+    opacity: 0; pointer-events: none;
+    transition: opacity .45s ease;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    box-shadow: 0 0 30px rgba(255, 60, 120, .12);
+  }
+  #joystick.show { opacity: 1; pointer-events: auto; }
+  #stick {
+    position: absolute; left: 50%; top: 50%;
+    width: 56px; height: 56px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, rgba(255, 200, 220, .5), rgba(255, 90, 140, .28));
+    border: 1.5px solid rgba(255, 175, 205, .65);
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 20px rgba(255, 70, 130, .45);
+    pointer-events: none;
+  }
+
+  #crosshair {
+    position: absolute; left: 50%; top: 50%;
+    width: 6px; height: 6px; margin: -3px 0 0 -3px;
+    border-radius: 50%;
+    background: rgba(255, 190, 215, .55);
+    box-shadow: 0 0 8px rgba(255, 100, 160, .8);
+    z-index: 15; opacity: 0;
+    transition: opacity .5s ease;
+    pointer-events: none;
+  }
+  #crosshair.show { opacity: 1; }
+
+  #endScreen {
+    position: absolute; inset: 0; z-index: 70;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 24px;
+    background: rgba(5, 3, 10, .92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: opacity .5s ease;
+  }
+  #endScreen.hidden { opacity: 0; pointer-events: none; }
+  .end-title {
+    font-size: clamp(42px, 12vw, 80px);
+    font-weight: 900;
+    letter-spacing: .2em;
+    text-indent: .2em;
+    color: #ffe9ef;
+    text-shadow:
+      0 0 20px rgba(255, 90, 140, .9),
+      0 0 60px rgba(180, 40, 90, .7);
+  }
+  .end-desc {
+    font-size: clamp(14px, 4vw, 18px);
+    color: rgba(255, 200, 220, .8);
+    letter-spacing: .15em;
+  }
+  #endBackBtn {
+    margin-top: 10px;
+    padding: 14px 48px;
+    font-size: clamp(15px, 4vw, 18px);
+    letter-spacing: .25em;
+    text-indent: .25em;
+    color: #ffeef4;
+    background: linear-gradient(135deg, rgba(190, 40, 95, .45), rgba(90, 15, 50, .5));
+    border: 1.5px solid rgba(255, 120, 165, .7);
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: inherit;
+    -webkit-appearance: none;
+    outline: none;
+    transition: all .25s ease;
+    box-shadow: 0 0 26px rgba(255, 60, 120, .35);
+  }
+  #endBackBtn:hover, #endBackBtn:active {
+    background: linear-gradient(135deg, rgba(230, 55, 120, .6), rgba(130, 20, 70, .65));
+    border-color: rgba(255, 160, 195, .95);
+    box-shadow: 0 0 46px rgba(255, 70, 140, .6);
+    transform: translateY(-2px);
+  }
+
+  #appContainer.portrait #joystick {
+    left: max(12px, env(safe-area-inset-left));
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  #appContainer.portrait #backBtn {
+    right: max(12px, env(safe-area-inset-right));
+    top: max(12px, env(safe-area-inset-top));
+  }
+</style>
+</head>
+<body>
+
+<div id="appContainer">
+  <canvas id="sceneCanvas"></canvas>
+  <div id="crosshair"></div>
+
+  <button id="backBtn">返回主界面</button>
+
+  <div id="joystick"><div id="stick"></div></div>
+
+  <div id="menu">
+    <canvas id="bgCanvas"></canvas>
+    <div class="menu-inner">
+      <div class="logo">巢穴</div>
+      <div class="sub">NEST</div>
+      <button id="startBtn">开始游戏</button>
+      <div id="assetLoading" class="asset-loading"></div>
+
+      <div class="settings">
+        <div class="set-row">
+          <span class="set-label">组件分辨率</span>
+          <input type="range" id="resSlider" min="24" max="160" step="8" value="128">
+          <span class="set-val" id="resVal">128</span>
+        </div>
+        <div class="set-row">
+          <span class="set-label">贴图分辨率</span>
+          <input type="range" id="texSlider" min="64" max="512" step="64" value="256">
+          <span class="set-val" id="texVal">256</span>
+        </div>
+      </div>
+
+      <button id="btnFlipScreen">翻转屏幕</button>
+
+      <div class="hint">
+        WASD / 摇杆&nbsp;&nbsp;移动<br>
+        按住屏幕拖动&nbsp;&nbsp;旋转视角
+      </div>
+    </div>
+  </div>
+
+  <div id="loading">
+    <div class="spin"></div>
+    <div>正在培育巢穴…</div>
+  </div>
+
+  <div id="endScreen" class="hidden">
+    <div class="end-title" id="endTitle">胜利</div>
+    <div class="end-desc" id="endDesc">你找到了巢穴的核心</div>
+    <button id="endBackBtn">返回主界面</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* =========================================================
+   0. 全局常量
+   ========================================================= */
+const PLAYER_RADIUS = 1.15;
+const EYE_HEIGHT    = 1.5;
+const MAX_SPEED     = 9.5;
+const GRAVITY       = 26;
+const FOV_MIN       = 70;
+const FOV_MAX       = 85;
+const GLOW_CHANCE   = 0.00007;
+const MONSTER_SPAWN_INTERVAL = 10;
+const MONSTER_MAX = 2;
+const MONSTER_PAST_SECONDS = 5;
+
+const MAX_PUSH_PER_ITER = 0.6;
+const PLAYER_COLLISION_ITER = 6;
+
+/* =========================================================
+   1. 随机种子
+   ========================================================= */
+let SEED_STR, SEED, RNG, NOISE_SEED;
+
+function xmur3(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  return function () {
+    h = Math.imul(h ^ (h >>> 16), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    return (h ^= h >>> 16) >>> 0;
+  };
+}
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function initSeed() {
+  SEED_STR = 'NEST-' + Math.random().toString(36).slice(2, 10).toUpperCase();
+  const _seedSrc = xmur3(SEED_STR);
+  SEED = _seedSrc();
+  RNG = mulberry32(_seedSrc());
+  NOISE_SEED = (SEED ^ 0x5F3759DF) >>> 0;
+}
+
+/* =========================================================
+   2. 3D 值噪声
+   ========================================================= */
+function hash3i(x, y, z) {
+  let h = NOISE_SEED + Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(z | 0, 1274126177);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h = h ^ (h >>> 16);
+  return (h >>> 0) / 4294967296;
+}
+
+function vnoise(x, y, z) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+  const xf = x - xi, yf = y - yi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const w = zf * zf * (3 - 2 * zf);
+
+  const c000 = hash3i(xi,     yi,     zi    );
+  const c100 = hash3i(xi + 1, yi,     zi    );
+  const c010 = hash3i(xi,     yi + 1, zi    );
+  const c110 = hash3i(xi + 1, yi + 1, zi    );
+  const c001 = hash3i(xi,     yi,     zi + 1);
+  const c101 = hash3i(xi + 1, yi,     zi + 1);
+  const c011 = hash3i(xi,     yi + 1, zi + 1);
+  const c111 = hash3i(xi + 1, yi + 1, zi + 1);
+
+  const x00 = c000 + (c100 - c000) * u;
+  const x10 = c010 + (c110 - c010) * u;
+  const x01 = c001 + (c101 - c001) * u;
+  const x11 = c011 + (c111 - c011) * u;
+  const y0  = x00 + (x10 - x00) * v;
+  const y1  = x01 + (x11 - x01) * v;
+  return y0 + (y1 - y0) * w;
+}
+
+/* =========================================================
+   3. 世界数据生成
+   ========================================================= */
+let NODES = [];
+let PRIMS = [];
+
+const WORLD_SCALE = 0.5;
+let GRID_RESOLUTION = 128;
+let TEX_RESOLUTION = 256;
+let LIGHTING_ENABLED = true;
+
+function generateWorldData(seed) {
+  const rnd = mulberry32(seed);
+  NODES = [];
+  PRIMS = [];
+
+  const N = 24;
+  const S = WORLD_SCALE;
+  const ringR = 150 * S;
+
+  for (let i = 0; i < N; i++) {
+    const ang = (i / N) * Math.PI * 2 + (rnd() - 0.5) * 0.8;
+    const rr  = ringR + (rnd() - 0.5) * 60 * S;
+    const ax  = (9 + rnd() * 6) * S;
+    const ay  = ax * (0.5 + rnd() * 0.18);
+    const az  = ax * (0.9 + rnd() * 0.18);
+
+    const node = {
+      cx: Math.cos(ang) * rr,
+      cy: (rnd() - 0.5) * 24 * S,
+      cz: Math.sin(ang) * rr,
+      ax, ay, az,
+      amp: (1.0 + rnd() * 1.4) * S,
+      freq: 0.045 + rnd() * 0.025
+    };
+    NODES.push(node);
+    PRIMS.push({ type: 'ell', ...node });
+  }
+
+  const links = [];
+  for (let i = 0; i < N; i++) links.push([i, (i + 1) % N]);
+  for (let k = 0; k < N / 3; k++) {
+    const a = Math.floor(rnd() * N);
+    const b = Math.floor(rnd() * N);
+    if (a !== b) links.push([a, b]);
+  }
+
+  for (const [i, j] of links) {
+    const A = NODES[i], B = NODES[j];
+    const dx = B.cx - A.cx, dy = B.cy - A.cy, dz = B.cz - A.cz;
+    const len = Math.hypot(dx, dy, dz) || 1;
+    const ux = dx / len, uy = dy / len, uz = dz / len;
+
+    let upx = 0, upy = 1, upz = 0;
+    if (Math.abs(uy) > 0.9) { upx = 1; upy = 0; upz = 0; }
+    let n1x = uy * upz - uz * upy;
+    let n1y = uz * upx - ux * upz;
+    let n1z = ux * upy - uy * upx;
+    const n1l = Math.hypot(n1x, n1y, n1z) || 1;
+    n1x /= n1l; n1y /= n1l; n1z /= n1l;
+
+    const n2x = uy * n1z - uz * n1y;
+    const n2y = uz * n1x - ux * n1z;
+    const n2z = ux * n1y - uy * n1x;
+
+    const o1 = (rnd() - 0.5) * len * 0.30;
+    const o2 = (rnd() - 0.5) * len * 0.30;
+
+    const SEG = 8;
+    const pts = [];
+    for (let s = 0; s <= SEG; s++) {
+      const t = s / SEG;
+      const sm = Math.sin(t * Math.PI);
+      pts.push({
+        x: A.cx + dx * t + n1x * o1 * sm + n2x * o2 * sm,
+        y: A.cy + dy * t + n1y * o1 * sm + n2y * o2 * sm,
+        z: A.cz + dz * t + n1z * o1 * sm + n2z * o2 * sm
+      });
+    }
+
+    PRIMS.push({
+      type: 'tube',
+      pts,
+      r: (4.0 + rnd() * 2.5) * S,
+      amp: 0.85 * S,
+      freq: 0.075
+    });
+  }
+}
+
+/* ---------- SDF ---------- */
+function primSDF(p, x, y, z) {
+  if (p.type === 'ell') {
+    const dx = (x - p.cx) / p.ax;
+    const dy = (y - p.cy) / p.ay;
+    const dz = (z - p.cz) / p.az;
+    const k0 = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    let d;
+    if (k0 < 1e-5) {
+      d = -Math.min(p.ax, p.ay, p.az);
+    } else {
+      const bx = dx / p.ax, by = dy / p.ay, bz = dz / p.az;
+      const k1 = Math.sqrt(bx * bx + by * by + bz * bz);
+      d = k0 * (k0 - 1) / Math.max(k1, 1e-6);
+    }
+    d += p.amp * (vnoise(x * p.freq, y * p.freq, z * p.freq) - 0.5) * 2;
+    return d;
+  } else {
+    let best = 1e18;
+    const pts = p.pts;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
+      const apx = x - a.x, apy = y - a.y, apz = z - a.z;
+      const ab2 = abx * abx + aby * aby + abz * abz;
+      let t = ab2 > 1e-9 ? (apx * abx + apy * aby + apz * abz) / ab2 : 0;
+      if (t < 0) t = 0; else if (t > 1) t = 1;
+      const qx = apx - abx * t, qy = apy - aby * t, qz = apz - abz * t;
+      const dd = qx * qx + qy * qy + qz * qz;
+      if (dd < best) best = dd;
+    }
+    let d = Math.sqrt(best) - p.r;
+    d += p.amp * (vnoise(x * p.freq, y * p.freq, z * p.freq) - 0.5) * 2;
+    return d;
+  }
+}
+
+function sceneSDF(x, y, z) {
+  let d = 1e18;
+  for (let i = 0; i < PRIMS.length; i++) {
+    const v = primSDF(PRIMS[i], x, y, z);
+    if (v < d) d = v;
+  }
+  return d;
+}
+
+function primBounds(p) {
+  if (p.type === 'ell') {
+    const rx = p.ax + p.amp + 3;
+    const ry = p.ay + p.amp + 3;
+    const rz = p.az + p.amp + 3;
+    return {
+      minx: p.cx - rx, miny: p.cy - ry, minz: p.cz - rz,
+      maxx: p.cx + rx, maxy: p.cy + ry, maxz: p.cz + rz
+    };
+  } else {
+    const pad = p.r + p.amp + 3;
+    let minx = 1e9, miny = 1e9, minz = 1e9;
+    let maxx = -1e9, maxy = -1e9, maxz = -1e9;
+    for (const q of p.pts) {
+      if (q.x - pad < minx) minx = q.x - pad;
+      if (q.y - pad < miny) miny = q.y - pad;
+      if (q.z - pad < minz) minz = q.z - pad;
+      if (q.x + pad > maxx) maxx = q.x + pad;
+      if (q.y + pad > maxy) maxy = q.y + pad;
+      if (q.z + pad > maxz) maxz = q.z + pad;
+    }
+    return { minx, miny, minz, maxx, maxy, maxz };
+  }
+}
+
+/* =========================================================
+   4. 体素场 + Surface Nets
+   ========================================================= */
+let FIELD = null;
+let NX = 0, NY = 0, NZ = 0;
+let GRID_H = 1;
+let GRID_MNX = 0, GRID_MNY = 0, GRID_MNZ = 0;
+let glowCenters = [];
+
+/* ★ 碰撞三角面网格（与渲染使用的三角面完全一致） */
+let COLLISION_VERTICES = null;   // Float32Array
+let COLLISION_INDICES = null;    // Uint32Array
+let COLLISION_GRID = null;       // 空间网格：每个单元存储三角面索引数组
+let COLLISION_GRID_MINX = 0;
+let COLLISION_GRID_MINY = 0;
+let COLLISION_GRID_MINZ = 0;
+let COLLISION_GRID_NX = 0;
+let COLLISION_GRID_NY = 0;
+let COLLISION_GRID_NZ = 0;
+const COLLISION_CELL_SIZE = 2.0;
+let _visitedStamp = null;
+let _queryIdCounter = 0;
+
+function sampleField(ix, iy, iz) {
+  if (ix < 0) ix = 0; else if (ix >= NX) ix = NX - 1;
+  if (iy < 0) iy = 0; else if (iy >= NY) iy = NY - 1;
+  if (iz < 0) iz = 0; else if (iz >= NZ) iz = NZ - 1;
+  return FIELD[ix + NX * (iy + NY * iz)];
+}
+
+function computeSDFNormals(geo) {
+  const posAttr = geo.attributes.position;
+  const count = posAttr.count;
+  const pos = posAttr.array;
+  const normals = new Float32Array(count * 3);
+
+  for (let i = 0; i < count; i++) {
+    const px = pos[i * 3];
+    const py = pos[i * 3 + 1];
+    const pz = pos[i * 3 + 2];
+
+    const fx = (px - GRID_MNX) / GRID_H;
+    const fy = (py - GRID_MNY) / GRID_H;
+    const fz = (pz - GRID_MNZ) / GRID_H;
+
+    const ix = Math.round(fx);
+    const iy = Math.round(fy);
+    const iz = Math.round(fz);
+
+    const gx = sampleField(ix + 1, iy, iz) - sampleField(ix - 1, iy, iz);
+    const gy = sampleField(ix, iy + 1, iz) - sampleField(ix, iy - 1, iz);
+    const gz = sampleField(ix, iy, iz + 1) - sampleField(ix, iy, iz - 1);
+
+    let nx = -gx, ny = -gy, nz = -gz;
+    const len = Math.hypot(nx, ny, nz);
+    if (len < 1e-8) {
+      normals[i * 3] = 0;
+      normals[i * 3 + 1] = 1;
+      normals[i * 3 + 2] = 0;
+    } else {
+      normals[i * 3] = nx / len;
+      normals[i * 3 + 1] = ny / len;
+      normals[i * 3 + 2] = nz / len;
+    }
+  }
+
+  geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+}
+
+/* ★ 构建碰撞网格：使用主 mesh + glow mesh 的全部三角面（与渲染完全一致） */
+function buildCollisionMesh(mainVertices, mainIndices, glowVertices, glowIndices) {
+  const mainVertCount = mainVertices.length / 3;
+  const glowVertCount = glowVertices.length / 3;
+  const totalVerts = mainVertCount + glowVertCount;
+  const totalIdxs = mainIndices.length + glowIndices.length;
+
+  if (totalIdxs === 0 || totalVerts === 0) {
+    COLLISION_VERTICES = null;
+    COLLISION_INDICES = null;
+    COLLISION_GRID = null;
+    return;
+  }
+
+  const verts = new Float32Array(totalVerts * 3);
+  const idxs = new Uint32Array(totalIdxs);
+
+  for (let i = 0; i < mainVertices.length; i++) {
+    verts[i] = mainVertices[i];
+  }
+  for (let i = 0; i < mainIndices.length; i++) {
+    idxs[i] = mainIndices[i];
+  }
+  for (let i = 0; i < glowVertices.length; i++) {
+    verts[mainVertices.length + i] = glowVertices[i];
+  }
+  for (let i = 0; i < glowIndices.length; i++) {
+    idxs[mainIndices.length + i] = glowIndices[i] + mainVertCount;
+  }
+
+  COLLISION_VERTICES = verts;
+  COLLISION_INDICES = idxs;
+
+  // 计算 AABB
+  let minx = Infinity, miny = Infinity, minz = Infinity;
+  let maxx = -Infinity, maxy = -Infinity, maxz = -Infinity;
+  for (let i = 0; i < totalVerts; i++) {
+    const x = verts[i * 3];
+    const y = verts[i * 3 + 1];
+    const z = verts[i * 3 + 2];
+    if (x < minx) minx = x;
+    if (y < miny) miny = y;
+    if (z < minz) minz = z;
+    if (x > maxx) maxx = x;
+    if (y > maxy) maxy = y;
+    if (z > maxz) maxz = z;
+  }
+
+  const cellSize = COLLISION_CELL_SIZE;
+  const nx = Math.ceil((maxx - minx) / cellSize) + 1;
+  const ny = Math.ceil((maxy - miny) / cellSize) + 1;
+  const nz = Math.ceil((maxz - minz) / cellSize) + 1;
+
+  COLLISION_GRID_MINX = minx;
+  COLLISION_GRID_MINY = miny;
+  COLLISION_GRID_MINZ = minz;
+  COLLISION_GRID_NX = nx;
+  COLLISION_GRID_NY = ny;
+  COLLISION_GRID_NZ = nz;
+
+  const cells = new Array(nx * ny * nz);
+  const triCount = totalIdxs / 3;
+  const PAD = 0.05;
+
+  for (let t = 0; t < triCount; t++) {
+    const i0 = idxs[t * 3];
+    const i1 = idxs[t * 3 + 1];
+    const i2 = idxs[t * 3 + 2];
+
+    const ax = verts[i0 * 3], ay = verts[i0 * 3 + 1], az = verts[i0 * 3 + 2];
+    const bx = verts[i1 * 3], by = verts[i1 * 3 + 1], bz = verts[i1 * 3 + 2];
+    const cx = verts[i2 * 3], cy = verts[i2 * 3 + 1], cz = verts[i2 * 3 + 2];
+
+    const tminx = Math.min(ax, bx, cx) - PAD;
+    const tminy = Math.min(ay, by, cy) - PAD;
+    const tminz = Math.min(az, bz, cz) - PAD;
+    const tmaxx = Math.max(ax, bx, cx) + PAD;
+    const tmaxy = Math.max(ay, by, cy) + PAD;
+    const tmaxz = Math.max(az, bz, cz) + PAD;
+
+    let ix0 = Math.floor((tminx - minx) / cellSize);
+    let iy0 = Math.floor((tminy - miny) / cellSize);
+    let iz0 = Math.floor((tminz - minz) / cellSize);
+    let ix1 = Math.floor((tmaxx - minx) / cellSize);
+    let iy1 = Math.floor((tmaxy - miny) / cellSize);
+    let iz1 = Math.floor((tmaxz - minz) / cellSize);
+
+    if (ix0 < 0) ix0 = 0;
+    if (iy0 < 0) iy0 = 0;
+    if (iz0 < 0) iz0 = 0;
+    if (ix1 > nx - 1) ix1 = nx - 1;
+    if (iy1 > ny - 1) iy1 = ny - 1;
+    if (iz1 > nz - 1) iz1 = nz - 1;
+
+    for (let iz = iz0; iz <= iz1; iz++) {
+      const rowBaseZ = nx * ny * iz;
+      for (let iy = iy0; iy <= iy1; iy++) {
+        const rowBase = rowBaseZ + nx * iy;
+        for (let ix = ix0; ix <= ix1; ix++) {
+          const idx = ix + rowBase;
+          let cell = cells[idx];
+          if (!cell) {
+            cell = [];
+            cells[idx] = cell;
+          }
+          cell.push(t);
+        }
+      }
+    }
+  }
+
+  COLLISION_GRID = cells;
+  _visitedStamp = new Int32Array(triCount);
+  _queryIdCounter = 0;
+
+  console.log(`[巢穴] 碰撞网格：${triCount.toLocaleString()} 个三角面，${nx}×${ny}×${nz} 空间网格`);
+}
+
+/* ★ 点到三角形最近点（Ericson 算法） */
+const _closestPtTmp = { x: 0, y: 0, z: 0 };
+
+function closestPointOnTriangle(px, py, pz, ax, ay, az, bx, by, bz, cx, cy, cz, out) {
+  const abx = bx - ax, aby = by - ay, abz = bz - az;
+  const acx = cx - ax, acy = cy - ay, acz = cz - az;
+  const apx = px - ax, apy = py - ay, apz = pz - az;
+
+  const d1 = abx * apx + aby * apy + abz * apz;
+  const d2 = acx * apx + acy * apy + acz * apz;
+
+  if (d1 <= 0 && d2 <= 0) {
+    out.x = ax; out.y = ay; out.z = az;
+    return;
+  }
+
+  const bpx = px - bx, bpy = py - by, bpz = pz - bz;
+  const d3 = abx * bpx + aby * bpy + abz * bpz;
+  const d4 = acx * bpx + acy * bpy + acz * bpz;
+
+  if (d3 >= 0 && d4 <= d3) {
+    out.x = bx; out.y = by; out.z = bz;
+    return;
+  }
+
+  const vc = d1 * d4 - d3 * d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) {
+    const v = d1 / (d1 - d3);
+    out.x = ax + abx * v;
+    out.y = ay + aby * v;
+    out.z = az + abz * v;
+    return;
+  }
+
+  const cpx = px - cx, cpy = py - cy, cpz = pz - cz;
+  const d5 = abx * cpx + aby * cpy + abz * cpz;
+  const d6 = acx * cpx + acy * cpy + acz * cpz;
+
+  if (d6 >= 0 && d5 <= d6) {
+    out.x = cx; out.y = cy; out.z = cz;
+    return;
+  }
+
+  const vb = d5 * d2 - d1 * d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) {
+    const w = d2 / (d2 - d6);
+    out.x = ax + acx * w;
+    out.y = ay + acy * w;
+    out.z = az + acz * w;
+    return;
+  }
+
+  const va = d3 * d6 - d5 * d4;
+  if (va <= 0 && (d4 - d3) >= 0 && (d5 - d6) >= 0) {
+    const w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+    out.x = bx + (cx - bx) * w;
+    out.y = by + (cy - by) * w;
+    out.z = bz + (cz - bz) * w;
+    return;
+  }
+
+  const denom = 1.0 / (va + vb + vc);
+  const v = vb * denom;
+  const w = vc * denom;
+  out.x = ax + abx * v + acx * w;
+  out.y = ay + aby * v + acy * w;
+  out.z = az + abz * v + acz * w;
+}
+
+/* ★ 查询距离 (px,py,pz) 最近的三角面点 */
+function queryClosestPoint(px, py, pz, searchRadius) {
+  if (!COLLISION_GRID) return null;
+
+  const cellSize = COLLISION_CELL_SIZE;
+  const minx = COLLISION_GRID_MINX;
+  const miny = COLLISION_GRID_MINY;
+  const minz = COLLISION_GRID_MINZ;
+  const nx = COLLISION_GRID_NX;
+  const ny = COLLISION_GRID_NY;
+  const nz = COLLISION_GRID_NZ;
+
+  let ix0 = Math.floor((px - searchRadius - minx) / cellSize);
+  let iy0 = Math.floor((py - searchRadius - miny) / cellSize);
+  let iz0 = Math.floor((pz - searchRadius - minz) / cellSize);
+  let ix1 = Math.floor((px + searchRadius - minx) / cellSize);
+  let iy1 = Math.floor((py + searchRadius - miny) / cellSize);
+  let iz1 = Math.floor((pz + searchRadius - minz) / cellSize);
+
+  if (ix0 < 0) ix0 = 0;
+  if (iy0 < 0) iy0 = 0;
+  if (iz0 < 0) iz0 = 0;
+  if (ix1 > nx - 1) ix1 = nx - 1;
+  if (iy1 > ny - 1) iy1 = ny - 1;
+  if (iz1 > nz - 1) iz1 = nz - 1;
+
+  if (ix0 > ix1 || iy0 > iy1 || iz0 > iz1) return null;
+
+  let bestDistSq = Infinity;
+  let bestX = 0, bestY = 0, bestZ = 0;
+  let found = false;
+
+  _queryIdCounter++;
+  const queryId = _queryIdCounter;
+
+  for (let iz = iz0; iz <= iz1; iz++) {
+    const rowBaseZ = nx * ny * iz;
+    for (let iy = iy0; iy <= iy1; iy++) {
+      const rowBase = rowBaseZ + nx * iy;
+      for (let ix = ix0; ix <= ix1; ix++) {
+        const cell = COLLISION_GRID[ix + rowBase];
+        if (!cell) continue;
+
+        for (let ci = 0; ci < cell.length; ci++) {
+          const t = cell[ci];
+          if (_visitedStamp[t] === queryId) continue;
+          _visitedStamp[t] = queryId;
+
+          const i0 = COLLISION_INDICES[t * 3];
+          const i1 = COLLISION_INDICES[t * 3 + 1];
+          const i2 = COLLISION_INDICES[t * 3 + 2];
+
+          closestPointOnTriangle(
+            px, py, pz,
+            COLLISION_VERTICES[i0 * 3], COLLISION_VERTICES[i0 * 3 + 1], COLLISION_VERTICES[i0 * 3 + 2],
+            COLLISION_VERTICES[i1 * 3], COLLISION_VERTICES[i1 * 3 + 1], COLLISION_VERTICES[i1 * 3 + 2],
+            COLLISION_VERTICES[i2 * 3], COLLISION_VERTICES[i2 * 3 + 1], COLLISION_VERTICES[i2 * 3 + 2],
+            _closestPtTmp
+          );
+
+          const dx = px - _closestPtTmp.x;
+          const dy = py - _closestPtTmp.y;
+          const dz = pz - _closestPtTmp.z;
+          const distSq = dx * dx + dy * dy + dz * dz;
+
+          if (distSq < bestDistSq) {
+            bestDistSq = distSq;
+            bestX = _closestPtTmp.x;
+            bestY = _closestPtTmp.y;
+            bestZ = _closestPtTmp.z;
+            found = true;
+          }
+        }
+      }
+    }
+  }
+
+  if (!found) return null;
+  return { x: bestX, y: bestY, z: bestZ, distSq: bestDistSq };
+}
+
+function buildWorldMesh() {
+  let mnx = 1e9, mny = 1e9, mnz = 1e9;
+  let mxx = -1e9, mxy = -1e9, mxz = -1e9;
+  for (const p of PRIMS) {
+    const b = primBounds(p);
+    if (b.minx < mnx) mnx = b.minx;
+    if (b.miny < mny) mny = b.miny;
+    if (b.minz < mnz) mnz = b.minz;
+    if (b.maxx > mxx) mxx = b.maxx;
+    if (b.maxy > mxy) mxy = b.maxy;
+    if (b.maxz > mxz) mxz = b.maxz;
+  }
+  mnx -= 6; mny -= 6; mnz -= 6;
+  mxx += 6; mxy += 6; mxz += 6;
+
+  GRID_MNX = mnx;
+  GRID_MNY = mny;
+  GRID_MNZ = mnz;
+
+  const sizeX = mxx - mnx;
+  const sizeY = mxy - mny;
+  const sizeZ = mxz - mnz;
+  const maxDim = Math.max(sizeX, sizeY, sizeZ);
+
+  GRID_H = Math.max(1.10, maxDim / GRID_RESOLUTION);
+
+  NX = Math.ceil(sizeX / GRID_H) + 2;
+  NY = Math.ceil(sizeY / GRID_H) + 2;
+  NZ = Math.ceil(sizeZ / GRID_H) + 2;
+
+  const total = NX * NY * NZ;
+  console.log(`[巢穴] 组件分辨率=${GRID_RESOLUTION}  贴图分辨率=${TEX_RESOLUTION}  光影=开启`);
+  console.log(`[巢穴] 体素网格 ${NX}×${NY}×${NZ} = ${total.toLocaleString()}`);
+
+  FIELD = new Float32Array(total).fill(1e9);
+
+  for (const p of PRIMS) {
+    const b = primBounds(p);
+    let i0 = Math.floor((b.minx - mnx) / GRID_H) - 2;
+    let i1 = Math.ceil((b.maxx - mnx) / GRID_H) + 2;
+    let j0 = Math.floor((b.miny - mny) / GRID_H) - 2;
+    let j1 = Math.ceil((b.maxy - mny) / GRID_H) + 2;
+    let k0 = Math.floor((b.minz - mnz) / GRID_H) - 2;
+    let k1 = Math.ceil((b.maxz - mnz) / GRID_H) + 2;
+
+    if (i0 < 0) i0 = 0; if (i1 > NX - 1) i1 = NX - 1;
+    if (j0 < 0) j0 = 0; if (j1 > NY - 1) j1 = NY - 1;
+    if (k0 < 0) k0 = 0; if (k1 > NZ - 1) k1 = NZ - 1;
+
+    for (let k = k0; k <= k1; k++) {
+      const wz = mnz + k * GRID_H;
+      const rowBaseZ = NX * NY * k;
+      for (let j = j0; j <= j1; j++) {
+        const wy = mny + j * GRID_H;
+        const rowBase = rowBaseZ + NX * j;
+        for (let i = i0; i <= i1; i++) {
+          const wx = mnx + i * GRID_H;
+          const d = primSDF(p, wx, wy, wz);
+          const idx = rowBase + i;
+          if (d < FIELD[idx]) FIELD[idx] = d;
+        }
+      }
+    }
+  }
+
+  const cxN = NX - 1, cyN = NY - 1, czN = NZ - 1;
+  const cellCount = cxN * cyN * czN;
+  const cellVertex = new Int32Array(cellCount).fill(-1);
+
+  const vPos = [];
+
+  const EDGES = [
+    [0, 1], [2, 3], [4, 5], [6, 7],
+    [0, 2], [1, 3], [4, 6], [5, 7],
+    [0, 4], [1, 5], [2, 6], [3, 7]
+  ];
+
+  const corners = new Float32Array(8);
+
+  const cellIdx = (x, y, z) => x + cxN * (y + cyN * z);
+  const fieldIdx = (x, y, z) => x + NX * (y + NY * z);
+
+  for (let z = 0; z < czN; z++) {
+    for (let y = 0; y < cyN; y++) {
+      for (let x = 0; x < cxN; x++) {
+        const b0 = x + NX * (y + NY * z);
+        corners[0] = FIELD[b0];
+        corners[1] = FIELD[b0 + 1];
+        corners[2] = FIELD[b0 + NX];
+        corners[3] = FIELD[b0 + NX + 1];
+        corners[4] = FIELD[b0 + NX * NY];
+        corners[5] = FIELD[b0 + NX * NY + 1];
+        corners[6] = FIELD[b0 + NX * NY + NX];
+        corners[7] = FIELD[b0 + NX * NY + NX + 1];
+
+        let mask = 0;
+        for (let i = 0; i < 8; i++) if (corners[i] < 0) mask |= (1 << i);
+        if (mask === 0 || mask === 255) continue;
+
+        let sx = 0, sy = 0, sz = 0, cnt = 0;
+        for (let e = 0; e < 12; e++) {
+          const a = EDGES[e][0], b = EDGES[e][1];
+          const va = corners[a], vb = corners[b];
+          if ((va < 0) === (vb < 0)) continue;
+          if (!isFinite(va) || !isFinite(vb)) continue;
+          const denom = va - vb;
+          if (Math.abs(denom) < 1e-12) continue;
+          const t = va / denom;
+          const ax = a & 1, ay = (a >> 1) & 1, az = (a >> 2) & 1;
+          const bx = b & 1, by = (b >> 1) & 1, bz = (b >> 2) & 1;
+          sx += ax + (bx - ax) * t;
+          sy += ay + (by - ay) * t;
+          sz += az + (bz - az) * t;
+          cnt++;
+        }
+        if (cnt === 0) continue;
+
+        sx /= cnt; sy /= cnt; sz /= cnt;
+
+        const px = mnx + (x + sx) * GRID_H;
+        const py = mny + (y + sy) * GRID_H;
+        const pz = mnz + (z + sz) * GRID_H;
+
+        const ci = cellIdx(x, y, z);
+        cellVertex[ci] = vPos.length / 3;
+        vPos.push(px, py, pz);
+      }
+    }
+  }
+
+  console.log(`[巢穴] 表面顶点 ${(vPos.length / 3).toLocaleString()}`);
+
+  const mainVertices = [];
+  const mainIndices = [];
+  const mainVmap = new Map();
+
+  const glowVertices = [];
+  const glowIndices = [];
+
+  glowCenters = [];
+
+  function addMainVertex(g) {
+    let l = mainVmap.get(g);
+    if (l === undefined) {
+      l = mainVertices.length / 3;
+      mainVertices.push(vPos[g * 3], vPos[g * 3 + 1], vPos[g * 3 + 2]);
+      mainVmap.set(g, l);
+    }
+    return l;
+  }
+
+  const _tmpN = new THREE.Vector3();
+  const _tmpGrad = new THREE.Vector3();
+  const _vA = new THREE.Vector3();
+  const _vB = new THREE.Vector3();
+  const _vC = new THREE.Vector3();
+  const _vD = new THREE.Vector3();
+  const _center = new THREE.Vector3();
+  const EPS_GRAD = 0.15;
+
+  function addQuad(a, b, c, d) {
+    if (a < 0 || b < 0 || c < 0 || d < 0) return;
+
+    _vA.fromArray(vPos, a * 3);
+    _vB.fromArray(vPos, b * 3);
+    _vC.fromArray(vPos, c * 3);
+    _vD.fromArray(vPos, d * 3);
+
+    _center.copy(_vA).add(_vB).add(_vC).add(_vD).multiplyScalar(0.25);
+
+    _tmpN.subVectors(_vB, _vA).cross(_vC.clone().sub(_vA));
+    if (_tmpN.lengthSq() < 1e-12) return;
+    _tmpN.normalize();
+
+    const px = _center.x, py = _center.y, pz = _center.z;
+    const gx = sceneSDF(px + EPS_GRAD, py, pz) - sceneSDF(px - EPS_GRAD, py, pz);
+    const gy = sceneSDF(px, py + EPS_GRAD, pz) - sceneSDF(px, py - EPS_GRAD, pz);
+    const gz = sceneSDF(px, py, pz + EPS_GRAD) - sceneSDF(px, py, pz - EPS_GRAD);
+    _tmpGrad.set(gx, gy, gz);
+
+    const flip = _tmpN.dot(_tmpGrad) > 0;
+
+    const isGlow = Math.random() < GLOW_CHANCE;
+
+    if (isGlow) {
+      const base = glowVertices.length / 3;
+      if (flip) {
+        glowVertices.push(_vA.x, _vA.y, _vA.z);
+        glowVertices.push(_vD.x, _vD.y, _vD.z);
+        glowVertices.push(_vC.x, _vC.y, _vC.z);
+        glowVertices.push(_vB.x, _vB.y, _vB.z);
+        glowIndices.push(base, base + 1, base + 2);
+        glowIndices.push(base, base + 2, base + 3);
+      } else {
+        glowVertices.push(_vA.x, _vA.y, _vA.z);
+        glowVertices.push(_vB.x, _vB.y, _vB.z);
+        glowVertices.push(_vC.x, _vC.y, _vC.z);
+        glowVertices.push(_vD.x, _vD.y, _vD.z);
+        glowIndices.push(base, base + 1, base + 2);
+        glowIndices.push(base, base + 2, base + 3);
+      }
+      glowCenters.push(new THREE.Vector3(px, py, pz));
+    } else {
+      const la = addMainVertex(a), lb = addMainVertex(b), lc = addMainVertex(c), ld = addMainVertex(d);
+      if (la === lb || lb === lc || lc === ld || ld === la) return;
+      if (flip) {
+        mainIndices.push(la, ld, lc);
+        mainIndices.push(la, lc, lb);
+      } else {
+        mainIndices.push(la, lb, lc);
+        mainIndices.push(la, lc, ld);
+      }
+    }
+  }
+
+  let quadCount = 0;
+
+  for (let z = 0; z < czN; z++) {
+    for (let y = 0; y < cyN; y++) {
+      for (let x = 0; x < cxN; x++) {
+        const ci = cellIdx(x, y, z);
+        if (cellVertex[ci] < 0) continue;
+
+        const f0 = FIELD[fieldIdx(x, y, z)];
+
+        if (x + 1 < NX && y >= 1 && z >= 1) {
+          const f1 = FIELD[fieldIdx(x + 1, y, z)];
+          if ((f0 < 0) !== (f1 < 0)) {
+            addQuad(
+              cellVertex[cellIdx(x, y - 1, z - 1)],
+              cellVertex[cellIdx(x, y,     z - 1)],
+              cellVertex[cellIdx(x, y,     z    )],
+              cellVertex[cellIdx(x, y - 1, z    )]
+            );
+            quadCount++;
+          }
+        }
+
+        if (y + 1 < NY && x >= 1 && z >= 1) {
+          const f1 = FIELD[fieldIdx(x, y + 1, z)];
+          if ((f0 < 0) !== (f1 < 0)) {
+            addQuad(
+              cellVertex[cellIdx(x - 1, y, z - 1)],
+              cellVertex[cellIdx(x,     y, z - 1)],
+              cellVertex[cellIdx(x,     y, z    )],
+              cellVertex[cellIdx(x - 1, y, z    )]
+            );
+            quadCount++;
+          }
+        }
+
+        if (z + 1 < NZ && x >= 1 && y >= 1) {
+          const f1 = FIELD[fieldIdx(x, y, z + 1)];
+          if ((f0 < 0) !== (f1 < 0)) {
+            addQuad(
+              cellVertex[cellIdx(x - 1, y - 1, z)],
+              cellVertex[cellIdx(x,     y - 1, z)],
+              cellVertex[cellIdx(x,     y,     z)],
+              cellVertex[cellIdx(x - 1, y,     z)]
+            );
+            quadCount++;
+          }
+        }
+      }
+    }
+  }
+
+  console.log(`[巢穴] 四边形 ${quadCount.toLocaleString()}，主顶点 ${(mainVertices.length / 3).toLocaleString()}，发光面 ${glowCenters.length}`);
+
+  if (glowCenters.length === 0 && NODES.length > 0) {
+    const node = NODES[0];
+    const cx = node.cx, cy = node.cy, cz = node.cz;
+    const s = 1.5;
+    const base = glowVertices.length / 3;
+    glowVertices.push(cx - s, cy - s, cz - s);
+    glowVertices.push(cx + s, cy - s, cz - s);
+    glowVertices.push(cx + s, cy + s, cz - s);
+    glowVertices.push(cx - s, cy + s, cz - s);
+    glowIndices.push(base, base + 1, base + 2);
+    glowIndices.push(base, base + 2, base + 3);
+    glowCenters.push(new THREE.Vector3(cx, cy, cz));
+    console.log('[巢穴] 保底发光面已创建');
+  }
+
+  const group = new THREE.Group();
+
+  const mainGeo = new THREE.BufferGeometry();
+  mainGeo.setAttribute('position', new THREE.Float32BufferAttribute(mainVertices, 3));
+  mainGeo.setIndex(mainIndices);
+
+  const vCount = mainVertices.length / 3;
+  const uvs = new Float32Array(vCount * 2);
+  for (let i = 0; i < vCount; i++) {
+    const px = mainVertices[i * 3], py = mainVertices[i * 3 + 1], pz = mainVertices[i * 3 + 2];
+    uvs[i * 2]     = (px * 0.62 + pz * 0.78) * 0.11;
+    uvs[i * 2 + 1] = (py * 0.95 + pz * 0.30) * 0.11;
+  }
+  mainGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+
+  computeSDFNormals(mainGeo);
+
+  mainGeo.computeBoundingSphere();
+  mainGeo.computeBoundingBox();
+
+  const tex = makeTissueTexture();
+
+  const mainMat = new THREE.MeshStandardMaterial({
+    map: tex,
+    color: 0xffffff,
+    roughness: 0.88,
+    metalness: 0.02,
+    side: THREE.DoubleSide,
+    dithering: true
+  });
+
+  const mainMesh = new THREE.Mesh(mainGeo, mainMat);
+  mainMesh.frustumCulled = true;
+  mainMesh.matrixAutoUpdate = false;
+  mainMesh.updateMatrix();
+  group.add(mainMesh);
+
+  if (glowVertices.length > 0) {
+    const glowGeo = new THREE.BufferGeometry();
+    glowGeo.setAttribute('position', new THREE.Float32BufferAttribute(glowVertices, 3));
+    glowGeo.setIndex(glowIndices);
+    glowGeo.computeVertexNormals();
+    glowGeo.computeBoundingSphere();
+    glowGeo.computeBoundingBox();
+
+    const glowMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      side: THREE.DoubleSide,
+      fog: false,
+      toneMapped: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
+      depthTest: true,
+      depthWrite: false
+    });
+    const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+    glowMesh.frustumCulled = true;
+    glowMesh.matrixAutoUpdate = false;
+    glowMesh.updateMatrix();
+    glowMesh.renderOrder = 1;
+    group.add(glowMesh);
+  }
+
+  // ★ 构建碰撞网格（使用与渲染完全相同的三角面）
+  buildCollisionMesh(mainVertices, mainIndices, glowVertices, glowIndices);
+
+  return group;
+}
+
+/* =========================================================
+   5. 程序化组织纹理（粉色）
+   ========================================================= */
+function makeTissueTexture() {
+  const S = TEX_RESOLUTION;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(S, S);
+  const data = img.data;
+
+  const scale = S / 256;
+
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const i = (y * S + x) * 4;
+
+      const n1 = vnoise(x / scale * 0.035 + 11.3, y / scale * 0.035 + 5.7, 0.0);
+      const n2 = vnoise(x / scale * 0.11  + 3.1,  y / scale * 0.11  + 9.4, 3.3);
+      const n3 = vnoise(x / scale * 0.33  + 7.9,  y / scale * 0.33  + 1.2, 7.1);
+
+      const v = n1 * 0.55 + n2 * 0.30 + n3 * 0.15;
+
+      const vein = Math.pow(Math.abs(Math.sin((n1 * 6.0 + n2 * 3.0) * 3.14159)), 6.0);
+
+      let r = 205 + v * 42 + vein * 34;
+      let g = 118 + v * 58 + vein * 52;
+      let b = 160 + v * 52 + vein * 42;
+
+      data[i]     = Math.max(0, Math.min(255, r));
+      data[i + 1] = Math.max(0, Math.min(255, g));
+      data[i + 2] = Math.max(0, Math.min(255, b));
+      data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/* =========================================================
+   6. 主界面背景 Canvas
+   ========================================================= */
+let bgCanvasState = null;
+
+function initMenuBackground() {
+  const cv = document.getElementById('bgCanvas');
+  const ctx = cv.getContext('2d');
+  let W = 0, H = 0, dpr = 1;
+  const cells = [];
+
+  let animId = null;
+  let running = false;
+  let elapsed = 0;
+  let lastT = 0;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = cv.width  = Math.floor(innerWidth  * dpr);
+    H = cv.height = Math.floor(innerHeight * dpr);
+    cv.style.width  = innerWidth + 'px';
+    cv.style.height = innerHeight + 'px';
+  }
+  resize();
+  addEventListener('resize', resize);
+
+  const rnd = mulberry32(0xC0FFEE);
+  for (let i = 0; i < 26; i++) {
+    cells.push({
+      x: rnd() * innerWidth * dpr,
+      y: rnd() * innerHeight * dpr,
+      r: (60 + rnd() * 220) * dpr,
+      vx: (rnd() - 0.5) * 0.28 * dpr,
+      vy: (rnd() - 0.5) * 0.28 * dpr,
+      hue: 320 + rnd() * 50,
+      sp: 0.35 + rnd() * 0.9,
+      ph: rnd() * Math.PI * 2
+    });
+  }
+
+  function frame(t) {
+    if (!running) return;
+
+    let dt = (t - lastT) / 1000;
+    lastT = t;
+    if (dt > 0.1) dt = 0.1;
+    if (dt < 0) dt = 0;
+    elapsed += dt;
+
+    const time = elapsed;
+
+    const g0 = ctx.createLinearGradient(0, 0, W, H);
+    g0.addColorStop(0, '#0a0410');
+    g0.addColorStop(0.5, '#120616');
+    g0.addColorStop(1, '#06020a');
+    ctx.fillStyle = g0;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (const c of cells) {
+      c.x += c.vx * dpr;
+      c.y += c.vy * dpr;
+
+      const margin = c.r * 1.4;
+      if (c.x < -margin) c.x = W + margin;
+      if (c.x > W + margin) c.x = -margin;
+      if (c.y < -margin) c.y = H + margin;
+      if (c.y > H + margin) c.y = -margin;
+
+      const pr = c.r * (0.82 + 0.18 * Math.sin(time * c.sp + c.ph));
+      const rg = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, pr);
+      rg.addColorStop(0.00, `hsla(${c.hue}, 72%, 42%, 0.30)`);
+      rg.addColorStop(0.35, `hsla(${c.hue}, 70%, 26%, 0.14)`);
+      rg.addColorStop(0.70, `hsla(${c.hue + 12}, 60%, 14%, 0.05)`);
+      rg.addColorStop(1.00, `hsla(${c.hue}, 60%, 5%, 0)`);
+
+      ctx.fillStyle = rg;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, pr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.globalCompositeOperation = 'overlay';
+    for (let i = 0; i < 90; i++) {
+      const px = (hash3i(i * 3 + 1, (time * 22) | 0, 7) * W);
+      const py = (hash3i(i * 5 + 2, 3, (time * 17) | 0) * H);
+      const a = hash3i(i, (time * 30) | 0, 13) * 0.16;
+      ctx.fillStyle = `rgba(255,190,220,${a})`;
+      ctx.fillRect(px, py, 1.6 * dpr, 1.6 * dpr);
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+
+    const vg = ctx.createRadialGradient(W * 0.5, H * 0.5, Math.min(W, H) * 0.22, W * 0.5, H * 0.5, Math.max(W, H) * 0.78);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.82)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+
+    animId = requestAnimationFrame(frame);
+  }
+
+  bgCanvasState = {
+    start() {
+      if (running) return;
+      running = true;
+      lastT = performance.now();
+      animId = requestAnimationFrame(frame);
+    },
+    stop() {
+      running = false;
+      if (animId) {
+        cancelAnimationFrame(animId);
+        animId = null;
+      }
+    },
+    isRunning() { return running; }
+  };
+
+  bgCanvasState.start();
+}
+
+/* =========================================================
+   7. Three.js 场景初始化
+   ========================================================= */
+let renderer, mainScene, camera;
+let rt, postScene, postCamera, postMat;
+let worldGroup = null;
+
+let sceneLights = [];
+let playerLight = null;
+
+const viewQuat = new THREE.Quaternion();
+const player = {
+  pos: new THREE.Vector3(),
+  vel: new THREE.Vector3(),
+  onGround: false
+};
+
+let running = false;
+let lastTime = 0;
+let bobTime = 0;
+let rgbAmount = 0.0035;
+
+const keys = Object.create(null);
+const joyVec = { x: 0, y: 0 };
+
+let dragging = false;
+let dragId = null;
+let lastPX = 0, lastPY = 0;
+
+let monsters = [];
+let monsterSpawnTimer = 0;
+let playerPosHistory = [];
+
+let isPortrait = false;
+const appContainer = document.getElementById('appContainer');
+const btnFlipScreen = document.getElementById('btnFlipScreen');
+
+let animFrameId = null;
+
+/* =========================================================
+   怪物共享几何体和材质
+   ========================================================= */
+const MONSTER_CAPSULE_RADIUS = 0.5;
+const MONSTER_CAPSULE_LOCAL_Y0 = -0.5;
+const MONSTER_CAPSULE_LOCAL_Y1 = 1.0;
+
+let monsterBodyGeo = null;
+let monsterHeadGeo = null;
+let monsterMat = null;
+
+function ensureMonsterAssets() {
+  if (monsterBodyGeo) return;
+  monsterBodyGeo = new THREE.CapsuleGeometry(0.5, 1.0, 8, 16);
+  monsterHeadGeo = new THREE.SphereGeometry(0.5, 16, 12);
+  monsterMat = new THREE.MeshStandardMaterial({
+    color: 0xff2222,
+    roughness: 0.55,
+    metalness: 0.08,
+    emissive: 0x440000,
+    emissiveIntensity: 0.7
+  });
+}
+
+function createMonsterMesh() {
+  ensureMonsterAssets();
+  const group = new THREE.Group();
+
+  const body = new THREE.Mesh(monsterBodyGeo, monsterMat);
+  body.position.y = 0;
+  body.frustumCulled = true;
+  group.add(body);
+
+  const head = new THREE.Mesh(monsterHeadGeo, monsterMat);
+  head.position.y = 1.0;
+  head.frustumCulled = true;
+  group.add(head);
+
+  return group;
+}
+
+function initThree() {
+  const canvas = document.getElementById('sceneCanvas');
+
+  renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    powerPreference: 'high-performance',
+    stencil: false,
+    alpha: false
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  mainScene = new THREE.Scene();
+  mainScene.background = new THREE.Color(0x05030a);
+
+  camera = new THREE.PerspectiveCamera(FOV_MIN, innerWidth / innerHeight, 0.08, 260);
+  camera.quaternion.copy(viewQuat);
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  rt = new THREE.WebGLRenderTarget(
+    Math.max(1, Math.floor(innerWidth * dpr)),
+    Math.max(1, Math.floor(innerHeight * dpr)),
+    {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      format: THREE.RGBAFormat,
+      type: THREE.UnsignedByteType,
+      depthBuffer: true,
+      stencilBuffer: false,
+      samples: 4
+    }
+  );
+
+  postScene = new THREE.Scene();
+  postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+  postMat = new THREE.ShaderMaterial({
+    uniforms: {
+      tDiffuse: { value: null },
+      amount: { value: rgbAmount },
+      vignette: { value: 0.55 }
+    },
+    vertexShader: /* glsl */`
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position.xy, 0.0, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */`
+      uniform sampler2D tDiffuse;
+      uniform float amount;
+      uniform float vignette;
+      varying vec2 vUv;
+
+      void main() {
+        vec2 d = vUv - 0.5;
+        vec2 off = d * amount;
+
+        float r = texture2D(tDiffuse, vUv + off).r;
+        float g = texture2D(tDiffuse, vUv).g;
+        float b = texture2D(tDiffuse, vUv - off).b;
+
+        vec3 col = vec3(r, g, b);
+
+        float vig = 1.0 - dot(d, d) * vignette * 1.9;
+        col *= clamp(vig, 0.0, 1.0);
+
+        float n = fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453);
+        col += (n - 0.5) * 0.012;
+
+        gl_FragColor = vec4(col, 1.0);
+
+        #include <colorspace_fragment>
+      }
+    `,
+    depthTest: false,
+    depthWrite: false
+  });
+
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat);
+  quad.frustumCulled = false;
+  postScene.add(quad);
+
+  resizeRenderer();
+  addEventListener('resize', resizeRenderer);
+
+  setupInput();
+}
+
+function resizeRenderer() {
+  let w, h;
+  if (isPortrait) {
+    w = window.innerHeight;
+    h = window.innerWidth;
+  } else {
+    w = window.innerWidth;
+    h = window.innerHeight;
+  }
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(w, h);
+
+  if (rt) {
+    rt.setSize(Math.max(1, Math.floor(w * dpr)), Math.max(1, Math.floor(h * dpr)));
+  }
+}
+
+function toggleFlipScreen() {
+  isPortrait = !isPortrait;
+  appContainer.classList.toggle('portrait', isPortrait);
+  if (btnFlipScreen) btnFlipScreen.textContent = isPortrait ? '横屏模式' : '翻转屏幕';
+  resizeRenderer();
+  setTimeout(() => { resizeRenderer(); }, 500);
+}
+
+function addSceneLights() {
+  if (sceneLights.length > 0) return;
+  const hemi = new THREE.HemisphereLight(0xffb3cc, 0x2a0a18, 1.35);
+  const amb  = new THREE.AmbientLight(0xffc4d8, 2.2);
+  const fill = new THREE.DirectionalLight(0x5544ff, 0.35);
+  fill.position.set(0.4, 1, 0.2);
+  sceneLights = [hemi, amb, fill];
+  for (const l of sceneLights) mainScene.add(l);
+  playerLight = null;
+}
+
+function removeSceneLights() {
+  for (const l of sceneLights) mainScene.remove(l);
+  sceneLights = [];
+  playerLight = null;
+}
+
+/* =========================================================
+   8. 输入
+   ========================================================= */
+function setupInput() {
+  const canvas = document.getElementById('sceneCanvas');
+  const joyEl = document.getElementById('joystick');
+  const stickEl = document.getElementById('stick');
+
+  addEventListener('keydown', (e) => {
+    keys[e.code] = true;
+    if (['KeyW','KeyA','KeyS','KeyD','KeyB','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+  addEventListener('keyup', (e) => { keys[e.code] = false; });
+  addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+  let joyActive = false, joyPointer = null;
+  let joyCX = 0, joyCY = 0;
+  const MAXR = 48;
+
+  function updateJoy(clientX, clientY) {
+    let dx = clientX - joyCX;
+    let dy = clientY - joyCY;
+    const len = Math.hypot(dx, dy);
+    if (len > MAXR) { dx = dx / len * MAXR; dy = dy / len * MAXR; }
+    if (isPortrait) {
+      const temp = dx;
+      dx = dy;
+      dy = -temp;
+    }
+    joyVec.x = dx / MAXR;
+    joyVec.y = dy / MAXR;
+    stickEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+  }
+
+  joyEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const r = joyEl.getBoundingClientRect();
+    joyCX = r.left + r.width / 2;
+    joyCY = r.top + r.height / 2;
+    joyActive = true;
+    joyPointer = e.pointerId;
+    try { joyEl.setPointerCapture(e.pointerId); } catch (_) {}
+    updateJoy(e.clientX, e.clientY);
+  });
+
+  joyEl.addEventListener('pointermove', (e) => {
+    if (!joyActive || e.pointerId !== joyPointer) return;
+    e.preventDefault();
+    updateJoy(e.clientX, e.clientY);
+  });
+
+  function joyEnd(e) {
+    if (e.pointerId !== joyPointer) return;
+    joyActive = false;
+    joyPointer = null;
+    joyVec.x = 0; joyVec.y = 0;
+    stickEl.style.transform = 'translate(-50%, -50%)';
+  }
+  joyEl.addEventListener('pointerup', joyEnd);
+  joyEl.addEventListener('pointercancel', joyEnd);
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    dragging = true;
+    dragId = e.pointerId;
+    lastPX = e.clientX;
+    lastPY = e.clientY;
+    try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!dragging || e.pointerId !== dragId) return;
+    const dx = e.clientX - lastPX;
+    const dy = e.clientY - lastPY;
+    lastPX = e.clientX;
+    lastPY = e.clientY;
+    rotateView(dx, dy);
+  });
+
+  function dragEnd(e) {
+    if (e.pointerId !== dragId) return;
+    dragging = false;
+    dragId = null;
+  }
+  canvas.addEventListener('pointerup', dragEnd);
+  canvas.addEventListener('pointercancel', dragEnd);
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+const _AXIS_Y = new THREE.Vector3(0, 1, 0);
+const _AXIS_X = new THREE.Vector3(1, 0, 0);
+const _qYaw   = new THREE.Quaternion();
+const _qPitch = new THREE.Quaternion();
+const _qFix   = new THREE.Quaternion();
+const _fwdTmp = new THREE.Vector3();
+const PITCH_LIMIT = 1.45;
+
+function rotateView(dx, dy) {
+  if (isPortrait) {
+    const temp = dx;
+    dx = dy;
+    dy = -temp;
+  }
+  const sens = 0.0026;
+  _qYaw.setFromAxisAngle(_AXIS_Y, -dx * sens);
+  _qPitch.setFromAxisAngle(_AXIS_X, -dy * sens);
+  viewQuat.premultiply(_qYaw).multiply(_qPitch);
+  _fwdTmp.set(0, 0, -1).applyQuaternion(viewQuat);
+  const pitch = Math.asin(Math.max(-1, Math.min(1, _fwdTmp.y)));
+  if (pitch > PITCH_LIMIT || pitch < -PITCH_LIMIT) {
+    const clamped = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch));
+    const delta = -(pitch - clamped);
+    _qFix.setFromAxisAngle(_AXIS_X, delta);
+    viewQuat.multiply(_qFix);
+  }
+  viewQuat.normalize();
+}
+
+/* =========================================================
+   9. 出生点查找
+   ========================================================= */
+function findSpawn() {
+  const rnd = mulberry32((SEED ^ 0x1234567) >>> 0);
+  const node = NODES[Math.floor(rnd() * NODES.length)];
+
+  let best = null;
+
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const ang = rnd() * Math.PI * 2;
+    const rr = Math.sqrt(rnd()) * node.ax * 0.5;
+    const px = node.cx + Math.cos(ang) * rr;
+    const pz = node.cz + Math.sin(ang) * rr;
+
+    let y = node.cy;
+    let found = false;
+    for (let i = 0; i < 500; i++) {
+      const d = sceneSDF(px, y, pz);
+      if (d > -PLAYER_RADIUS) { found = true; break; }
+      y -= 0.12;
+    }
+    if (!found) continue;
+
+    y += 0.12;
+    const d = sceneSDF(px, y, pz);
+    if (d > -PLAYER_RADIUS - 1.6 && d < -PLAYER_RADIUS + 0.6) {
+      return new THREE.Vector3(px, y, pz);
+    }
+    if (!best) best = new THREE.Vector3(px, y, pz);
+  }
+
+  if (best) return best;
+  return new THREE.Vector3(node.cx, node.cy - node.ay * 0.7, node.cz);
+}
+
+/* =========================================================
+   10. 角色物理更新（★ 碰撞使用三角面）
+   ========================================================= */
+const _camFwd   = new THREE.Vector3();
+const _camRight = new THREE.Vector3();
+const _wish     = new THREE.Vector3();
+
+function updatePlayer(dt) {
+  let ix = joyVec.x;
+  let iy = joyVec.y;
+
+  if (keys['KeyA'] || keys['ArrowLeft'])  ix -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
+  if (keys['KeyW'] || keys['ArrowUp'])    iy -= 1;
+  if (keys['KeyS'] || keys['ArrowDown'])  iy += 1;
+  if (keys['KeyB'])                       iy += 1;
+
+  const inMag = Math.hypot(ix, iy);
+  if (inMag > 1) { ix /= inMag; iy /= inMag; }
+
+  _camFwd.set(0, 0, -1).applyQuaternion(viewQuat);
+  _camFwd.y = 0;
+  if (_camFwd.lengthSq() < 1e-8) _camFwd.set(0, 0, -1);
+  _camFwd.normalize();
+
+  _camRight.set(1, 0, 0).applyQuaternion(viewQuat);
+  _camRight.y = 0;
+  if (_camRight.lengthSq() < 1e-8) _camRight.set(1, 0, 0);
+  _camRight.normalize();
+
+  _wish.set(0, 0, 0)
+    .addScaledVector(_camRight, ix)
+    .addScaledVector(_camFwd, -iy);
+
+  if (_wish.lengthSq() > 1) _wish.normalize();
+
+  const targetVX = _wish.x * MAX_SPEED;
+  const targetVZ = _wish.z * MAX_SPEED;
+
+  const rate = player.onGround ? 13.0 : 3.0;
+  const k = Math.min(1, rate * dt);
+
+  player.vel.x += (targetVX - player.vel.x) * k;
+  player.vel.z += (targetVZ - player.vel.z) * k;
+
+  player.vel.y -= GRAVITY * dt;
+  if (player.vel.y < -60) player.vel.y = -60;
+
+  player.pos.x += player.vel.x * dt;
+  player.pos.y += player.vel.y * dt;
+  player.pos.z += player.vel.z * dt;
+
+  // ★ 三角面碰撞
+  let groundedByTriangle = false;
+  const SEARCH_RADIUS = PLAYER_RADIUS + 0.8;
+
+  for (let iter = 0; iter < PLAYER_COLLISION_ITER; iter++) {
+    const px = player.pos.x, py = player.pos.y, pz = player.pos.z;
+    const closest = queryClosestPoint(px, py, pz, SEARCH_RADIUS);
+    if (!closest) break;
+
+    const dist = Math.sqrt(closest.distSq);
+    if (dist >= PLAYER_RADIUS - 0.001) break;
+    if (dist < 1e-6) break;
+
+    const nx = (px - closest.x) / dist;
+    const ny = (py - closest.y) / dist;
+    const nz = (pz - closest.z) / dist;
+
+    let push = PLAYER_RADIUS - dist;
+    if (push > MAX_PUSH_PER_ITER) push = MAX_PUSH_PER_ITER;
+
+    player.pos.x += nx * push;
+    player.pos.y += ny * push;
+    player.pos.z += nz * push;
+
+    const vn = player.vel.x * nx + player.vel.y * ny + player.vel.z * nz;
+    if (vn < 0) {
+      player.vel.x -= nx * vn;
+      player.vel.y -= ny * vn;
+      player.vel.z -= nz * vn;
+    }
+
+    if (ny > 0.55) groundedByTriangle = true;
+  }
+
+  // ★ 脚底检测（使用三角面查询）
+  let groundedByFoot = false;
+  const footY = player.pos.y - PLAYER_RADIUS;
+  const footClosest = queryClosestPoint(player.pos.x, footY, player.pos.z, PLAYER_RADIUS);
+  if (footClosest) {
+    const footDist = Math.sqrt(footClosest.distSq);
+    if (footDist < 0.4) groundedByFoot = true;
+  }
+
+  const grounded = groundedByTriangle || groundedByFoot;
+  player.onGround = grounded;
+  if (grounded && player.vel.y < 0) player.vel.y *= 0.02;
+
+  if (player.pos.y < -400) {
+    player.pos.copy(findSpawn());
+    player.vel.set(0, 0, 0);
+  }
+}
+
+/* =========================================================
+   11. 怪物更新（★ 怪物除外，仍使用 SDF）
+   ========================================================= */
+function spawnMonsterAtPastPosition() {
+  if (playerPosHistory.length === 0) return;
+
+  const past = playerPosHistory[0];
+  if (!past) return;
+
+  const mesh = createMonsterMesh();
+  mesh.position.copy(past.pos);
+  mainScene.add(mesh);
+
+  monsters.push({
+    mesh,
+    pos: past.pos.clone(),
+    vel: new THREE.Vector3(0, 0, 0),
+    onGround: false
+  });
+
+  while (monsters.length > MONSTER_MAX) {
+    const old = monsters.shift();
+    mainScene.remove(old.mesh);
+  }
+
+  console.log(`[巢穴] 生成怪物于 5 秒前位置，当前怪物数：${monsters.length}`);
+}
+
+function resolveMonsterWorldCollision(m) {
+  const RADIUS = MONSTER_CAPSULE_RADIUS;
+  const Y0 = MONSTER_CAPSULE_LOCAL_Y0;
+  const Y1 = MONSTER_CAPSULE_LOCAL_Y1;
+  const EPS = 0.06;
+  const SAMPLES = 3;
+
+  let grounded = false;
+
+  for (let iter = 0; iter < 4; iter++) {
+    let maxPen = 0;
+    let nx = 0, ny = 0, nz = 0;
+
+    for (let s = 0; s <= SAMPLES; s++) {
+      const t = s / SAMPLES;
+      const localY = Y0 + (Y1 - Y0) * t;
+      const px = m.pos.x;
+      const py = m.pos.y + localY;
+      const pz = m.pos.z;
+
+      const d = sceneSDF(px, py, pz);
+      const target = -RADIUS;
+      if (d > target + 0.001) {
+        const pen = d - target;
+        if (pen > maxPen) {
+          const gx = sceneSDF(px + EPS, py, pz) - sceneSDF(px - EPS, py, pz);
+          const gy = sceneSDF(px, py + EPS, pz) - sceneSDF(px, py - EPS, pz);
+          const gz = sceneSDF(px, py, pz + EPS) - sceneSDF(px, py, pz - EPS);
+          const gl = Math.hypot(gx, gy, gz);
+          if (gl > 1e-8) {
+            maxPen = pen;
+            nx = -gx / gl;
+            ny = -gy / gl;
+            nz = -gz / gl;
+          }
+        }
+      }
+    }
+
+    if (maxPen <= 0.001) break;
+
+    m.pos.x += nx * maxPen;
+    m.pos.y += ny * maxPen;
+    m.pos.z += nz * maxPen;
+
+    const vn = m.vel.x * nx + m.vel.y * ny + m.vel.z * nz;
+    if (vn < 0) {
+      m.vel.x -= nx * vn;
+      m.vel.y -= ny * vn;
+      m.vel.z -= nz * vn;
+    }
+
+    if (ny > 0.55) grounded = true;
+  }
+
+  if (!grounded) {
+    const footY = m.pos.y + Y0 - RADIUS - 0.18;
+    const dDown = sceneSDF(m.pos.x, footY, m.pos.z);
+    if (dDown > -0.35) grounded = true;
+  }
+
+  m.onGround = grounded;
+  if (grounded && m.vel.y < 0) m.vel.y *= 0.02;
+}
+
+function updateMonsters(dt) {
+  if (monsters.length === 0) return;
+
+  const playerPos = player.pos;
+  for (const m of monsters) {
+    const dx = playerPos.x - m.pos.x;
+    const dz = playerPos.z - m.pos.z;
+    const distXZ = Math.hypot(dx, dz);
+    let targetVX = 0, targetVZ = 0;
+    if (distXZ > 0.1) {
+      const speed = MAX_SPEED * 0.2;
+      targetVX = (dx / distXZ) * speed;
+      targetVZ = (dz / distXZ) * speed;
+    }
+    const rate = m.onGround ? 8.0 : 2.0;
+    const k = Math.min(1, rate * dt);
+    m.vel.x += (targetVX - m.vel.x) * k;
+    m.vel.z += (targetVZ - m.vel.z) * k;
+
+    m.vel.y -= GRAVITY * dt;
+    if (m.vel.y < -60) m.vel.y = -60;
+
+    m.pos.x += m.vel.x * dt;
+    m.pos.y += m.vel.y * dt;
+    m.pos.z += m.vel.z * dt;
+
+    resolveMonsterWorldCollision(m);
+
+    m.mesh.position.copy(m.pos);
+
+    const dxp = m.pos.x - playerPos.x;
+    const dyp = m.pos.y - playerPos.y;
+    const dzp = m.pos.z - playerPos.z;
+    const dist = Math.hypot(dxp, dyp, dzp);
+    if (dist < 2.0) {
+      triggerDeath();
+      return;
+    }
+  }
+}
+
+/* =========================================================
+   12. 胜利检测
+   ========================================================= */
+function checkVictory() {
+  for (const c of glowCenters) {
+    const dx = player.pos.x - c.x;
+    const dy = player.pos.y - c.y;
+    const dz = player.pos.z - c.z;
+    if (dx * dx + dy * dy + dz * dz < 3.0 * 3.0) {
+      triggerVictory();
+      return;
+    }
+  }
+}
+
+/* =========================================================
+   13. 相机更新
+   ========================================================= */
+function updateCamera(dt) {
+  const hSpeed = Math.hypot(player.vel.x, player.vel.z);
+  const speedFactor = Math.min(1, hSpeed / MAX_SPEED);
+
+  bobTime += dt * (5.0 + hSpeed * 1.35);
+  const bobY = Math.sin(bobTime * 2.0) * 0.055 * speedFactor;
+  const bobX = Math.cos(bobTime * 1.0) * 0.045 * speedFactor;
+
+  camera.position.set(
+    player.pos.x,
+    player.pos.y + EYE_HEIGHT + bobY,
+    player.pos.z
+  );
+
+  camera.quaternion.copy(viewQuat);
+
+  if (speedFactor > 0.01) {
+    const rollQ = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 0, 1),
+      bobX * 0.42
+    );
+    camera.quaternion.multiply(rollQ);
+    const pitchQ = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(1, 0, 0),
+      Math.sin(bobTime * 2.0 + 1.1) * 0.006 * speedFactor
+    );
+    camera.quaternion.multiply(pitchQ);
+  }
+
+  let seesMonster = false;
+  if (monsters.length > 0) {
+    const camDir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    const halfFovRad = THREE.MathUtils.degToRad(camera.fov * 0.5);
+    const cosThreshold = Math.cos(halfFovRad);
+    for (const m of monsters) {
+      const toMonster = new THREE.Vector3().subVectors(m.pos, camera.position);
+      const dist = toMonster.length();
+      if (dist < 0.5 || dist > 60) continue;
+      toMonster.normalize();
+      const dot = camDir.dot(toMonster);
+      if (dot > cosThreshold) {
+        seesMonster = true;
+        break;
+      }
+    }
+  }
+
+  let targetFov;
+  if (seesMonster) {
+    targetFov = 65;
+  } else {
+    targetFov = FOV_MIN + (FOV_MAX - FOV_MIN) * speedFactor;
+  }
+  if (Math.abs(camera.fov - targetFov) > 0.02) {
+    camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 6);
+    camera.updateProjectionMatrix();
+  }
+
+  let targetRgb = 0.0026 + speedFactor * 0.0072;
+  if (seesMonster) {
+    targetRgb *= 3;
+  }
+  rgbAmount += (targetRgb - rgbAmount) * Math.min(1, dt * 4);
+
+  if (playerLight) {
+    playerLight.position.set(
+      player.pos.x,
+      player.pos.y + EYE_HEIGHT * 0.85,
+      player.pos.z
+    );
+    playerLight.intensity = 640 + speedFactor * 260;
+  }
+}
+
+/* =========================================================
+   14. 渲染循环
+   ========================================================= */
+function renderFrame() {
+  renderer.setRenderTarget(rt);
+  renderer.clear();
+  renderer.render(mainScene, camera);
+
+  renderer.setRenderTarget(null);
+
+  postMat.uniforms.tDiffuse.value = rt.texture;
+  postMat.uniforms.amount.value = rgbAmount;
+
+  renderer.render(postScene, postCamera);
+}
+
+function animate(now) {
+  animFrameId = null;
+
+  if (!running) return;
+
+  animFrameId = requestAnimationFrame(animate);
+
+  let dt = (now - lastTime) / 1000;
+  lastTime = now;
+  if (dt > 0.05) dt = 0.05;
+  if (dt < 0) dt = 0;
+
+  const nowSec = now / 1000;
+  playerPosHistory.push({ time: nowSec, pos: player.pos.clone() });
+  while (playerPosHistory.length > 0 && nowSec - playerPosHistory[0].time > MONSTER_PAST_SECONDS) {
+    playerPosHistory.shift();
+  }
+
+  monsterSpawnTimer += dt;
+  if (monsterSpawnTimer >= MONSTER_SPAWN_INTERVAL) {
+    monsterSpawnTimer -= MONSTER_SPAWN_INTERVAL;
+    spawnMonsterAtPastPosition();
+  }
+
+  updatePlayer(dt);
+  updateMonsters(dt);
+  checkVictory();
+  updateCamera(dt);
+  renderFrame();
+}
+
+/* =========================================================
+   15. 清理世界
+   ========================================================= */
+function disposeWorld() {
+  if (worldGroup) {
+    mainScene.remove(worldGroup);
+    worldGroup.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach((m) => {
+            if (m.map) m.map.dispose();
+            m.dispose();
+          });
+        } else {
+          if (obj.material.map) obj.material.map.dispose();
+          obj.material.dispose();
+        }
+      }
+    });
+    worldGroup = null;
+  }
+
+  for (const m of monsters) {
+    mainScene.remove(m.mesh);
+  }
+  monsters = [];
+  playerPosHistory = [];
+  monsterSpawnTimer = 0;
+
+  if (monsterBodyGeo) { monsterBodyGeo.dispose(); monsterBodyGeo = null; }
+  if (monsterHeadGeo) { monsterHeadGeo.dispose(); monsterHeadGeo = null; }
+  if (monsterMat) { monsterMat.dispose(); monsterMat = null; }
+
+  // 清理碰撞网格数据
+  COLLISION_VERTICES = null;
+  COLLISION_INDICES = null;
+  COLLISION_GRID = null;
+  COLLISION_GRID_MINX = 0;
+  COLLISION_GRID_MINY = 0;
+  COLLISION_GRID_MINZ = 0;
+  COLLISION_GRID_NX = 0;
+  COLLISION_GRID_NY = 0;
+  COLLISION_GRID_NZ = 0;
+  _visitedStamp = null;
+  _queryIdCounter = 0;
+
+  FIELD = null;
+  NODES = [];
+  PRIMS = [];
+  glowCenters = [];
+  NX = NY = NZ = 0;
+  GRID_H = 1;
+  GRID_MNX = GRID_MNY = GRID_MNZ = 0;
+}
+
+/* =========================================================
+   16. 结束界面
+   ========================================================= */
+function showEndScreen(title, desc) {
+  const endScreen = document.getElementById('endScreen');
+  document.getElementById('endTitle').textContent = title;
+  document.getElementById('endDesc').textContent = desc;
+  endScreen.classList.remove('hidden');
+}
+
+function hideEndScreen() {
+  document.getElementById('endScreen').classList.add('hidden');
+}
+
+function triggerVictory() {
+  if (!running) return;
+  running = false;
+  showEndScreen('胜利', '你找到了巢穴的核心');
+}
+
+function triggerDeath() {
+  if (!running) return;
+  running = false;
+  showEndScreen('死亡', '你被巢穴的怪物吞噬了');
+}
+
+/* =========================================================
+   17. 返回主界面
+   ========================================================= */
+function backToMenu() {
+  running = false;
+
+  if (animFrameId !== null) {
+    cancelAnimationFrame(animFrameId);
+    animFrameId = null;
+  }
+
+  disposeWorld();
+  removeSceneLights();
+  hideEndScreen();
+
+  for (const k in keys) keys[k] = false;
+  joyVec.x = 0;
+  joyVec.y = 0;
+  dragging = false;
+  dragId = null;
+
+  const stickEl = document.getElementById('stick');
+  if (stickEl) stickEl.style.transform = 'translate(-50%, -50%)';
+
+  document.getElementById('joystick').classList.remove('show');
+  document.getElementById('crosshair').classList.remove('show');
+  document.getElementById('backBtn').classList.remove('show');
+  document.getElementById('menu').classList.remove('hidden');
+
+  document.getElementById('startBtn').disabled = false;
+
+  if (bgCanvasState) bgCanvasState.start();
+
+  renderer.setRenderTarget(null);
+  renderer.clear();
+
+  initSeed();
+}
+
+/* =========================================================
+   18. 启动游戏
+   ========================================================= */
+function startGame() {
+  const menu = document.getElementById('menu');
+  const loading = document.getElementById('loading');
+  const joystick = document.getElementById('joystick');
+  const crosshair = document.getElementById('crosshair');
+  const backBtn = document.getElementById('backBtn');
+
+  if (bgCanvasState) bgCanvasState.stop();
+
+  menu.classList.add('hidden');
+  loading.classList.add('show');
+
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      const t0 = performance.now();
+
+      initSeed();
+
+      addSceneLights();
+
+      generateWorldData(SEED);
+      worldGroup = buildWorldMesh();
+      mainScene.add(worldGroup);
+
+      monsters = [];
+      playerPosHistory = [];
+      monsterSpawnTimer = 0;
+
+      const spawn = findSpawn();
+      player.pos.copy(spawn);
+      player.vel.set(0, 0, 0);
+      player.onGround = false;
+
+      const yaw = RNG() * Math.PI * 2;
+      viewQuat.setFromEuler(new THREE.Euler(0, yaw, 0, 'YXZ'));
+
+      bobTime = 0;
+      rgbAmount = 0.0035;
+
+      updateCamera(0);
+
+      const dt = performance.now() - t0;
+      console.log(`[巢穴] 世界构建完成，用时 ${dt.toFixed(0)}ms，种子 ${SEED_STR}`);
+
+      loading.classList.remove('show');
+      joystick.classList.add('show');
+      crosshair.classList.add('show');
+      backBtn.classList.add('show');
+
+      running = true;
+      lastTime = performance.now();
+
+      if (animFrameId === null) {
+        animFrameId = requestAnimationFrame(animate);
+      }
+    }, 60);
+  });
+}
+
+/* ============================此文件由坤坤工作室创建===========
+   19. 入口
+   ========================================================= */
+function main() {
+  initSeed();
+  initMenuBackground();
+  initThree();
+
+  const startBtn   = document.getElementById('startBtn');
+  const backBtn    = document.getElementById('backBtn');
+  const endBackBtn = document.getElementById('endBackBtn');
+  const resSlider  = document.getElementById('resSlider');
+  const resVal     = document.getElementById('resVal');
+  const texSlider  = document.getElementById('texSlider');
+  const texVal     = document.getElementById('texVal');
+  const assetLoadingEl = document.getElementById('assetLoading');
+
+  startBtn.disabled = false;
+  assetLoadingEl.textContent = '';
+
+  resSlider.addEventListener('input', () => {
+    GRID_RESOLUTION = parseInt(resSlider.value, 10);
+    resVal.textContent = GRID_RESOLUTION;
+  });
+
+  texSlider.addEventListener('input', () => {
+    TEX_RESOLUTION = parseInt(texSlider.value, 10);
+    texVal.textContent = TEX_RESOLUTION;
+  });
+
+  startBtn.addEventListener('click', () => {
+    startBtn.disabled = true;
+    startGame();
+  });
+
+  backBtn.addEventListener('click', backToMenu);
+  endBackBtn.addEventListener('click', backToMenu);
+
+  if (btnFlipScreen) {
+    btnFlipScreen.addEventListener('click', toggleFlipScreen);
+  }
+
+  renderer.setRenderTarget(null);
+  renderer.clear();
+}
+
+main();
+</script>
+
+</body>
+</html>
