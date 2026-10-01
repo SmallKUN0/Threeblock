@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <title>Kimi游戏榜 · 管理员控制台</title>
+  <style>
+    /* ===== 全局重置 & 双端适配 ===== */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1118;
+      --panel: #181c27;
+      --panel-hover: #1f2536;
+      --border: #2a3042;
+      --text: #e8ecf4;
+      --text-dim: #8892a8;
+      --accent: #6c8cff;
+      --accent-glow: rgba(108,140,255,.25);
+      --success: #3dd68c;
+      --danger: #ff5c5c;
+      --warning: #ffb347;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    html, body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ===== 顶部导航 ===== */
+    .topbar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      min-height: 56px;
+    }
+    .topbar .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 16px;
+      white-space: nowrap;
+      color: var(--text);
+    }
+    .topbar .logo svg { flex-shrink: 0; }
+    .topbar .spacer { flex: 1; }
+    .topbar .status-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--danger);
+      transition: background .3s;
+      flex-shrink: 0;
+    }
+    .topbar .status-dot.connected { background: var(--success); }
+    .topbar .status-text {
+      font-size: 12px;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+    .topbar .sync-badge {
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid rgba(108,140,255,.3);
+      white-space: nowrap;
+    }
+
+    /* ===== 主区域 ===== */
+    .main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ===== 侧边控制面板（桌面端左侧，移动端底部抽屉） ===== */
+    .sidebar {
+      width: 340px;
+      min-width: 340px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+      z-index: 50;
+    }
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .sidebar-inner { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* 折叠面板 */
+    .section {
+      background: var(--panel-hover);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 14px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      transition: background .2s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .section-header:hover { background: rgba(255,255,255,.03); }
+    .section-header .arrow {
+      margin-left: auto;
+      transition: transform .25s;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+    .section.collapsed .section-header .arrow { transform: rotate(-90deg); }
+    .section.collapsed .section-body { display: none; }
+    .section-body { padding: 0 14px 14px; }
+
+    /* 表单元素 */
+    .field { margin-bottom: 12px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    .field input[type="text"],
+    .field input[type="number"],
+    .field textarea,
+    .field select {
+      width: 100%;
+      padding: 9px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .field input:focus, .field textarea:focus, .field select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    .field textarea { resize: vertical; min-height: 60px; }
+    .field select { cursor: pointer; }
+
+    /* 开关组件 */
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+    }
+    .switch-row .switch-label {
+      font-size: 13px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .switch .slider {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 24px;
+      transition: background .25s;
+    }
+    .switch .slider::before {
+      content: "";
+      position: absolute;
+      width: 18px; height: 18px;
+      left: 3px; bottom: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform .25s;
+    }
+    .switch input:checked + .slider { background: var(--accent); }
+    .switch input:checked + .slider::before { transform: translateX(20px); }
+
+    /* 按钮 */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all .2s;
+      -webkit-tap-highlight-color: transparent;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #5a7aff; }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-danger { background: rgba(255,92,92,.15); color: var(--danger); border: 1px solid rgba(255,92,92,.3); }
+    .btn-danger:hover { background: rgba(255,92,92,.25); }
+    .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--panel-hover); color: var(--text); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+    .btn-full { width: 100%; }
+
+    /* 公告历史 */
+    .history-list { display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto; }
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--bg);
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+    .history-item .text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .history-item .time { flex-shrink: 0; font-size: 10px; color: #555e72; }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      top: 68px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .toast {
+      padding: 10px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      color: #fff;
+      animation: slideIn .3s ease;
+      pointer-events: auto;
+      max-width: 320px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    }
+    .toast.success { background: rgba(61,214,140,.95); }
+    .toast.error { background: rgba(255,92,92,.95); }
+    .toast.info { background: rgba(108,140,255,.95); }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
+
+    /* ===== 预览区 ===== */
+    .preview {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #0a0c12;
+      position: relative;
+      min-width: 0;
+    }
+    .preview-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-dim);
+      flex-shrink: 0;
+    }
+    .preview-toolbar .url-bar {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 11px;
+      color: var(--text-dim);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .preview-frame-wrapper {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+    #previewFrame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #fff;
+    }
+
+    /* ===== 移动端适配 ===== */
+    @media (max-width: 768px) {
+      .sidebar {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        width: 100%;
+        min-width: unset;
+        max-height: 45vh;
+        border-right: none;
+        border-top: 1px solid var(--border);
+        border-radius: 16px 16px 0 0;
+        transition: transform .3s cubic-bezier(.4,0,.2,1);
+        z-index: 200;
+        padding-bottom: var(--safe-bottom);
+      }
+      .sidebar.hidden { transform: translateY(calc(100% - 52px)); }
+      .sidebar.hidden .sidebar-inner { opacity: 0; pointer-events: none; }
+      .sidebar-inner { transition: opacity .2s; }
+      .preview { height: 55vh; }
+      .topbar { padding: 10px 14px; min-height: 48px; }
+      .topbar .logo { font-size: 14px; }
+      .topbar .sync-badge { display: none; }
+      .mobile-toggle {
+        display: flex !important;
+      }
+      .toast-container { top: auto; bottom: 60vh; right: 12px; }
+    }
+    @media (min-width: 769px) {
+      .mobile-toggle { display: none !important; }
+      .sidebar { position: relative; transform: none !important; }
+    }
+
+    /* 移动端拖动指示条 */
+    .drag-handle {
+      display: none;
+      width: 36px; height: 4px;
+      background: var(--border);
+      border-radius: 4px;
+      margin: 8px auto 0;
+      flex-shrink: 0;
+    }
+    @media (max-width: 768px) {
+      .drag-handle { display: block; }
+    }
+
+    /* 空状态 */
+    .empty-state {
+      text-align: center;
+      padding: 24px 12px;
+      color: var(--text-dim);
+      font-size: 12px;
+    }
+
+    /* 网络状态提示 */
+    .net-banner {
+      display: none;
+      padding: 6px 14px;
+      background: rgba(255,179,71,.15);
+      color: var(--warning);
+      font-size: 12px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255,179,71,.2);
+    }
+    .net-banner.show { display: block; }
+
+    /* 加载遮罩 */
+    .loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15,17,24,.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+      backdrop-filter: blur(4px);
+      transition: opacity .3s;
+    }
+    .loading-overlay.hide { opacity: 0; pointer-events: none; }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 确认对话框 */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.6);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 10000;
+      opacity: 0; pointer-events: none;
+      transition: opacity .2s;
+    }
+    .modal-overlay.show { opacity: 1; pointer-events: auto; }
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      width: 90%; max-width: 360px;
+      box-shadow: 0 16px 48px rgba(0,0,0,.5);
+    }
+    .modal h3 { font-size: 15px; margin-bottom: 8px; }
+    .modal p { font-size: 13px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.5; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  </style>
+</head>
+<body>
+
+<!-- ===== 顶部导航 ===== -->
+<header class="topbar">
+  <div class="logo">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <span>Kimi游戏榜 · 管理台</span>
+  </div>
+  <div class="spacer"></div>
+  <span class="sync-badge">跨端同步</span>
+  <span class="status-dot" id="statusDot"></span>
+  <span class="status-text" id="statusText">未连接</span>
+  <button class="btn btn-ghost btn-sm mobile-toggle" id="mobileToggle" style="display:none;">☰ 面板</button>
+</header>
+
+<!-- 网络提示 -->
+<div class="net-banner" id="netBanner">⚠️ 网络连接异常，正在尝试重连…</div>
+
+<!-- ===== 主区域 ===== -->
+<div class="main">
+
+  <!-- 侧边控制面板 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="drag-handle" id="dragHandle"></div>
+    <div class="sidebar-inner">
+
+      <!-- ▸ 作品可见性控制 -->
+      <div class="section" id="sectionVisibility">
+        <div class="section-header" data-target="visibilityBody">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          作品可见性
+          <span class="arrow">▼</span>
+        </div>
+        <div class="section-body" id="visibilityBody">
+          <div class="switch-row">
+            <span class="switch-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/></svg>
+              整体展示
+            </span>
+            <label class="switch">
+              <input type="checkbox" id="globalVisible" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="field" style="margin-top:10px;">
+            <label>按分类隐藏</label>
+            <select id="categorySelect">
+              <option value="all">全部作品</option>
+              <option value="action">动作类</option>
+              <option value="rpg">角色扮演</option>
+              <option value="strategy">策略类</option>
+              <option value="casual">休闲类</option>
+              <option value="sports">体育竞技</option>
+            </select>
+          </div>
+          <div class="switch-row">
+            <span class="switch-label">隐藏所选分类</span>
+            <label class="switch">
+              <input type="checkbox" id="categoryHidden">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="field" style="margin-top:10px;">
+            <label>指定作品 ID（逗号分隔）</label>
+            <input type="text" id="specificIds" placeholder="例如: 1001,1002,1003">
+          </div>
+          <div style="display:flex; gap:8px; margin-top:4px;">
+            <button class="btn btn-primary btn-sm" id="btnHideSpecific" style="flex:1;">隐藏</button>
+            <button class="btn btn-ghost btn-sm" id="btnShowSpecific" style="flex:1;">恢复</button>
+          </div>
+          <div class="field" style="margin-top:12px;">
+            <label>当前隐藏列表</label>
+            <div class="history-list" id="hiddenList">
+              <div class="empty-state">暂无隐藏作品</div>
+            </div>
+          </div>
+          <button class="btn btn-danger btn-full btn-sm" id="btnClearHidden" style="margin-top:8px;">清空所有隐藏</button>
+        </div>
+      </div>
+
+      <!-- ▸ 滚动公告管理 -->
+      <div class="section" id="sectionAnnouncement">
+        <div class="section-header" data-target="announcementBody">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          滚动公告
+          <span class="arrow">▼</span>
+        </div>
+        <div class="section-body" id="announcementBody">
+          <div class="switch-row">
+            <span class="switch-label">启用滚动公告</span>
+            <label class="switch">
+              <input type="checkbox" id="announceEnabled" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="field">
+            <label>公告内容</label>
+            <textarea id="announceText" placeholder="输入要滚动展示的公告文字…">欢迎来到Kimi游戏榜！</textarea>
+          </div>
+          <div class="field">
+            <label>滚动速度</label>
+            <select id="announceSpeed">
+              <option value="slow">慢速</option>
+              <option value="normal" selected>正常</option>
+              <option value="fast">快速</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>文字颜色</label>
+            <select id="announceColor">
+              <option value="#ffb347">金色</option>
+              <option value="#6c8cff">蓝色</option>
+              <option value="#3dd68c">绿色</option>
+              <option value="#ff5c5c">红色</option>
+              <option value="#ffffff">白色</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-full" id="btnSaveAnnounce">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg>
+            保存公告
+          </button>
+          <div class="field" style="margin-top:12px;">
+            <label>历史公告</label>
+            <div class="history-list" id="announceHistory">
+              <div class="empty-state">暂无历史记录</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ▸ 数据操作 -->
+      <div class="section" id="sectionData">
+        <div class="section-header" data-target="dataBody">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          数据操作
+          <span class="arrow">▼</span>
+        </div>
+        <div class="section-body" id="dataBody">
+          <button class="btn btn-ghost btn-full" id="btnRefreshAll" style="margin-bottom:8px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            刷新全部数据
+          </button>
+          <button class="btn btn-ghost btn-full" id="btnReconnect">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            重新连接沙箱
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- 预览区 -->
+  <div class="preview">
+    <div class="preview-toolbar">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
+      <span class="url-bar" id="urlBar">https://app-dxmee7bvos8x.appmiaoda.com/index.html</span>
+      <button class="btn btn-ghost btn-sm" id="btnReloadFrame" title="刷新预览">↻</button>
+      <button class="btn btn-ghost btn-sm" id="btnFullscreen" title="全屏">⛶</button>
+    </div>
+    <div class="preview-frame-wrapper" id="frameWrapper">
+      <iframe id="previewFrame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" src="https://app-dxmee7bvos8x.appmiaoda.com/index.html"></iframe>
+      <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast 容器 -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- 确认对话框 -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">确认操作</h3>
+    <p id="modalDesc">确定要执行此操作吗？</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" id="modalCancel">取消</button>
+      <button class="btn btn-primary btn-sm" id="modalConfirm">确认</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/**
+ * ================================================================
+ *  Kimi游戏榜 · 管理员控制台
+ *  功能：自由隐藏/展示作品 + 修改滚动公告（跨端同步）
+ *  通信：通过 postMessage 与 Sandbox iframe 内的网站双向通信
+ * ================================================================
+ */
+(function () {
+  'use strict';
+
+  // ==================== 常量 ====================
+  const TARGET_ORIGIN = 'https://app-dxmee7bvos8x.appmiaoda.com';
+  const STORAGE_KEYS = {
+    hidden: 'kimi_admin_hidden_ids',
+    announce: 'kimi_admin_announce',
+    history: 'kimi_admin_announce_history',
+  };
+  const MAX_HISTORY = 20;
+
+  // ==================== DOM 引用 ====================
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => document.querySelectorAll(sel);
+
+  const previewFrame = $('#previewFrame');
+  const loadingOverlay = $('#loadingOverlay');
+  const statusDot = $('#statusDot');
+  const statusText = $('#statusText');
+  const netBanner = $('#netBanner');
+  const toastContainer = $('#toastContainer');
+  const sidebar = $('#sidebar');
+  const mobileToggle = $('#mobileToggle');
+
+  // 可见性控件
+  const globalVisible = $('#globalVisible');
+  const categorySelect = $('#categorySelect');
+  const categoryHidden = $('#categoryHidden');
+  const specificIdsInput = $('#specificIds');
+  const btnHideSpecific = $('#btnHideSpecific');
+  const btnShowSpecific = $('#btnShowSpecific');
+  const hiddenListEl = $('#hiddenList');
+  const btnClearHidden = $('#btnClearHidden');
+
+  // 公告控件
+  const announceEnabled = $('#announceEnabled');
+  const announceText = $('#announceText');
+  const announceSpeed = $('#announceSpeed');
+  const announceColor = $('#announceColor');
+  const btnSaveAnnounce = $('#btnSaveAnnounce');
+  const announceHistoryEl = $('#announceHistory');
+
+  // 数据操作
+  const btnRefreshAll = $('#btnRefreshAll');
+  const btnReconnect = $('#btnReconnect');
+
+  // ==================== 状态 ====================
+  let isConnected = false;
+  let frameReady = false;
+  let retryCount = 0;
+  const MAX_RETRY = 5;
+  let hiddenIds = [];
+  let announceConfig = {
+    enabled: true,
+    text: '欢迎来到Kimi游戏榜！',
+    speed: 'normal',
+    color: '#ffb347',
+  };
+  let announceHistory = [];
+
+  // ==================== 工具函数 ====================
+
+  /** 显示 Toast 提示 */
+  function toast(message, type = 'info') {
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.textContent = message;
+    toastContainer.appendChild(el);
+    setTimeout(() => {
+      el.style.opacity = '0';
+      el.style.transition = 'opacity .3s';
+      setTimeout(() => el.remove(), 300);
+    }, 2500);
+  }
+
+  /** 显示确认对话框 */
+  function confirmDialog(title, desc) {
+    return new Promise((resolve) => {
+      $('#modalTitle').textContent = title;
+      $('#modalDesc').textContent = desc;
+      $('#modalOverlay').classList.add('show');
+
+      const cleanup = () => {
+        $('#modalOverlay').classList.remove('show');
+        $('#modalConfirm').removeEventListener('click', onConfirm);
+        $('#modalCancel').removeEventListener('click', onCancel);
+      };
+
+      const onConfirm = () => { cleanup(); resolve(true); };
+      const onCancel = () => { cleanup(); resolve(false); };
+
+      $('#modalConfirm').addEventListener('click', onConfirm);
+      $('#modalCancel').addEventListener('click', onCancel);
+    });
+  }
+
+  /** 更新连接状态 UI */
+  function setConnectionState(connected) {
+    isConnected = connected;
+    statusDot.classList.toggle('connected', connected);
+    statusText.textContent = connected ? '已连接' : '未连接';
+    if (!connected) {
+      netBanner.classList.add('show');
+    } else {
+      netBanner.classList.remove('show');
+    }
+  }
+
+  // ==================== 本地存储 ====================
+
+  function loadFromStorage() {
+    try {
+      const h = localStorage.getItem(STORAGE_KEYS.hidden);
+      if (h) hiddenIds = JSON.parse(h);
+
+      const a = localStorage.getItem(STORAGE_KEYS.announce);
+      if (a) announceConfig = { ...announceConfig, ...JSON.parse(a) };
+
+      const hist = localStorage.getItem(STORAGE_KEYS.history);
+      if (hist) announceHistory = JSON.parse(hist);
+    } catch (e) {
+      console.warn('[Admin] 读取本地存储失败', e);
+    }
+  }
+
+  function saveToStorage() {
+    try {
+      localStorage.setItem(STORAGE_KEYS.hidden, JSON.stringify(hiddenIds));
+      localStorage.setItem(STORAGE_KEYS.announce, JSON.stringify(announceConfig));
+      localStorage.setItem(STORAGE_KEYS.history, JSON.stringify(announceHistory));
+    } catch (e) {
+      console.warn('[Admin] 写入本地存储失败', e);
+    }
+  }
+
+  // ==================== 渲染 ====================
+
+  function renderHiddenList() {
+    if (!hiddenIds.length) {
+      hiddenListEl.innerHTML = '<div class="empty-state">暂无隐藏作品</div>';
+      return;
+    }
+    hiddenListEl.innerHTML = hiddenIds.map((id) => `
+      <div class="history-item">
+        <span class="text">ID: ${id}</span>
+        <button class="btn btn-ghost btn-sm" data-remove-id="${id}" style="padding:2px 8px;font-size:11px;">恢复</button>
+      </div>
+    `).join('');
+
+    // 绑定恢复按钮
+    hiddenListEl.querySelectorAll('[data-remove-id]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.removeId;
+        hiddenIds = hiddenIds.filter((x) => x !== id);
+        saveToStorage();
+        renderHiddenList();
+        pushVisibilityToFrame();
+        toast(`已恢复作品 ${id}`, 'success');
+      });
+    });
+  }
+
+  function renderAnnounceHistory() {
+    if (!announceHistory.length) {
+      announceHistoryEl.innerHTML = '<div class="empty-state">暂无历史记录</div>';
+      return;
+    }
+    announceHistoryEl.innerHTML = announceHistory.slice(0, MAX_HISTORY).map((item) => `
+      <div class="history-item">
+        <span class="text">${escapeHtml(item.text)}</span>
+        <span class="time">${item.time}</span>
+        <button class="btn btn-ghost btn-sm" data-restore-announce='${JSON.stringify(item).replace(/'/g, "&#39;")}' style="padding:2px 8px;font-size:11px;">恢复</button>
+      </div>
+    `).join('');
+
+    announceHistoryEl.querySelectorAll('[data-restore-announce]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        try {
+          const item = JSON.parse(btn.dataset.restoreAnnounce.replace(/&#39;/g, "'"));
+          announceText.value = item.text;
+          announceSpeed.value = item.speed || 'normal';
+          announceColor.value = item.color || '#ffb347';
+          toast('已载入历史公告，点击保存生效', 'info');
+        } catch (e) { /* ignore */ }
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // ==================== 与 iframe 通信 ====================
+
+  /** 向 iframe 发送消息 */
+  function postToFrame(type, payload) {
+    if (!previewFrame.contentWindow) return;
+    try {
+      previewFrame.contentWindow.postMessage({
+        source: 'kimi-admin-console',
+        type,
+        payload,
+        timestamp: Date.now(),
+      }, TARGET_ORIGIN);
+    } catch (e) {
+      console.warn('[Admin] postMessage 发送失败', e);
+    }
+  }
+
+  /** 推送可见性状态到网站 */
+  function pushVisibilityToFrame() {
+    postToFrame('SYNC_VISIBILITY', {
+      globalVisible: globalVisible.checked,
+      hiddenIds: hiddenIds,
+      categoryHidden: categoryHidden.checked,
+      category: categorySelect.value,
+    });
+  }
+
+  /** 推送公告配置到网站 */
+  function pushAnnounceToFrame() {
+    postToFrame('SYNC_ANNOUNCEMENT', {
+      enabled: announceEnabled.checked,
+      text: announceText.value.trim(),
+      speed: announceSpeed.value,
+      color: announceColor.value,
+    });
+  }
+
+  /** 请求网站回传当前状态 */
+  function requestStateFromFrame() {
+    postToFrame('REQUEST_STATE', {});
+  }
+
+  // ==================== 消息监听 ====================
+
+  window.addEventListener('message', (event) => {
+    // 安全校验：只接受来自目标域的消息
+    if (event.origin !== TARGET_ORIGIN) return;
+
+    const data = event.data;
+    if (!data || data.source === 'kimi-admin-console') return; // 忽略自己发的
+
+    switch (data.type) {
+      case 'FRAME_READY':
+        frameReady = true;
+        setConnectionState(true);
+        loadingOverlay.classList.add('hide');
+        toast('已连接到游戏榜网站', 'success');
+        // 连接成功后立即推送本地配置
+        pushVisibilityToFrame();
+        pushAnnounceToFrame();
+        break;
+
+      case 'STATE_SYNC':
+        // 网站回传的状态，用于同步
+        if (data.payload) {
+          applyStateFromFrame(data.payload);
+        }
+        break;
+
+      case 'VISIBILITY_UPDATED':
+        toast('可见性已同步到所有设备', 'success');
+        break;
+
+      case 'ANNOUNCEMENT_UPDATED':
+        toast('公告已同步到所有设备', 'success');
+        break;
+
+      case 'ERROR':
+        toast(`网站返回错误: ${data.payload?.message || '未知'}`, 'error');
+        break;
+    }
+  });
+
+  /** 应用从网站回传的状态 */
+  function applyStateFromFrame(payload) {
+    if (payload.hiddenIds) {
+      hiddenIds = payload.hiddenIds;
+      saveToStorage();
+      renderHiddenList();
+    }
+    if (payload.announcement) {
+      const a = payload.announcement;
+      announceEnabled.checked = a.enabled !== false;
+      announceText.value = a.text || '';
+      announceSpeed.value = a.speed || 'normal';
+      announceColor.value = a.color || '#ffb347';
+      announceConfig = { ...a };
+      saveToStorage();
+    }
+    if (typeof payload.globalVisible === 'boolean') {
+      globalVisible.checked = payload.globalVisible;
+    }
+  }
+
+  // ==================== 事件绑定：可见性 ====================
+
+  globalVisible.addEventListener('change', () => {
+    pushVisibilityToFrame();
+    toast(globalVisible.checked ? '已展示全部作品' : '已隐藏全部作品', 'info');
+  });
+
+  categorySelect.addEventListener('change', () => {
+    pushVisibilityToFrame();
+  });
+
+  categoryHidden.addEventListener('change', () => {
+    pushVisibilityToFrame();
+    toast(categoryHidden.checked ? `已隐藏「${categorySelect.selectedOptions[0].text}」` : `已恢复「${categorySelect.selectedOptions[0].text}」`, 'info');
+  });
+
+  btnHideSpecific.addEventListener('click', () => {
+    const raw = specificIdsInput.value.trim();
+    if (!raw) { toast('请输入作品 ID', 'error'); return; }
+    const ids = raw.split(/[,，\s]+/).filter(Boolean);
+    if (!ids.length) { toast('未解析到有效 ID', 'error'); return; }
+
+    const newIds = ids.filter((id) => !hiddenIds.includes(id));
+    if (!newIds.length) { toast('这些作品已在隐藏列表中', 'info'); return; }
+
+    hiddenIds = [...hiddenIds, ...newIds];
+    saveToStorage();
+    renderHiddenList();
+    pushVisibilityToFrame();
+    specificIdsInput.value = '';
+    toast(`已隐藏 ${newIds.length} 个作品`, 'success');
+  });
+
+  btnShowSpecific.addEventListener('click', () => {
+    const raw = specificIdsInput.value.trim();
+    if (!raw) { toast('请输入要恢复的作品 ID', 'error'); return; }
+    const ids = raw.split(/[,，\s]+/).filter(Boolean);
+    const before = hiddenIds.length;
+    hiddenIds = hiddenIds.filter((id) => !ids.includes(id));
+    const removed = before - hiddenIds.length;
+    if (removed === 0) { toast('未找到匹配的隐藏作品', 'info'); return; }
+    saveToStorage();
+    renderHiddenList();
+    pushVisibilityToFrame();
+    specificIdsInput.value = '';
+    toast(`已恢复 ${removed} 个作品`, 'success');
+  });
+
+  btnClearHidden.addEventListener('click', async () => {
+    if (!hiddenIds.length) { toast('列表已为空', 'info'); return; }
+    const ok = await confirmDialog('清空隐藏列表', `确定要恢复全部 ${hiddenIds.length} 个被隐藏的作品吗？`);
+    if (!ok) return;
+    hiddenIds = [];
+    saveToStorage();
+    renderHiddenList();
+    pushVisibilityToFrame();
+    toast('已恢复全部作品', 'success');
+  });
+
+  // ==================== 事件绑定：公告 ====================
+
+  btnSaveAnnounce.addEventListener('click', () => {
+    const text = announceText.value.trim();
+    if (!text && announceEnabled.checked) {
+      toast('公告内容不能为空', 'error');
+      return;
+    }
+
+    announceConfig = {
+      enabled: announceEnabled.checked,
+      text: text || announceConfig.text,
+      speed: announceSpeed.value,
+      color: announceColor.value,
+    };
+
+    // 记录历史
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    announceHistory.unshift({ ...announceConfig, time: timeStr });
+    if (announceHistory.length > MAX_HISTORY) announceHistory.length = MAX_HISTORY;
+
+    saveToStorage();
+    renderAnnounceHistory();
+    pushAnnounceToFrame();
+
+    btnSaveAnnounce.disabled = true;
+    btnSaveAnnounce.textContent = '同步中…';
+    setTimeout(() => {
+      btnSaveAnnounce.disabled = false;
+      btnSaveAnnounce.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17,21 17,13 7,13 7,21"/><polyline points="7,3 7,8 15,8"/></svg> 保存公告`;
+    }, 800);
+
+    toast('公告已保存，正在同步到所有设备…', 'success');
+  });
+
+  announceEnabled.addEventListener('change', () => {
+    pushAnnounceToFrame();
+  });
+
+  // ==================== 事件绑定：数据操作 ====================
+
+  btnRefreshAll.addEventListener('click', () => {
+    if (!frameReady) { toast('尚未连接到网站', 'error'); return; }
+    requestStateFromFrame();
+    pushVisibilityToFrame();
+    pushAnnounceToFrame();
+    toast('正在刷新…', 'info');
+  });
+
+  btnReconnect.addEventListener('click', () => {
+    loadingOverlay.classList.remove('hide');
+    frameReady = false;
+    setConnectionState(false);
+    retryCount = 0;
+    reloadFrame();
+  });
+
+  // ==================== iframe 加载 ====================
+
+  function reloadFrame() {
+    loadingOverlay.classList.remove('hide');
+    frameReady = false;
+    setConnectionState(false);
+
+    // 重新加载 iframe
+    const currentSrc = previewFrame.src;
+    previewFrame.src = 'about:blank';
+    setTimeout(() => {
+      previewFrame.src = currentSrc;
+    }, 100);
+  }
+
+  previewFrame.addEventListener('load', () => {
+    // iframe 加载完成，等待内部发送 FRAME_READY
+    // 设置超时：如果 5 秒内没收到，尝试主动握手
+    setTimeout(() => {
+      if (!frameReady) {
+        postToFrame('ADMIN_PING', {});
+        // 再等 2 秒
+        setTimeout(() => {
+          if (!frameReady) {
+            loadingOverlay.classList.add('hide');
+            setConnectionState(false);
+            toast('连接超时，请检查网络后重试', 'error');
+          }
+        }, 2000);
+      }
+    }, 5000);
+  });
+
+  // ==================== 移动端侧边栏 ====================
+
+  mobileToggle.addEventListener('click', () => {
+    sidebar.classList.toggle('hidden');
+  });
+
+  // 点击拖动条折叠/展开
+  $('#dragHandle')?.addEventListener('click', () => {
+    sidebar.classList.toggle('hidden');
+  });
+
+  // 桌面端不隐藏
+  const mq = window.matchMedia('(min-width: 769px)');
+  function handleMqChange(e) {
+    if (e.matches) sidebar.classList.remove('hidden');
+  }
+  mq.addEventListener('change', handleMqChange);
+  handleMqChange(mq);
+
+  // ==================== 折叠面板 ====================
+
+  $$('.section-header').forEach((header) => {
+    header.addEventListener('click', () => {
+      const section = header.closest('.section');
+      section.classList.toggle('collapsed');
+    });
+  });
+
+  // ==================== 预览工具 ====================
+
+  $('#btnReloadFrame')?.addEventListener('click', reloadFrame);
+
+  $('#btnFullscreen')?.addEventListener('click', () => {
+    const el = $('#frameWrapper');
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  });
+
+  // ==================== 网络状态监听 ====================
+
+  window.addEventListener('online', () => {
+    netBanner.classList.remove('show');
+    toast('网络已恢复', 'success');
+    if (!frameReady) reloadFrame();
+  });
+
+  window.addEventListener('offline', () => {
+    netBanner.classList.add('show');
+    setConnectionState(false);
+  });
+
+  // ==================== 初始化 ====================
+
+  function init() {
+    // 从本地存储恢复
+    loadFromStorage();
+
+    // 填充 UI
+    globalVisible.checked = announceConfig.globalVisible !== false;
+    categoryHidden.checked = false;
+    announceEnabled.checked = announceConfig.enabled !== false;
+    announceText.value = announceConfig.text || '欢迎来到Kimi游戏榜！';
+    announceSpeed.value = announceConfig.speed || 'normal';
+    announceColor.value = announceConfig.color || '#ffb347';
+
+    renderHiddenList();
+    renderAnnounceHistory();
+
+    // 移动端默认折叠侧边栏
+    if (window.innerWidth <= 768) {
+      sidebar.classList.add('hidden');
+      mobileToggle.style.display = 'flex';
+    }
+
+    // 监听 iframe 内部发来的就绪信号（通过直接 postMessage 到父窗口）
+    // 同时，沙箱内部脚本会主动向 parent 发送消息
+    // 我们已在 message 监听中处理
+
+    console.log('[Kimi Admin] 控制台已初始化');
+  }
+
+  // 页面加载完成后初始化
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  // 暴露到全局便于调试
+  window.__kimiAdmin = {
+    pushVisibilityToFrame,
+    pushAnnounceToFrame,
+    requestStateFromFrame,
+    getState: () => ({ hiddenIds, announceConfig, announceHistory, isConnected, frameReady }),
+  };
+
+})();
+</script>
+
+<!-- ==================== 注入到 iframe 的通信桥接脚本 ==================== -->
+<script id="sandbox-bridge">
+/**
+ * 此脚本会通过 postMessage 注入到 Sandbox 内部，
+ * 但为了简化实现，以下代码片段展示了网站内部需要配合的桥接逻辑。
+ * 
+ * 网站内部（index.html 或对应 JS）应包含以下逻辑：
+ * 
+ * window.addEventListener('message', (event) => {
+ *   // 验证来源
+ *   if (event.origin !== 'https://your-admin-domain.com') return;
+ *   const { source, type, payload } = event.data || {};
+ *   if (source !== 'kimi-admin-console') return;
+ * 
+ *   switch (type) {
+ *     case 'SYNC_VISIBILITY':
+ *       // 应用可见性规则
+ *       applyVisibilityRules(payload);
+ *       // 回执
+ *       event.source.postMessage({
+ *         source: 'kimi-game-rank',
+ *         type: 'VISIBILITY_UPDATED',
+ *         payload: { success: true },
+ *       }, event.origin);
+ *       break;
+ * 
+ *     case 'SYNC_ANNOUNCEMENT':
+ *       // 应用公告配置
+ *       applyAnnouncement(payload);
+ *       event.source.postMessage({
+ *         source: 'kimi-game-rank',
+ *         type: 'ANNOUNCEMENT_UPDATED',
+ *         payload: { success: true },
+ *       }, event.origin);
+ *       break;
+ * 
+ *     case 'REQUEST_STATE':
+ *       // 回传当前状态
+ *       event.source.postMessage({
+ *         source: 'kimi-game-rank',
+ *         type: 'STATE_SYNC',
+ *         payload: {
+ *           hiddenIds: getHiddenIds(),
+ *           announcement: getAnnouncementConfig(),
+ *           globalVisible: isGlobalVisible(),
+ *         },
+ *       }, event.origin);
+ *       break;
+ * 
+ *     case 'ADMIN_PING':
+ *       // 响应握手
+ *       event.source.postMessage({
+ *         source: 'kimi-game-rank',
+ *         type: 'FRAME_READY',
+ *         payload: {},
+ *       }, event.origin);
+ *       break;
+ *   }
+ * });
+ * 
+ * // 页面加载完成后主动通知父窗口
+ * window.parent.postMessage({
+ *   source: 'kimi-game-rank',
+ *   type: 'FRAME_READY',
+ *   payload: {},
+ * }, '*'); // 实际应指定具体 origin
+ */
+</script>
+
+<!-- ==================== 后端 API 调用层（预留） ==================== -->
+<script>
+/**
+ * ================================================================
+ *  后端 API 调用层
+ *  
+ *  实际部署时，以下函数应替换为真实的 API 请求。
+ *  根据秒哒平台文档，可通过「自定义 API」或「共享后端」接入。
+ * 
+ *  推荐的后端端点设计：
+ *  - POST /api/admin/visibility  { globalVisible, hiddenIds, category, categoryHidden }
+ *  - POST /api/admin/announcement { enabled, text, speed, color }
+ *  - GET  /api/admin/state       返回 { hiddenIds, announcement, globalVisible }
+ * 
+ *  认证方式：Bearer Token 或 API Key（在请求头中携带）
+ * ================================================================
+ */
+
+const API_BASE = ''; // 例如: 'https://backend.appmiaoda.com/api/xxx'
+
+/** 调用后端保存可见性配置 */
+async function apiSaveVisibility(config) {
+  if (!API_BASE) return { ok: true, local: true };
+  try {
+    const res = await fetch(`${API_BASE}/admin/visibility`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // 'Authorization': 'Bearer ' + token,
+      },
+      body: JSON.stringify(config),
+    });
+    return await res.json();
+  } catch (e) {
+    console.warn('[API] 保存可见性失败，已回退到本地存储', e);
+    return { ok: false, error: e.message };
+  }
+}
+
+/** 调用后端保存公告配置 */
+async function apiSaveAnnouncement(config) {
+  if (!API_BASE) return { ok: true, local: true };
+  try {
+    const res = await fetch(`${API_BASE}/admin/announcement`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(config),
+    });
+    return await res.json();
+  } catch (e) {
+    console.warn('[API] 保存公告失败，已回退到本地存储', e);
+    return { ok: false, error: e.message };
+  }
+}
+
+/** 从后端拉取最新状态 */
+async function apiFetchState() {
+  if (!API_BASE) return null;
+  try {
+    const res = await fetch(`${API_BASE}/admin/state`);
+    return await res.json();
+  } catch (e) {
+    console.warn('[API] 拉取状态失败', e);
+    return null;
+  }
+}
+
+// 将 API 函数暴露给控制台逻辑
+window.__kimiApi = {
+  saveVisibility: apiSaveVisibility,
+  saveAnnouncement: apiSaveAnnouncement,
+  fetchState: apiFetchState,
+};
+</script>
+
+</body>
+</html>
