@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>蓝白 HTML 测试库</title>
+<style>
+:root{
+  --blue:#0b57d0;
+  --blue-d:#0842a0;
+  --blue-l:#e8f0fe;
+  --line:#c5d9f7;
+  --txt:#12305e;
+  --muted:#6b86ad;
+  --red:#d32f2f;
+  --red-d:#b71c1c;
+}
+*{box-sizing:border-box;border-radius:0!important;}
+html,body{height:100%}
+body{
+  margin:0;
+  font:13px/1.5 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  color:var(--txt);background:#f3f7fe;
+}
+button{font:inherit;cursor:pointer}
+input,textarea{font:inherit;color:inherit}
+.hidden{display:none!important}
+.spacer{flex:1}
+.tip{padding:24px;text-align:center;color:var(--muted);font-size:12px}
+.tip.err{color:#c62828}
+
+/* ---------- 按钮 / 控件 ---------- */
+.btn{
+  border:1px solid var(--line);background:#fff;color:var(--blue);
+  padding:3px 9px;font-size:12px;line-height:1.5;
+}
+.btn:hover{background:var(--blue-l)}
+.btn:active{background:#d7e5fd}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.primary:hover{background:var(--blue-d)}
+.btn.danger{background:#c62828;border-color:#c62828;color:#fff}
+.btn.danger:hover{background:#a31c1c}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.btn.ghost:hover{background:var(--blue-l);color:var(--blue)}
+.btn:disabled{opacity:.5;cursor:default}
+.x{border:none;background:transparent;color:var(--muted);font-size:16px;line-height:1;padding:0 4px}
+.x:hover{color:var(--blue)}
+.filebtn{
+  display:inline-block;border:1px solid var(--line);background:#fff;color:var(--blue);
+  padding:3px 9px;font-size:12px;cursor:pointer;white-space:nowrap;
+}
+.filebtn:hover{background:var(--blue-l)}
+.seg{display:inline-flex;border:1px solid var(--line);align-self:flex-start}
+.seg-btn{border:0;border-right:1px solid var(--line);background:#fff;color:var(--muted);padding:3px 12px;font-size:12px}
+.seg-btn:last-child{border-right:0}
+.seg-btn.active{background:var(--blue);color:#fff}
+
+/* ---------- 登录 / 注册 ---------- */
+#loginScreen{display:flex;align-items:center;justify-content:center;height:100%;padding:12px}
+.login-card{width:274px;background:#fff;border:2px solid var(--blue);padding:18px}
+.brand{font-size:16px;font-weight:700;color:var(--blue);letter-spacing:1px}
+.sub{font-size:11px;color:var(--muted);margin:3px 0 10px}
+.login-card .seg{display:flex;width:100%;margin-bottom:10px}
+.login-card .seg-btn{flex:1;text-align:center;padding:5px 0}
+.login-card input{
+  width:100%;padding:6px 8px;border:1px solid var(--line);
+  background:#fbfdff;margin-bottom:8px;outline:none;
+}
+.login-card input:focus{border-color:var(--blue)}
+.login-card .btn{width:100%;padding:6px}
+#authStatus{font-size:11px;min-height:15px;text-align:center;margin-top:7px;color:var(--muted);word-break:break-all}
+#authStatus.err{color:#c62828}
+#authStatus.ok{color:#1b8a3d}
+
+/* ---------- 主界面 ---------- */
+#appScreen{display:flex;flex-direction:column;height:100%}
+.topbar{
+  display:flex;align-items:center;gap:6px;padding:5px 9px;flex:none;
+  background:#fff;border-bottom:2px solid var(--blue);
+}
+.logo{font-weight:700;color:var(--blue);font-size:13px;letter-spacing:.5px}
+.me{font-size:11px;color:var(--muted);border-left:1px solid var(--line);padding-left:6px}
+.listwrap{flex:1;overflow:auto;padding:9px;-webkit-overflow-scrolling:touch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(138px,1fr));gap:8px}
+.card{
+  background:#fff;border:1px solid var(--line);cursor:pointer;position:relative;
+  transition:border-color .12s,box-shadow .12s;
+}
+.card:hover{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue-l)}
+.card.mine{border-color:var(--blue)}
+.thumb{width:100%;aspect-ratio:16/10;object-fit:cover;display:block;border-bottom:1px solid var(--line);background:var(--blue-l)}
+.thumb-ph{
+  width:100%;aspect-ratio:16/10;display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:#9db6dc;border-bottom:1px solid var(--line);
+  background:repeating-linear-gradient(45deg,#eef4ff,#eef4ff 6px,#e2ecfd 6px,#e2ecfd 12px);
+}
+.play-badge{
+  position:absolute;top:5px;left:5px;background:rgba(10,35,80,.78);color:#fff;
+  font-size:10px;padding:1px 5px;letter-spacing:.5px;
+}
+.mine-badge{
+  position:absolute;top:5px;right:5px;background:var(--blue);color:#fff;
+  font-size:10px;padding:1px 5px;
+}
+.card-body{padding:4px 6px 5px}
+.card-title{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-user{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- 消息按钮 ---------- */
+#msgBtn{position:relative}
+#msgBtn.has-unread{
+  background:var(--red);border-color:var(--red);color:#fff;font-weight:700;
+  animation:pulse 1.6s ease-in-out infinite;
+}
+#msgBtn.has-unread:hover{background:var(--red-d);border-color:var(--red-d)}
+@keyframes pulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(211,47,47,.55)}
+  50%{box-shadow:0 0 0 4px rgba(211,47,47,0)}
+}
+
+/* ---------- 弹窗 ---------- */
+.modal{
+  position:fixed;inset:0;z-index:50;background:rgba(10,35,80,.45);
+  display:flex;align-items:center;justify-content:center;padding:10px;
+}
+.panel{
+  background:#fff;border:2px solid var(--blue);width:min(800px,96vw);
+  max-height:94vh;display:flex;flex-direction:column;
+}
+.panel-head{
+  display:flex;align-items:center;gap:8px;padding:5px 9px;flex:none;
+  background:var(--blue-l);border-bottom:1px solid var(--line);
+  font-weight:700;color:var(--blue);font-size:13px;
+}
+.panel-body{padding:9px;overflow:auto;display:flex;flex-direction:column;gap:5px}
+.panel-foot{
+  display:flex;align-items:center;gap:6px;padding:7px 9px;flex:none;
+  border-top:1px solid var(--line);background:#fafcff;
+}
+.lbl{font-size:11px;font-weight:600;color:var(--muted)}
+.status{font-size:11px;color:var(--muted)}
+.status.ok{color:#1b8a3d}
+.status.err{color:#c62828}
+.row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+
+#upTitle{
+  width:100%;padding:5px 8px;border:1px solid var(--line);
+  background:#fbfdff;outline:none;
+}
+#upTitle:focus{border-color:var(--blue)}
+#upCode{
+  width:100%;height:150px;padding:7px;border:1px solid var(--line);
+  background:#fbfdff;outline:none;resize:vertical;
+  font-family:ui-monospace,Consolas,"Courier New",monospace;font-size:12px;line-height:1.45;
+}
+#upCode:focus{border-color:var(--blue)}
+#nameHint{font-size:11px;color:var(--muted);word-break:break-all;margin-top:4px}
+#nameHint b{color:var(--blue)}
+
+/* ---------- 画板 ---------- */
+.cover-area{display:flex;gap:9px;flex-wrap:wrap}
+.canvas-wrap{border:1px solid var(--line);background:#fff;line-height:0;align-self:flex-start}
+#coverCanvas{touch-action:none;cursor:crosshair;max-width:100%;height:auto;display:block}
+.tools{display:flex;flex-direction:column;gap:6px;min-width:150px;flex:1}
+.tools input[type=color]{width:100%;height:26px;border:1px solid var(--line);padding:1px;background:#fff;cursor:pointer}
+.tools input[type=range]{width:100%}
+#videoCoverPreview{max-width:220px;max-height:130px;border:1px solid var(--line);display:block;margin-top:5px}
+#imgPreview{max-width:220px;max-height:130px;border:1px solid var(--line);display:block;margin-top:5px}
+#videoPreview{max-width:260px;max-height:150px;border:1px solid var(--line);display:block;margin-top:5px;background:#000}
+
+/* ---------- 预览 ---------- */
+.view-panel{width:min(1080px,96vw);height:92vh}
+.user-tag{font-size:11px;font-weight:400;color:var(--muted)}
+.view-body{flex:1;display:flex;min-height:0}
+.preview-area{flex:1;min-width:0;position:relative;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.preview-area iframe{width:100%;height:100%;border:0;display:block;background:#fff}
+.preview-area img{max-width:100%;max-height:100%;display:block;object-fit:contain}
+.preview-area video{max-width:100%;max-height:100%;display:block;background:#000}
+
+.comment-area{
+  width:236px;flex:none;border-left:1px solid var(--line);
+  display:flex;flex-direction:column;min-height:0;background:#fafcff;
+}
+.comment-head{
+  padding:4px 8px;font-size:11px;font-weight:700;color:var(--blue);
+  border-bottom:1px solid var(--line);background:var(--blue-l);flex:none;
+}
+.comment-list{flex:1;overflow:auto;padding:6px}
+.cmt{margin-bottom:7px;font-size:12px;border-bottom:1px dotted #e2ecfd;padding-bottom:5px}
+.cmt:last-child{border-bottom:0}
+.cmt-user{color:var(--blue);font-weight:700;font-size:11px}
+.cmt-text{white-space:pre-wrap;word-break:break-word;color:var(--txt);margin-top:1px}
+.cmt-empty{font-size:11px;color:var(--muted);text-align:center;padding:14px 4px}
+.comment-input{display:flex;border-top:1px solid var(--line);flex:none;background:#fff}
+.comment-input input{
+  flex:1;min-width:0;border:0;padding:6px 8px;outline:none;font-size:12px;background:#fff;
+}
+.comment-input button{
+  border:0;border-left:1px solid var(--line);background:var(--blue);color:#fff;
+  padding:0 12px;font-size:12px;
+}
+.comment-input button:hover{background:var(--blue-d)}
+.comment-input button:disabled{opacity:.5;cursor:default}
+
+/* ---------- 消息列表 ---------- */
+.msg-panel{width:min(560px,96vw);max-height:82vh}
+.msg-list{flex:1;overflow:auto;padding:6px}
+.msg{
+  border:1px solid var(--line);background:#fff;
+  padding:6px 8px;margin-bottom:6px;
+}
+.msg.unread{border-color:var(--red);background:#fff5f5;border-left:3px solid var(--red)}
+.msg-head{display:flex;align-items:center;gap:6px;font-size:11px}
+.msg-title{font-weight:700;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.msg-num{color:var(--muted);font-size:10px}
+.msg.unread .msg-num{color:var(--red);font-weight:700}
+.msg-text{font-size:12px;white-space:pre-wrap;word-break:break-word;color:var(--txt);margin-top:3px}
+.msg-empty{font-size:11px;color:var(--muted);text-align:center;padding:24px 4px}
+
+/* ---------- 全屏 ---------- */
+#fsLayer{position:fixed;inset:0;z-index:100;background:#0a2350;display:flex;flex-direction:column}
+.fs-bar{display:flex;align-items:center;gap:8px;padding:4px 8px;flex:none;color:#fff;font-size:12px;background:#0a2350}
+.fs-bar .btn{border-color:#3b6bb5;background:#123a78;color:#dbe8ff}
+.fs-bar .btn:hover{background:#1a4a95}
+#fsHost{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff}
+#fsHost iframe{width:100%;height:100%;border:0;display:block;background:#fff}
+#fsHost img{max-width:100%;max-height:100%;display:block;object-fit:contain}
+#fsHost video{max-width:100%;max-height:100%;display:block;background:#000}
+
+@media (max-width:700px){
+  .view-body{flex-direction:column}
+  .comment-area{width:auto;border-left:0;border-top:1px solid var(--line);height:180px;flex:none}
+}
+@media (max-width:520px){
+  .grid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
+  .logo{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ 登录 / 注册 ============ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="brand">HTML 测试库</div>
+    <div class="seg" id="authSeg">
+      <button class="seg-btn active" data-auth="login">登录</button>
+      <button class="seg-btn" data-auth="register">注册</button>
+    </div>
+    <div class="sub" id="authHint">使用用户名与密码登录</div>
+    <input id="accUser" maxlength="20" placeholder="用户名（英文/数字/连字符）" autocomplete="username">
+    <input id="accPass" type="password" maxlength="64" placeholder="密码" autocomplete="current-password">
+    <input id="accPass2" type="password" maxlength="64" placeholder="确认密码" class="hidden" autocomplete="new-password">
+    <button class="btn primary" id="authBtn">登 录</button>
+    <div id="authStatus"></div>
+  </div>
+</div>
+
+<!-- ============ 主界面 ============ -->
+<div id="appScreen" class="hidden">
+  <div class="topbar">
+    <span class="logo">HTML 测试库</span>
+    <span class="me" id="meLabel"></span>
+    <span class="spacer"></span>
+    <button class="btn" id="msgBtn">消息</button>
+    <button class="btn" id="refreshBtn">刷新</button>
+    <button class="btn primary" id="uploadBtn">上传</button>
+    <button class="btn ghost" id="logoutBtn">退出</button>
+  </div>
+  <div class="listwrap">
+    <div id="list" class="grid"></div>
+  </div>
+</div>
+
+<!-- ============ 上传弹窗 ============ -->
+<div id="uploadModal" class="modal hidden">
+  <div class="panel">
+    <div class="panel-head">
+      <span>上传作品</span>
+      <span class="spacer"></span>
+      <button class="x" id="uploadClose">×</button>
+    </div>
+    <div class="panel-body">
+
+      <div class="lbl">标题（仅限英文/数字/下划线/连字符）</div>
+      <input id="upTitle" maxlength="40" placeholder="作品标题" autocomplete="off">
+
+      <div class="lbl" style="margin-top:4px">作品类型</div>
+      <div class="seg" id="kindSeg">
+        <button class="seg-btn active" data-kind="html">HTML</button>
+        <button class="seg-btn" data-kind="image">图片</button>
+        <button class="seg-btn" data-kind="video">视频</button>
+      </div>
+
+      <!-- HTML -->
+      <div id="secHtml">
+        <div class="row" style="margin-top:6px">
+          <span class="lbl">HTML 代码</span>
+          <span class="spacer"></span>
+          <label class="filebtn">选择 .html 文件<input type="file" id="htmlFile" accept=".html,.htm,text/html" hidden></label>
+        </div>
+        <textarea id="upCode" placeholder="在此粘贴 HTML 代码……" spellcheck="false"></textarea>
+      </div>
+
+      <!-- 图片 -->
+      <div id="secImage" class="hidden">
+        <div class="row" style="margin-top:6px">
+          <label class="filebtn">选择图片文件<input type="file" id="imageFile" accept="image/*" hidden></label>
+          <span class="status" id="imageInfo">未选择</span>
+        </div>
+        <img id="imgPreview" class="hidden" alt="">
+      </div>
+
+      <!-- 视频 -->
+      <div id="secVideo" class="hidden">
+        <div class="row" style="margin-top:6px">
+          <label class="filebtn">选择视频文件<input type="file" id="videoFile" accept="video/*" hidden></label>
+          <span class="status" id="videoInfo">未选择</span>
+        </div>
+        <video id="videoPreview" class="hidden" controls muted playsinline></video>
+      </div>
+
+      <!-- 封面 -->
+      <div id="secCover">
+        <div class="row" style="margin-top:6px">
+          <span class="lbl" id="coverLbl">封面（画板绘制 / 选择图片）</span>
+          <span class="spacer"></span>
+          <span class="lbl" style="font-weight:400" id="coverNote">不画则不上传封面</span>
+        </div>
+
+        <div class="cover-area" id="canvasArea">
+          <div class="canvas-wrap"><canvas id="coverCanvas" width="320" height="200"></canvas></div>
+          <div class="tools">
+            <div class="lbl">画笔颜色（点击选取）</div>
+            <input type="color" id="brushColor" value="#0b57d0">
+            <div class="lbl">笔刷粗细</div>
+            <input type="range" id="brushSize" min="1" max="26" value="4">
+            <button class="btn" id="clearCanvas">清空画板</button>
+            <label class="filebtn">选择封面图片<input type="file" id="coverFile" accept="image/*" hidden></label>
+          </div>
+        </div>
+
+        <div id="videoCoverArea" class="hidden">
+          <label class="filebtn">选择视频封面（系统选择器）<input type="file" id="videoCoverFile" accept="image/*" hidden></label>
+          <img id="videoCoverPreview" class="hidden" alt="">
+        </div>
+      </div>
+
+      <div id="nameHint"></div>
+    </div>
+    <div class="panel-foot">
+      <span class="status" id="upStatus"></span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="uploadCancel">取消</button>
+      <button class="btn primary" id="uploadConfirm">上传</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 预览弹窗 ============ -->
+<div id="viewModal" class="modal hidden">
+  <div class="panel view-panel">
+    <div class="panel-head">
+      <span id="viewTitle">—</span>
+      <span class="user-tag" id="viewUser"></span>
+      <span class="spacer"></span>
+      <button class="btn danger hidden" id="viewDelete">删除</button>
+      <button class="btn" id="viewFull">全屏</button>
+      <button class="x" id="viewClose">×</button>
+    </div>
+    <div class="view-body">
+      <div class="preview-area" id="previewArea"></div>
+      <div class="comment-area">
+        <div class="comment-head">评论</div>
+        <div class="comment-list" id="commentList"></div>
+        <div class="comment-input">
+          <input id="commentInput" maxlength="300" placeholder="写下评论…" autocomplete="off">
+          <button id="commentSend">发送</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 消息弹窗 ============ -->
+<div id="msgModal" class="modal hidden">
+  <div class="panel msg-panel">
+    <div class="panel-head">
+      <span>消息</span>
+      <span class="user-tag" id="msgSubtitle"></span>
+      <span class="spacer"></span>
+      <button class="x" id="msgClose">×</button>
+    </div>
+    <div class="msg-list" id="msgList"></div>
+  </div>
+</div>
+
+<!-- ============ 全屏阅览 ============ -->
+<div id="fsLayer" class="hidden">
+  <div class="fs-bar">
+    <span id="fsTitle">—</span>
+    <span class="spacer"></span>
+    <button class="btn" id="fsExit">退出全屏</button>
+  </div>
+  <div id="fsHost"></div>
+</div>
+
+<script>
+/* ================== 配置 ================== */
+/* 密钥已全部移至 Cloudflare Worker，前端不再包含任何 Supabase 密钥 */
+const WORKER_URL  = 'https://shequ-proxy.smallkun0.workers.dev';
+const BUCKET      = '1';
+const USER_DIR    = 'User';
+const NEW_DIR     = 'New';
+const encPath = p => p.split('/').map(encodeURIComponent).join('/');
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ================== 纯 JS SHA-256 ================== */
+function sha256(str) {
+  const msg = new TextEncoder().encode(str);
+  const K = new Uint32Array([
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+  ]);
+  const H = new Uint32Array([
+    0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,
+    0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19
+  ]);
+  const l = msg.length;
+  const bitLen = l * 8;
+  const padded = new Uint8Array((((l + 8) >> 6) + 1) << 6);
+  padded.set(msg);
+  padded[l] = 0x80;
+  const dv = new DataView(padded.buffer);
+  dv.setUint32(padded.length - 8, Math.floor(bitLen / 4294967296), false);
+  dv.setUint32(padded.length - 4, bitLen >>> 0, false);
+
+  const w = new Uint32Array(64);
+  const rotr = (x, n) => ((x >>> n) | (x << (32 - n))) >>> 0;
+
+  for (let off = 0; off < padded.length; off += 64) {
+    for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4, false);
+    for (let i = 16; i < 64; i++) {
+      const s0 = (rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >>> 3)) >>> 0;
+      const s1 = (rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >>> 10)) >>> 0;
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+    }
+    let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+    for (let i = 0; i < 64; i++) {
+      const S1 = (rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25)) >>> 0;
+      const ch = ((e & f) ^ (~e & g)) >>> 0;
+      const t1 = (h + S1 + ch + K[i] + w[i]) >>> 0;
+      const S0 = (rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22)) >>> 0;
+      const maj = ((a & b) ^ (a & c) ^ (b & c)) >>> 0;
+      const t2 = (S0 + maj) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0;
+      d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0; H[2] = (H[2] + c) >>> 0; H[3] = (H[3] + d) >>> 0;
+    H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
+  }
+  let out = '';
+  for (let i = 0; i < 8; i++) out += H[i].toString(16).padStart(8, '0');
+  return out;
+}
+
+const hashUser = u => sha256('u:' + u);
+const hashPass = (u, p) => sha256(p + '::' + u);
+
+/* ================== 全局状态 ================== */
+let userCode = '';
+let works = [];
+let upKind = 'html';
+
+let imageJpegBlob = null;
+let videoBlob = null;
+let videoCoverBlob = null;
+let coverTouched = false;
+
+let currentWork = null;
+let currentPreview = null;
+let currentCommentCount = 0;
+let commentLoading = false;
+
+let unreadCount = 0;
+
+/* ================== Worker 代理接口 ================== */
+/* 所有请求经由 Cloudflare Worker 转发，密钥保存在 Worker 的 Secrets 中 */
+async function sbList(prefix) {
+  const r = await fetch(`${WORKER_URL}/object/list/${BUCKET}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prefix: prefix || '', limit: 1000, offset: 0,
+      sortBy: { column: 'name', order: 'asc' }
+    })
+  });
+  if (!r.ok) throw new Error('列表加载失败 (' + r.status + ') ' + (await r.text()).slice(0, 120));
+  return r.json();
+}
+
+async function sbDownload(path) {
+  const r = await fetch(
+    `${WORKER_URL}/object/authenticated/${BUCKET}/${encPath(path)}`
+  );
+  if (!r.ok) throw new Error('读取失败 (' + r.status + ')');
+  return r;
+}
+
+async function sbUpload(path, blob, type) {
+  const r = await fetch(
+    `${WORKER_URL}/object/${BUCKET}/${encPath(path)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': type, 'x-upsert': 'true', 'cache-control': '3600' },
+      body: blob
+    }
+  );
+  if (!r.ok) throw new Error('上传失败 (' + r.status + ') ' + (await r.text()).slice(0, 120));
+  return true;
+}
+
+async function sbDeleteMany(paths) {
+  if (!paths.length) return;
+  const r = await fetch(
+    `${WORKER_URL}/object/${BUCKET}`,
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prefixes: paths })
+    }
+  );
+  if (!r.ok) throw new Error('删除失败 (' + r.status + ') ' + (await r.text()).slice(0, 120));
+  return true;
+}
+
+/* ================== 账号系统 ================== */
+let authMode = 'login';
+
+function setAuthMode(m) {
+  authMode = m;
+  document.querySelectorAll('#authSeg .seg-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.auth === m));
+  $('accPass2').classList.toggle('hidden', m !== 'register');
+  $('authBtn').textContent = m === 'login' ? '登 录' : '注 册';
+  $('authHint').textContent = m === 'login'
+    ? '使用用户名与密码登录'
+    : '用户名仅限英文/数字/连字符，3-20位';
+  setAuthStatus('', '');
+  (m === 'login' ? $('accPass') : $('accUser')).focus();
+}
+
+function setAuthStatus(msg, cls) {
+  const el = $('authStatus');
+  el.textContent = msg;
+  el.className = cls || '';
+}
+
+document.querySelectorAll('#authSeg .seg-btn').forEach(b => {
+  b.onclick = () => setAuthMode(b.dataset.auth);
+});
+
+const validUsername = u => /^[A-Za-z0-9-]{3,20}$/.test(u);
+const validPassword = p => p.length >= 4 && p.length <= 64;
+
+$('authBtn').onclick = () => { authMode === 'login' ? doLogin() : doRegister(); };
+
+['accUser', 'accPass', 'accPass2'].forEach(id => {
+  $(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); authMode === 'login' ? doLogin() : doRegister(); }
+  });
+});
+
+/* 确保 New/<用户哈希>/ 目录存在 */
+async function ensureNewDir() {
+  const dir = NEW_DIR + '/' + hashUser(userCode);
+  let exists = false;
+  try {
+    const items = await sbList(dir);
+    exists = (items || []).some(o => o && o.name);
+  } catch (e) {
+    exists = false;
+  }
+  if (!exists) {
+    try {
+      await sbUpload(
+        dir + '/.keep',
+        new Blob([''], { type: 'text/plain;charset=utf-8' }),
+        'text/plain;charset=utf-8'
+      );
+    } catch (e) { /* 忽略，不阻塞登录 */ }
+  }
+}
+
+async function doRegister() {
+  const u = $('accUser').value.trim();
+  const p = $('accPass').value;
+  const p2 = $('accPass2').value;
+
+  if (!validUsername(u)) { setAuthStatus('用户名需为 3-20 位英文/数字/连字符', 'err'); return; }
+  if (!validPassword(p)) { setAuthStatus('密码需为 4-64 位', 'err'); return; }
+  if (p !== p2) { setAuthStatus('两次输入的密码不一致', 'err'); return; }
+
+  const btn = $('authBtn');
+  btn.disabled = true;
+  setAuthStatus('注册中…', '');
+  try {
+    const uHash = hashUser(u);
+    const pHash = hashPass(u, p);
+
+    const items = await sbList(USER_DIR);
+    const exists = (items || []).some(o => o && o.name && o.name.startsWith(uHash + '_'));
+    if (exists) { setAuthStatus('该用户名已被注册', 'err'); return; }
+
+    const path = USER_DIR + '/' + uHash + '_' + pHash + '.txt';
+    await sbUpload(path, new Blob([u], { type: 'text/plain;charset=utf-8' }), 'text/plain;charset=utf-8');
+
+    // 注册时创建消息目录占位
+    try {
+      await sbUpload(
+        NEW_DIR + '/' + uHash + '/.keep',
+        new Blob([''], { type: 'text/plain;charset=utf-8' }),
+        'text/plain;charset=utf-8'
+      );
+    } catch (e) { /* 忽略 */ }
+
+    setAuthStatus('注册成功，请登录', 'ok');
+    setAuthMode('login');
+    $('accUser').value = u;
+    $('accPass').value = '';
+    $('accPass').focus();
+  } catch (e) {
+    setAuthStatus(e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function doLogin() {
+  const u = $('accUser').value.trim();
+  const p = $('accPass').value;
+
+  if (!validUsername(u)) { setAuthStatus('用户名格式不正确', 'err'); return; }
+  if (!p) { setAuthStatus('请输入密码', 'err'); return; }
+
+  const btn = $('authBtn');
+  btn.disabled = true;
+  setAuthStatus('登录中…', '');
+  try {
+    const uHash = hashUser(u);
+    const items = await sbList(USER_DIR);
+    const match = (items || []).find(o => o && o.name && o.name.startsWith(uHash + '_'));
+    if (!match) { setAuthStatus('用户不存在，请先注册', 'err'); return; }
+
+    const pHash = hashPass(u, p);
+    const stored = match.name.slice(uHash.length + 1).replace(/\.txt$/i, '');
+    if (stored !== pHash) { setAuthStatus('密码错误', 'err'); return; }
+
+    setAuthStatus('登录成功', 'ok');
+    setTimeout(() => enterApp(u), 200);
+  } catch (e) {
+    setAuthStatus(e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function enterApp(username) {
+  userCode = username;
+  $('loginScreen').classList.add('hidden');
+  $('appScreen').classList.remove('hidden');
+  $('meLabel').textContent = '@' + userCode;
+  updateNameHint();
+
+  // ① 登录时确保消息目录存在
+  await ensureNewDir();
+
+  refresh();
+  refreshUnread();
+}
+
+$('logoutBtn').onclick = () => {
+  userCode = '';
+  unreadCount = 0;
+  $('appScreen').classList.add('hidden');
+  $('loginScreen').classList.remove('hidden');
+  $('accPass').value = '';
+  $('accPass2').value = '';
+  setAuthStatus('', '');
+  setAuthMode('login');
+};
+
+setAuthMode('login');
+
+/* ================== 消息未读 ================== */
+const lastReadKey = () => 'html_lib_lastmsg_' + userCode;
+
+function getLastRead() {
+  try { return parseInt(localStorage.getItem(lastReadKey()) || '0', 10) || 0; }
+  catch (e) { return 0; }
+}
+function setLastRead(n) {
+  try { localStorage.setItem(lastReadKey(), String(n)); } catch (e) {}
+}
+
+async function fetchMessages() {
+  const dir = NEW_DIR + '/' + hashUser(userCode);
+  const items = await sbList(dir);
+  const files = (items || []).filter(o =>
+    o && o.id && o.metadata && /\.txt$/i.test(o.name) && !o.name.startsWith('.'));
+  const msgs = [];
+  for (const f of files) {
+    const m = f.name.match(/^(\d+)_(.+)\.txt$/);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    const title = m[2];
+    let text = '';
+    try {
+      const r = await sbDownload(dir + '/' + f.name);
+      text = await r.text();
+    } catch (e) { text = '（读取失败）'; }
+    msgs.push({ n, title, text });
+  }
+  msgs.sort((a, b) => b.n - a.n);
+  return msgs;
+}
+
+async function refreshUnread() {
+  if (!userCode) return;
+  try {
+    const msgs = await fetchMessages();
+    const last = getLastRead();
+    unreadCount = msgs.filter(m => m.n > last).length;
+  } catch (e) {
+    unreadCount = 0;
+  }
+  updateMsgBadge();
+}
+
+function updateMsgBadge() {
+  const btn = $('msgBtn');
+  if (unreadCount > 0) {
+    btn.textContent = '消息 (' + unreadCount + ')';
+    btn.classList.add('has-unread');
+  } else {
+    btn.textContent = '消息';
+    btn.classList.remove('has-unread');
+  }
+}
+
+/* ================== 消息列表 ================== */
+$('msgBtn').onclick = openMessages;
+$('msgClose').onclick = () => $('msgModal').classList.add('hidden');
+
+async function openMessages() {
+  $('msgModal').classList.remove('hidden');
+  const box = $('msgList');
+  $('msgSubtitle').textContent = '@' + userCode;
+  box.innerHTML = '<div class="msg-empty">加载中…</div>';
+
+  try {
+    const msgs = await fetchMessages();
+    if (!msgs.length) {
+      box.innerHTML = '<div class="msg-empty">还没有收到任何评论消息</div>';
+    } else {
+      const last = getLastRead();
+      box.innerHTML = '';
+      msgs.forEach(m => {
+        const d = document.createElement('div');
+        d.className = 'msg' + (m.n > last ? ' unread' : '');
+        const head = document.createElement('div');
+        head.className = 'msg-head';
+        const t = document.createElement('span');
+        t.className = 'msg-title';
+        t.textContent = '作品：' + m.title;
+        t.title = m.title;
+        const num = document.createElement('span');
+        num.className = 'msg-num';
+        num.textContent = '#' + m.n + (m.n > last ? ' 未读' : '');
+        head.appendChild(t);
+        head.appendChild(num);
+        const txt = document.createElement('div');
+        txt.className = 'msg-text';
+        txt.textContent = m.text;
+        d.appendChild(head);
+        d.appendChild(txt);
+        box.appendChild(d);
+      });
+      // 全部标记已读
+      setLastRead(msgs[0].n);
+      unreadCount = 0;
+      updateMsgBadge();
+    }
+  } catch (e) {
+    box.innerHTML = '<div class="msg-empty" style="color:#c62828">' + esc(e.message) + '</div>';
+  }
+}
+
+/* ================== 列表 ================== */
+$('refreshBtn').onclick = () => { refresh(); refreshUnread(); };
+
+const isCoverFile = n => /\.(html|mp4)\.jpg$/i.test(n);
+const isMainFile  = n => /\.(html?|mp4|jpe?g|png|gif|webp|bmp)$/i.test(n) && !isCoverFile(n);
+
+async function refresh() {
+  const listEl = $('list');
+  listEl.innerHTML = '<div class="tip">加载中…</div>';
+  try {
+    const items = await sbList('');
+    const files = (items || []).filter(o =>
+      o && o.id && o.metadata && o.name && o.name !== USER_DIR && o.name !== NEW_DIR);
+    const names = new Set(files.map(f => f.name));
+
+    works = files
+      .filter(f => isMainFile(f.name))
+      .map(f => {
+        const base = f.name.replace(/\.(html?|mp4|jpe?g|png|gif|webp|bmp)$/i, '');
+        const i = base.indexOf('_');
+        const user  = i > 0 ? base.slice(0, i) : '匿名';
+        const title = i > 0 ? base.slice(i + 1) : base;
+
+        let kind = 'html';
+        if (/\.mp4$/i.test(f.name)) kind = 'video';
+        else if (!/\.html?$/i.test(f.name)) kind = 'image';
+
+        let cover = null;
+        if (kind === 'image') cover = f.name;
+        else if (names.has(f.name + '.jpg')) cover = f.name + '.jpg';
+
+        return { name: f.name, user, title, kind, cover };
+      })
+      .sort((a, b) => a.title.localeCompare(b.title, 'zh'));
+
+    renderList();
+  } catch (e) {
+    listEl.innerHTML = '<div class="tip err">' + esc(e.message) + '</div>';
+  }
+  // ② 刷新列表时同步刷新未读状态
+  refreshUnread();
+}
+
+const coverURLCache = new Map();
+async function getFileURL(path) {
+  if (coverURLCache.has(path)) return coverURLCache.get(path);
+  const p = (async () => {
+    const r = await sbDownload(path);
+    const b = await r.blob();
+    return URL.createObjectURL(b);
+  })();
+  coverURLCache.set(path, p);
+  try { return await p; }
+  catch (e) { coverURLCache.delete(path); throw e; }
+}
+
+function renderList() {
+  const listEl = $('list');
+  listEl.innerHTML = '';
+  if (!works.length) {
+    listEl.innerHTML = '<div class="tip" style="grid-column:1/-1">暂无作品，点击右上角「上传」发布第一个。</div>';
+    return;
+  }
+
+  works.forEach(w => {
+    const card = document.createElement('div');
+    card.className = 'card' + (w.user === userCode ? ' mine' : '');
+
+    const ph = document.createElement('div');
+    ph.className = 'thumb-ph';
+    ph.textContent = w.kind === 'video' ? '视频' : (w.kind === 'image' ? '图片' : '无封面');
+    card.appendChild(ph);
+
+    if (w.kind === 'video') {
+      const badge = document.createElement('div');
+      badge.className = 'play-badge';
+      badge.textContent = '▶ 视频';
+      card.appendChild(badge);
+    }
+    if (w.user === userCode) {
+      const mb = document.createElement('div');
+      mb.className = 'mine-badge';
+      mb.textContent = '我的';
+      card.appendChild(mb);
+    }
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+    const t = document.createElement('div');
+    t.className = 'card-title';
+    t.textContent = w.title;
+    t.title = w.title;
+    const u = document.createElement('div');
+    u.className = 'card-user';
+    u.textContent = '@' + w.user;
+    u.title = '@' + w.user;
+    body.appendChild(t);
+    body.appendChild(u);
+    card.appendChild(body);
+
+    card.onclick = () => openView(w);
+    listEl.appendChild(card);
+
+    if (w.cover) loadCoverInto(card, w.cover);
+  });
+}
+
+async function loadCoverInto(card, path) {
+  try {
+    const url = await getFileURL(path);
+    const img = document.createElement('img');
+    img.className = 'thumb';
+    img.alt = '';
+    img.src = url;
+    const old = card.querySelector('.thumb-ph');
+    if (old) card.replaceChild(img, old);
+    else card.insertBefore(img, card.firstChild);
+  } catch (e) { /* 保持占位 */ }
+}
+
+/* ================== 预览 ================== */
+$('viewClose').onclick = () => {
+  $('viewModal').classList.add('hidden');
+  cleanupPreview();
+  $('previewArea').innerHTML = '';
+  currentWork = null;
+};
+
+$('viewFull').onclick = () => {
+  if (!currentPreview) return;
+  $('fsTitle').textContent = currentPreview.title || '—';
+  const host = $('fsHost');
+  host.innerHTML = '';
+  host.appendChild(buildPreviewNode(currentPreview));
+  $('fsLayer').classList.remove('hidden');
+};
+
+$('fsExit').onclick = () => {
+  $('fsLayer').classList.add('hidden');
+  $('fsHost').innerHTML = '';
+};
+
+function cleanupPreview() {
+  if (currentPreview && currentPreview.url) URL.revokeObjectURL(currentPreview.url);
+  currentPreview = null;
+}
+
+function buildPreviewNode(pv) {
+  if (pv.kind === 'html') {
+    const f = document.createElement('iframe');
+    f.setAttribute('sandbox', 'allow-scripts allow-modals allow-forms allow-popups allow-pointer-lock');
+    f.srcdoc = pv.code;
+    return f;
+  }
+  if (pv.kind === 'video') {
+    const v = document.createElement('video');
+    v.controls = true;
+    v.playsInline = true;
+    v.src = pv.url;
+    return v;
+  }
+  const img = document.createElement('img');
+  img.alt = pv.title || '';
+  img.src = pv.url;
+  return img;
+}
+
+async function openView(w) {
+  currentWork = w;
+  $('viewTitle').textContent = w.title;
+  $('viewUser').textContent = '@' + w.user;
+  if (w.user === userCode) $('viewDelete').classList.remove('hidden');
+  else $('viewDelete').classList.add('hidden');
+  $('viewModal').classList.remove('hidden');
+
+  const host = $('previewArea');
+  host.innerHTML = '<div class="tip">加载中…</div>';
+  cleanupPreview();
+
+  loadComments(w);
+
+  try {
+    const r = await sbDownload(w.name);
+    if (w.kind === 'html') {
+      const code = await r.text();
+      currentPreview = { kind: 'html', code, title: w.title };
+    } else {
+      const blob = await r.blob();
+      currentPreview = { kind: w.kind, url: URL.createObjectURL(blob), title: w.title };
+    }
+    host.innerHTML = '';
+    host.appendChild(buildPreviewNode(currentPreview));
+  } catch (e) {
+    currentPreview = null;
+    host.innerHTML = '<div class="tip err">' + esc(e.message) + '</div>';
+  }
+}
+
+/* ================== 删除作品 ================== */
+$('viewDelete').onclick = async () => {
+  if (!currentWork || currentWork.user !== userCode) return;
+  const w = currentWork;
+  if (!confirm('确定删除作品「' + w.title + '」？\n该作品的封面与全部评论也会被一并删除。')) return;
+
+  const btn = $('viewDelete');
+  btn.disabled = true;
+  btn.textContent = '删除中…';
+  try {
+    const items = await sbList(w.name);
+    const paths = [w.name];
+    if (w.cover && w.cover !== w.name) paths.push(w.cover);
+    (items || []).forEach(o => {
+      if (o && o.id && o.metadata && o.name) paths.push(w.name + '/' + o.name);
+    });
+    await sbDeleteMany(paths);
+
+    $('viewClose').onclick();
+    refresh();
+  } catch (e) {
+    alert('删除失败：' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '删除';
+  }
+};
+
+/* ================== 评论区 ================== */
+async function loadComments(w) {
+  const box = $('commentList');
+  box.innerHTML = '<div class="cmt-empty">加载中…</div>';
+  currentCommentCount = 0;
+  try {
+    const items = await sbList(w.name);
+    const files = (items || []).filter(o => o && o.id && o.metadata && /\.txt$/i.test(o.name));
+    files.sort((a, b) => a.name.localeCompare(b.name, 'zh'));
+    currentCommentCount = files.length;
+
+    if (!files.length) {
+      box.innerHTML = '<div class="cmt-empty">还没有评论</div>';
+      return;
+    }
+
+    const results = await Promise.all(files.map(async f => {
+      const idx = f.name.indexOf('_');
+      const u = idx > 0 ? f.name.slice(0, idx) : '匿名';
+      let text = '';
+      try {
+        const r = await sbDownload(w.name + '/' + f.name);
+        text = await r.text();
+      } catch (e) { text = '（读取失败）'; }
+      return { u, text };
+    }));
+
+    box.innerHTML = '';
+    results.forEach(c => {
+      const d = document.createElement('div');
+      d.className = 'cmt';
+      const u = document.createElement('div');
+      u.className = 'cmt-user';
+      u.textContent = '@' + c.u;
+      const t = document.createElement('div');
+      t.className = 'cmt-text';
+      t.textContent = c.text;
+      d.appendChild(u);
+      d.appendChild(t);
+      box.appendChild(d);
+    });
+    box.scrollTop = box.scrollHeight;
+  } catch (e) {
+    box.innerHTML = '<div class="cmt-empty" style="color:#c62828">评论加载失败</div>';
+  }
+}
+
+/* 评论时给作者写消息 */
+async function notifyAuthor(work, text) {
+  if (work.user === userCode) return; // 不给自己发
+  const dir = NEW_DIR + '/' + hashUser(work.user);
+
+  // 确保目录存在
+  try {
+    const check = await sbList(dir);
+    const has = (check || []).some(o => o && o.name);
+    if (!has) {
+      await sbUpload(dir + '/.keep', new Blob([''], { type: 'text/plain;charset=utf-8' }), 'text/plain;charset=utf-8');
+    }
+  } catch (e) { /* 忽略 */ }
+
+  let maxN = 0;
+  try {
+    const items = await sbList(dir);
+    (items || []).forEach(o => {
+      if (!o || !o.name) return;
+      const m = o.name.match(/^(\d+)_/);
+      if (m) maxN = Math.max(maxN, parseInt(m[1], 10) || 0);
+    });
+  } catch (e) { /* 忽略 */ }
+
+  const n = maxN + 1;
+  const safeTitle = work.title.replace(/[\\/:*?"<>|]/g, '_');
+  const fname = n + '_' + safeTitle + '.txt';
+  try {
+    await sbUpload(dir + '/' + fname, new Blob([text], { type: 'text/plain;charset=utf-8' }), 'text/plain;charset=utf-8');
+  } catch (e) { /* 静默失败，不阻塞评论 */ }
+}
+
+$('commentSend').onclick = sendComment;
+$('commentInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment(); }
+});
+
+async function sendComment() {
+  if (!currentWork || commentLoading) return;
+  const inp = $('commentInput');
+  const text = inp.value.trim();
+  if (!text) return;
+
+  const btn = $('commentSend');
+  commentLoading = true;
+  btn.disabled = true;
+  try {
+    const fname = userCode + '_' + currentCommentCount + '.txt';
+    await sbUpload(
+      currentWork.name + '/' + fname,
+      new Blob([text], { type: 'text/plain;charset=utf-8' }),
+      'text/plain;charset=utf-8'
+    );
+    await notifyAuthor(currentWork, text);
+    inp.value = '';
+    await loadComments(currentWork);
+  } catch (e) {
+    alert('评论发送失败：' + e.message);
+  } finally {
+    commentLoading = false;
+    btn.disabled = false;
+  }
+}
+
+/* ================== 上传弹窗 ================== */
+$('uploadBtn').onclick = openUpload;
+$('uploadClose').onclick = closeUpload;
+$('uploadCancel').onclick = closeUpload;
+
+function openUpload() {
+  $('upTitle').value = '';
+  $('upCode').value = '';
+  $('upStatus').textContent = '';
+  $('upStatus').className = 'status';
+  $('imageInfo').textContent = '未选择';
+  $('videoInfo').textContent = '未选择';
+  $('imgPreview').classList.add('hidden');
+  $('videoPreview').classList.add('hidden');
+  $('videoCoverPreview').classList.add('hidden');
+  imageJpegBlob = null;
+  videoBlob = null;
+  videoCoverBlob = null;
+  coverTouched = false;
+  setKind('html');
+  initCanvas();
+  updateNameHint();
+  $('uploadModal').classList.remove('hidden');
+  $('upTitle').focus();
+}
+
+function closeUpload() {
+  $('uploadModal').classList.add('hidden');
+  const vp = $('videoPreview');
+  if (vp.src) { URL.revokeObjectURL(vp.src); vp.removeAttribute('src'); vp.load(); }
+  const vc = $('videoCoverPreview');
+  if (vc.src) { URL.revokeObjectURL(vc.src); vc.removeAttribute('src'); }
+  const ip = $('imgPreview');
+  if (ip.src) { URL.revokeObjectURL(ip.src); ip.removeAttribute('src'); }
+}
+
+document.querySelectorAll('#kindSeg .seg-btn').forEach(b => {
+  b.onclick = () => setKind(b.dataset.kind);
+});
+
+function setKind(k) {
+  upKind = k;
+  document.querySelectorAll('#kindSeg .seg-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.kind === k));
+
+  $('secHtml').classList.toggle('hidden', k !== 'html');
+  $('secImage').classList.toggle('hidden', k !== 'image');
+  $('secVideo').classList.toggle('hidden', k !== 'video');
+  $('secCover').classList.toggle('hidden', k === 'image');
+
+  $('canvasArea').classList.toggle('hidden', k === 'video');
+  $('videoCoverArea').classList.toggle('hidden', k !== 'video');
+
+  if (k === 'video') {
+    $('coverLbl').textContent = '视频封面（系统选择器选取）';
+    $('coverNote').textContent = '不选则无封面';
+  } else {
+    $('coverLbl').textContent = '封面（画板绘制 / 选择图片）';
+    $('coverNote').textContent = '不画则不上传封面';
+  }
+  updateNameHint();
+}
+
+$('upTitle').addEventListener('input', updateNameHint);
+
+function updateNameHint() {
+  const title = $('upTitle').value.trim();
+  const safe = title || '标题';
+  const base = (userCode || '代号') + '_' + safe;
+  let hint = '';
+  if (upKind === 'html') {
+    hint = 'HTML：<b>' + esc(base) + '.html</b>　封面：<b>' + esc(base) + '.html.jpg</b>';
+  } else if (upKind === 'video') {
+    hint = '视频：<b>' + esc(base) + '.mp4</b>　封面：<b>' + esc(base) + '.mp4.jpg</b>';
+  } else {
+    hint = '图片：<b>' + esc(base) + '.jpg</b>（自动转为 jpg）';
+  }
+  $('nameHint').innerHTML = '将保存为：' + hint;
+}
+
+$('htmlFile').onchange = e => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    $('upCode').value = rd.result;
+    if (!$('upTitle').value.trim()) {
+      const auto = f.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 40);
+      $('upTitle').value = auto;
+      updateNameHint();
+    }
+  };
+  rd.readAsText(f);
+  e.target.value = '';
+};
+
+$('imageFile').onchange = async e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  const info = $('imageInfo');
+  info.textContent = '处理中…';
+  info.className = 'status';
+  try {
+    imageJpegBlob = await blobToJpeg(f);
+    info.textContent = '已选择（' + Math.round(imageJpegBlob.size / 1024) + ' KB，jpg）';
+    const prev = $('imgPreview');
+    if (prev.src) URL.revokeObjectURL(prev.src);
+    prev.src = URL.createObjectURL(imageJpegBlob);
+    prev.classList.remove('hidden');
+  } catch (err) {
+    imageJpegBlob = null;
+    info.textContent = '图片处理失败';
+    info.className = 'status err';
+  }
+};
+
+$('videoFile').onchange = e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  videoBlob = f;
+  $('videoInfo').textContent = '已选择（' + Math.round(f.size / 1024) + ' KB）';
+  const prev = $('videoPreview');
+  if (prev.src) URL.revokeObjectURL(prev.src);
+  prev.src = URL.createObjectURL(f);
+  prev.classList.remove('hidden');
+};
+
+$('videoCoverFile').onchange = async e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  try {
+    videoCoverBlob = await blobToJpeg(f, 1280, 0.88);
+    const prev = $('videoCoverPreview');
+    if (prev.src) URL.revokeObjectURL(prev.src);
+    prev.src = URL.createObjectURL(videoCoverBlob);
+    prev.classList.remove('hidden');
+  } catch (err) {
+    videoCoverBlob = null;
+    $('videoCoverPreview').classList.add('hidden');
+  }
+};
+
+/* ================== 画板 ================== */
+const cv = $('coverCanvas');
+const ctx = cv.getContext('2d');
+let brushColor = '#0b57d0';
+let brushSize = 4;
+let drawing = false;
+
+function initCanvas() {
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.strokeStyle = '#f0f5ff';
+  ctx.lineWidth = 1;
+  for (let x = 20; x < cv.width; x += 20) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, cv.height); ctx.stroke();
+  }
+  for (let y = 20; y < cv.height; y += 20) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cv.width, y); ctx.stroke();
+  }
+  ctx.strokeStyle = '#c5d9f7';
+  ctx.strokeRect(0.5, 0.5, cv.width - 1, cv.height - 1);
+}
+
+$('brushColor').oninput = e => { brushColor = e.target.value; };
+$('brushSize').oninput = e => { brushSize = +e.target.value; };
+
+$('clearCanvas').onclick = () => { initCanvas(); coverTouched = false; };
+
+function canvasPos(e) {
+  const r = cv.getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left) * cv.width / r.width,
+    y: (e.clientY - r.top) * cv.height / r.height
+  };
+}
+
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  drawing = true;
+  coverTouched = true;
+  try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+  const p = canvasPos(e);
+  ctx.strokeStyle = brushColor;
+  ctx.lineWidth = brushSize;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(p.x, p.y);
+  ctx.lineTo(p.x + 0.01, p.y);
+  ctx.stroke();
+});
+
+cv.addEventListener('pointermove', e => {
+  if (!drawing) return;
+  e.preventDefault();
+  const p = canvasPos(e);
+  ctx.lineTo(p.x, p.y);
+  ctx.stroke();
+});
+
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev =>
+  cv.addEventListener(ev, () => { drawing = false; })
+);
+
+$('coverFile').onchange = e => {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  const url = URL.createObjectURL(f);
+  const img = new Image();
+  img.onload = () => {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    const s = Math.max(cv.width / img.width, cv.height / img.height);
+    const w = img.width * s, h = img.height * s;
+    ctx.drawImage(img, (cv.width - w) / 2, (cv.height - h) / 2, w, h);
+    ctx.strokeStyle = '#c5d9f7';
+    ctx.strokeRect(0.5, 0.5, cv.width - 1, cv.height - 1);
+    URL.revokeObjectURL(url);
+    coverTouched = true;
+  };
+  img.onerror = () => URL.revokeObjectURL(url);
+  img.src = url;
+};
+
+/* ================== 图片转 JPG ================== */
+async function blobToJpeg(blob, maxSide = 2000, quality = 0.9) {
+  let bmp;
+  try { bmp = await createImageBitmap(blob); }
+  catch (e) { throw new Error('图片解析失败'); }
+  let w = bmp.width, h = bmp.height;
+  const s = Math.min(1, maxSide / Math.max(w, h));
+  w = Math.max(1, Math.round(w * s));
+  h = Math.max(1, Math.round(h * s));
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const cx = c.getContext('2d');
+  cx.fillStyle = '#ffffff';
+  cx.fillRect(0, 0, w, h);
+  cx.drawImage(bmp, 0, 0, w, h);
+  if (bmp.close) bmp.close();
+  return await new Promise((res, rej) => {
+    c.toBlob(b => b ? res(b) : rej(new Error('图片转换失败')), 'image/jpeg', quality);
+  });
+}
+
+/* ================== 执行上传 ================== */
+$('uploadConfirm').onclick = doUpload;
+
+async function doUpload() {
+  const btn = $('uploadConfirm');
+  const st = $('upStatus');
+  const setStatus = (msg, cls) => { st.textContent = msg; st.className = 'status' + (cls ? ' ' + cls : ''); };
+
+  const title = $('upTitle').value.trim();
+
+  if (!title) { setStatus('请输入标题', 'err'); $('upTitle').focus(); return; }
+  if (!/^[A-Za-z0-9_-]+$/.test(title)) {
+    setStatus('标题含中文或符号，仅允许英文字母、数字、下划线、连字符', 'err');
+    $('upTitle').focus();
+    return;
+  }
+
+  const base = userCode + '_' + title;
+  btn.disabled = true;
+
+  try {
+    if (upKind === 'html') {
+      const code = $('upCode').value;
+      if (!code.trim()) { setStatus('请粘贴或选择 HTML 代码', 'err'); btn.disabled = false; return; }
+      const fn = base + '.html';
+      setStatus('上传 HTML…');
+      await sbUpload(fn, new Blob([code], { type: 'text/html;charset=utf-8' }), 'text/html;charset=utf-8');
+
+      if (coverTouched) {
+        setStatus('上传封面…');
+        const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.88));
+        if (!blob) throw new Error('封面生成失败');
+        await sbUpload(fn + '.jpg', blob, 'image/jpeg');
+      }
+    } else if (upKind === 'video') {
+      if (!videoBlob) { setStatus('请选择视频文件', 'err'); btn.disabled = false; return; }
+      const fn = base + '.mp4';
+      setStatus('上传视频…');
+      await sbUpload(fn, videoBlob, 'video/mp4');
+
+      if (videoCoverBlob) {
+        setStatus('上传视频封面…');
+        await sbUpload(fn + '.jpg', videoCoverBlob, 'image/jpeg');
+      }
+    } else {
+      if (!imageJpegBlob) { setStatus('请选择图片文件', 'err'); btn.disabled = false; return; }
+      const fn = base + '.jpg';
+      setStatus('上传图片…');
+      await sbUpload(fn, imageJpegBlob, 'image/jpeg');
+    }
+
+    setStatus('上传完成 ✓', 'ok');
+    setTimeout(() => { closeUpload(); refresh(); }, 550);
+  } catch (e) {
+    setStatus(e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ================== 键盘 Esc ================== */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!$('fsLayer').classList.contains('hidden')) { $('fsExit').onclick(); return; }
+  if (!$('msgModal').classList.contains('hidden')) { $('msgClose').onclick(); return; }
+  if (!$('viewModal').classList.contains('hidden')) { $('viewClose').onclick(); return; }
+  if (!$('uploadModal').classList.contains('hidden')) { closeUpload(); }
+});
+</script>
+</body>
+</html>
