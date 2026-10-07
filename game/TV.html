@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Three.js · 木质房间漫游</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000}
+canvas{display:block;position:fixed;inset:0;touch-action:none}
+#ui{position:fixed;inset:0;z-index:10;pointer-events:none;font-family:system-ui,-apple-system,"PingFang SC",sans-serif}
+#crosshair{position:fixed;left:50%;top:50%;width:32px;height:32px;margin:-16px 0 0 -16px;pointer-events:none}
+#crosshair .ring{position:absolute;left:50%;top:50%;width:5px;height:5px;margin:-2.5px 0 0 -2.5px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 0 4px rgba(0,0,0,.9);transition:all .13s cubic-bezier(.3,.9,.4,1)}
+#crosshair.active .ring{width:26px;height:26px;margin:-13px 0 0 -13px;background:transparent;border:2px solid rgba(110,220,255,.95);box-shadow:0 0 10px rgba(110,220,255,.75),inset 0 0 8px rgba(110,220,255,.35)}
+#joystick{position:fixed;left:max(20px,env(safe-area-inset-left));bottom:max(24px,env(safe-area-inset-bottom));width:138px;height:138px;border-radius:50%;background:radial-gradient(circle at 50% 45%,rgba(255,255,255,.13),rgba(255,255,255,.04) 70%);border:2px solid rgba(255,255,255,.26);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none}
+#joystick::after{content:'';position:absolute;inset:26px;border-radius:50%;border:1px dashed rgba(255,255,255,.14)}
+#knob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:radial-gradient(circle at 38% 32%,rgba(255,255,255,.72),rgba(255,255,255,.25) 75%);border:2px solid rgba(255,255,255,.65);box-shadow:0 4px 14px rgba(0,0,0,.45);will-change:transform}
+#interact{position:fixed;right:max(26px,env(safe-area-inset-right));bottom:max(44px,env(safe-area-inset-bottom));width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.75);font-size:22px;font-weight:700;letter-spacing:1px;background:rgba(255,255,255,.09);border:2px solid rgba(255,255,255,.28);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;transition:background .16s,border-color .16s,transform .09s,box-shadow .16s,color .16s}
+#interact.ready{background:rgba(70,190,255,.28);border-color:rgba(120,225,255,.95);color:#fff;box-shadow:0 0 22px rgba(90,200,255,.55)}
+#interact:active{transform:scale(.9)}
+#tip{position:fixed;left:50%;top:18px;transform:translateX(-50%);padding:7px 16px;border-radius:999px;background:rgba(0,0,0,.45);color:rgba(255,255,255,.85);font-size:12px;letter-spacing:.5px;white-space:nowrap;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);pointer-events:none;transition:opacity .5s;opacity:1;max-width:calc(100vw - 130px);overflow:hidden;text-overflow:ellipsis}
+#panel-toggle{position:fixed;top:max(14px,env(safe-area-inset-top));right:max(14px,env(safe-area-inset-right));width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(18,20,26,.62);border:2px solid rgba(255,255,255,.28);color:#fff;font-size:19px;line-height:1;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);pointer-events:auto;cursor:pointer;user-select:none;-webkit-user-select:none;transition:border-color .18s,box-shadow .18s,background .18s,transform .12s;z-index:31;padding:0;font-family:inherit}
+#panel-toggle:active{transform:scale(.92)}
+#panel-toggle.open,#panel-toggle:hover{border-color:rgba(120,225,255,.95);box-shadow:0 0 20px rgba(90,200,255,.5);background:rgba(30,45,60,.75)}
+#panel{position:fixed;top:calc(max(14px,env(safe-area-inset-top)) + 56px);right:max(14px,env(safe-area-inset-right));width:min(370px,calc(100vw - 28px));max-height:min(72vh,600px);display:flex;flex-direction:column;background:rgba(14,16,22,.9);border:1px solid rgba(255,255,255,.16);border-radius:16px;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 18px 52px rgba(0,0,0,.6);pointer-events:auto;overflow:hidden;opacity:0;visibility:hidden;transform:translateY(-10px) scale(.97);transform-origin:top right;transition:opacity .2s ease,transform .2s ease,visibility .2s;z-index:30;color:#eef2f7}
+#panel.open{opacity:1;visibility:visible;transform:none}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.1);font-size:14px;font-weight:700;letter-spacing:.3px;flex-shrink:0}
+.panel-x{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.08);border:none;color:#cbd5e1;font-size:16px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;transition:background .16s,color .16s}
+.panel-x:hover{background:rgba(255,90,90,.25);color:#ff6b6b}
+.panel-body{flex:1;min-height:0;overflow-y:auto;padding:12px 14px 14px;-webkit-overflow-scrolling:touch}
+.panel-body::-webkit-scrollbar{width:6px}
+.panel-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px}
+.panel-label{display:block;font-size:11px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.panel-input{width:100%;padding:10px 12px;margin-bottom:8px;background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.14);border-radius:10px;color:#eef2f7;font-size:13px;font-family:inherit;outline:none;transition:border-color .16s,box-shadow .16s;-webkit-appearance:none;appearance:none}
+.panel-input::placeholder{color:rgba(255,255,255,.3)}
+.panel-input:focus{border-color:rgba(110,220,255,.9);box-shadow:0 0 0 3px rgba(90,200,255,.16)}
+.panel-btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;border:1.5px solid transparent;transition:all .16s;user-select:none}
+.panel-btn.primary{width:100%;background:rgba(70,190,255,.22);border-color:rgba(120,225,255,.85);color:#d8f4ff}
+.panel-btn.primary:hover{background:rgba(70,190,255,.35);box-shadow:0 0 18px rgba(90,200,255,.4)}
+.panel-btn.primary:active{transform:scale(.98)}
+.panel-btn.primary:disabled{opacity:.55;cursor:wait}
+.panel-btn.small{padding:5px 11px;font-size:12px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.16);color:#cbd5e1}
+.panel-btn.small:hover{border-color:rgba(120,225,255,.8);color:#d8f4ff}
+.panel-sec{margin-bottom:14px}
+.panel-sec:last-child{margin-bottom:0}
+.panel-label-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.panel-label-row .panel-label{margin-bottom:0}
+.panel-status{font-size:11.5px;color:rgba(255,255,255,.55);margin-bottom:8px;min-height:16px;letter-spacing:.2px}
+.panel-status.ok{color:rgba(90,220,160,.95)}
+.panel-status.bad{color:rgba(255,120,120,.95)}
+.panel-hint{font-size:10.5px;color:rgba(255,255,255,.36);line-height:1.5;margin:-2px 0 8px 0}
+.link-list{display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto;padding-right:2px}
+.link-list::-webkit-scrollbar{width:6px}
+.link-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:3px}
+.link-empty{padding:18px 8px;text-align:center;font-size:12.5px;color:rgba(255,255,255,.4);border:1px dashed rgba(255,255,255,.14);border-radius:10px}
+.link-item{display:flex;align-items:center;gap:9px;padding:8px 9px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.09);border-radius:10px;transition:border-color .16s,background .16s}
+.link-item.active{border-color:rgba(120,225,255,.85);background:rgba(70,190,255,.13)}
+.link-idx{flex-shrink:0;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.1);font-size:11px;font-weight:700;color:rgba(255,255,255,.7);display:flex;align-items:center;justify-content:center}
+.link-item.active .link-idx{background:rgba(120,225,255,.85);color:#04121a}
+.link-main{flex:1;min-width:0}
+.link-name{font-size:12.5px;font-weight:600;color:#eef2f7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.link-url{font-size:10.5px;color:rgba(255,255,255,.38);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:ui-monospace,Menlo,Consolas,monospace;margin-top:1px}
+.link-play{flex-shrink:0;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:700;font-family:inherit;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);color:#cbd5e1;cursor:pointer;transition:all .16s}
+.link-play:hover{border-color:rgba(120,225,255,.9);color:#d8f4ff}
+.link-item.active .link-play{background:rgba(120,225,255,.22);border-color:rgba(120,225,255,.85);color:#d8f4ff}
+</style>
+</head>
+<body>
+<div id="ui">
+  <div id="crosshair"><div class="ring"></div></div>
+  <div id="joystick"><div id="knob"></div></div>
+  <div id="interact">F</div>
+  <div id="tip">WASD / 摇杆移动 · 拖动屏幕转视角 · 准星对准物体按 F 互动 · 右上角管理电视台</div>
+  <button id="panel-toggle" title="电视台 · 链接管理">⚙</button>
+  <div id="panel">
+    <div class="panel-head">
+      <span>📺 电视台 · 链接管理</span>
+      <button class="panel-x" id="panel-close" title="收起">×</button>
+    </div>
+    <div class="panel-body">
+      <div class="panel-sec">
+        <label class="panel-label">上传视频</label>
+        <input id="link-url" class="panel-input" type="text" inputmode="url" placeholder="粘贴视频直链，或快手 / B站分享链接" autocomplete="off" spellcheck="false">
+        <input id="link-title" class="panel-input" type="text" placeholder="台名 / 备注（可选，留空自动取标题）" autocomplete="off" maxlength="30">
+        <button id="link-upload" class="panel-btn primary">⬆ 上传到 API</button>
+        <div class="panel-hint">· 支持 .mp4 等视频直链<br>· 快手 / B站分享链接自动解析为无水印直链</div>
+      </div>
+      <div class="panel-sec">
+        <div class="panel-label-row">
+          <span class="panel-label">API 链接列表</span>
+          <button id="link-refresh" class="panel-btn small">↻ 重新拉取</button>
+        </div>
+        <div id="link-status" class="panel-status">初始化…</div>
+        <div id="link-list" class="link-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.shadowMap.enabled=false;
+document.body.appendChild(renderer.domElement);
+
+const MAX_ANISO=renderer.capabilities.getMaxAnisotropy();
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x05070b);
+const EYE_HEIGHT=1.62;
+const camera=new THREE.PerspectiveCamera(76,window.innerWidth/window.innerHeight,0.06,45);
+camera.rotation.order='YXZ';
+camera.position.set(-3.2,EYE_HEIGHT,2.6);
+
+function makeCanvasTexture(w,h,draw){
+  const cv=document.createElement('canvas');
+  cv.width=w;cv.height=h;
+  const ctx=cv.getContext('2d');
+  draw(ctx,w,h);
+  const tex=new THREE.CanvasTexture(cv);
+  tex.colorSpace=THREE.SRGBColorSpace;
+  tex.wrapS=tex.wrapT=THREE.RepeatWrapping;
+  tex.generateMipmaps=true;
+  tex.minFilter=THREE.LinearMipmapLinearFilter;
+  tex.magFilter=THREE.LinearFilter;
+  tex.anisotropy=MAX_ANISO;
+  return tex;
+}
+
+function makeWoodTexture({size=512,planks=8,hue=30,sat=42,light=46,vertical=false,gapColor='rgba(38,22,8,0.9)',gapW=3,grainDensity=1}={}){
+  return makeCanvasTexture(size,size,(ctx,W,H)=>{
+    ctx.fillStyle=`hsl(${hue}, ${sat}%, ${light}%)`;
+    ctx.fillRect(0,0,W,H);
+    const pw=(vertical?W:H)/planks;
+    for(let i=0;i<planks;i++){
+      const l=light+(Math.random()*14-7);
+      const s=Math.max(6,sat+(Math.random()*12-6));
+      ctx.fillStyle=`hsl(${hue}, ${s}%, ${l}%)`;
+      if(vertical)ctx.fillRect(i*pw,0,pw+1,H);
+      else ctx.fillRect(0,i*pw,W,pw+1);
+      const lines=Math.round(10*grainDensity);
+      for(let g=0;g<lines;g++){
+        const t=Math.random();
+        const a=0.05+Math.random()*0.12;
+        ctx.strokeStyle=`hsla(${hue-7}, ${s}%, ${Math.max(8,l-22)}%, ${a})`;
+        ctx.lineWidth=0.7+Math.random()*1.8;
+        ctx.beginPath();
+        if(vertical){
+          const x0=i*pw+t*pw;
+          ctx.moveTo(x0,-6);
+          for(let y=0;y<=H;y+=18){
+            ctx.lineTo(x0+Math.sin(y*0.021+t*13)*4+Math.sin(y*0.095+t*31)*1.6,y);
+          }
+        }else{
+          const y0=i*pw+t*pw;
+          ctx.moveTo(-6,y0);
+          for(let x=0;x<=W;x+=18){
+            ctx.lineTo(x,y0+Math.sin(x*0.021+t*13)*4+Math.sin(x*0.095+t*31)*1.6);
+          }
+        }
+        ctx.stroke();
+      }
+      ctx.fillStyle=gapColor;
+      if(vertical)ctx.fillRect(i*pw-gapW/2,0,gapW,H);
+      else ctx.fillRect(0,i*pw-gapW/2,W,gapW);
+    }
+    const img=ctx.getImageData(0,0,W,H);
+    const d=img.data;
+    for(let i=0;i<d.length;i+=4){
+      const n=(Math.random()-0.5)*11;
+      d[i]+=n;d[i+1]+=n;d[i+2]+=n;
+    }
+    ctx.putImageData(img,0,0);
+  });
+}
+
+function makeFabricTexture(color='#e9e5db',noise=0.055){
+  return makeCanvasTexture(256,256,(ctx,W,H)=>{
+    ctx.fillStyle=color;
+    ctx.fillRect(0,0,W,H);
+    for(let i=0;i<9000;i++){
+      ctx.fillStyle=`rgba(0,0,0,${Math.random()*noise})`;
+      ctx.fillRect(Math.random()*W,Math.random()*H,2,2);
+    }
+    ctx.strokeStyle='rgba(0,0,0,0.045)';
+    ctx.lineWidth=1;
+    for(let i=0;i<W;i+=5){
+      ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,H);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(W,i);ctx.stroke();
+    }
+  });
+}
+
+function makePlasticTexture(base='#1b1d21',hi='#2c3037'){
+  return makeCanvasTexture(256,256,(ctx,W,H)=>{
+    const g=ctx.createLinearGradient(0,0,W,H);
+    g.addColorStop(0,hi);
+    g.addColorStop(0.5,base);
+    g.addColorStop(1,'#101215');
+    ctx.fillStyle=g;
+    ctx.fillRect(0,0,W,H);
+    for(let i=0;i<4000;i++){
+      ctx.fillStyle=`rgba(255,255,255,${Math.random()*0.03})`;
+      ctx.fillRect(Math.random()*W,Math.random()*H,1,1);
+    }
+  });
+}
+
+function makeSymbolTexture(sym){
+  const S=128;
+  const tex=makeCanvasTexture(S,S,(ctx)=>{
+    ctx.clearRect(0,0,S,S);
+    const r=24,x=8,y=8,w=S-16,h=S-16;
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+    ctx.fillStyle='rgba(26,28,34,0.92)';
+    ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.6)';
+    ctx.lineWidth=4;
+    ctx.stroke();
+    ctx.fillStyle='#ffffff';
+    ctx.font='bold 62px system-ui, -apple-system, sans-serif';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText(sym,S/2,S/2+3);
+  });
+  tex.wrapS=tex.wrapT=THREE.ClampToEdgeWrapping;
+  return tex;
+}
+
+const TEX={
+  floor:makeWoodTexture({planks:6,hue:27,sat:44,light:36,gapW:4}),
+  wall:makeWoodTexture({planks:5,hue:32,sat:33,light:60,gapW:3}),
+  ceil:makeWoodTexture({planks:4,hue:36,sat:16,light:78,gapW:2}),
+  wood:makeWoodTexture({planks:4,hue:26,sat:46,light:44,gapW:3}),
+  plastic:makePlasticTexture(),
+  fabric:makeFabricTexture('#e9e4da'),
+  sheet:makeFabricTexture('#b9c7d6',0.06)
+};
+
+function makeMat(baseTex,rx=1,ry=1,opts={}){
+  const t=baseTex.clone();
+  t.needsUpdate=true;
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.repeat.set(rx,ry);
+  t.anisotropy=MAX_ANISO;
+  t.generateMipmaps=true;
+  t.minFilter=THREE.LinearMipmapLinearFilter;
+  t.magFilter=THREE.LinearFilter;
+  t.colorSpace=THREE.SRGBColorSpace;
+  return new THREE.MeshStandardMaterial({map:t,roughness:0.88,metalness:0.0,...opts});
+}
+
+scene.add(new THREE.HemisphereLight(0xf3e6d6,0x4a3524,0.78));
+scene.add(new THREE.AmbientLight(0xffffff,0.26));
+const dirLight=new THREE.DirectionalLight(0xfff1dc,1.0);
+dirLight.position.set(-6,9.5,6);
+scene.add(dirLight);
+const lampLiving=new THREE.PointLight(0xffd7a0,7,11,2);
+lampLiving.position.set(-4,2.72,0);
+scene.add(lampLiving);
+
+const ROOM_H=3.0;
+const HALF_D=4.0;
+const colliders=[];
+function addCollider(cx,cz,w,d){colliders.push({minX:cx-w/2,maxX:cx+w/2,minZ:cz-d/2,maxZ:cz+d/2});}
+
+function addFloor(cx,cz,w,d,mat){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mat);
+  m.rotation.x=-Math.PI/2;
+  m.position.set(cx,0,cz);
+  m.frustumCulled=true;
+  scene.add(m);
+}
+
+function addCeiling(cx,cz,w,d,mat){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mat);
+  m.rotation.x=Math.PI/2;
+  m.position.set(cx,ROOM_H,cz);
+  m.frustumCulled=true;
+  scene.add(m);
+}
+
+addFloor(-4,0,8,8,makeMat(TEX.floor,3.2,3.2));
+addCeiling(-4,0,8,8,makeMat(TEX.ceil,3,3));
+
+function addWall(w,h,d,x,y,z,mat){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(x,y,z);
+  m.frustumCulled=true;
+  scene.add(m);
+  return m;
+}
+
+const TILE=2.2;
+
+addWall(0.2,ROOM_H,HALF_D*2+0.4,-8.1,ROOM_H/2,0,makeMat(TEX.wall,(HALF_D*2)/TILE,ROOM_H/TILE));
+addCollider(-8.1,0,0.2,HALF_D*2+0.4);
+
+addWall(0.2,ROOM_H,HALF_D*2+0.4,0,ROOM_H/2,0,makeMat(TEX.wall,(HALF_D*2)/TILE,ROOM_H/TILE));
+addCollider(0,0,0.2,HALF_D*2+0.4);
+
+addWall(8.4,ROOM_H,0.2,-4,ROOM_H/2,-4.1,makeMat(TEX.wall,8.4/TILE,ROOM_H/TILE));
+addCollider(-4,-4.1,8.4,0.2);
+
+addWall(8.4,ROOM_H,0.2,-4,ROOM_H/2,4.1,makeMat(TEX.wall,8.4/TILE,ROOM_H/TILE));
+addCollider(-4,4.1,8.4,0.2);
+
+const TABLE={x:-4.6,z:1.4,topY:1.01,w:1.6,d:0.9};
+
+function buildTable(x,z){
+  const g=new THREE.Group();
+  const topMat=makeMat(TEX.wood,1.6/1.2,0.9/1.2);
+  const top=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.08,0.9),topMat);
+  top.position.y=0.97;
+  g.add(top);
+  const legMat=makeMat(TEX.wood,0.3,0.7);
+  const legGeo=new THREE.BoxGeometry(0.09,0.93,0.09);
+  [[-0.7,-0.36],[0.7,-0.36],[-0.7,0.36],[0.7,0.36]].forEach(([lx,lz])=>{
+    const leg=new THREE.Mesh(legGeo,legMat);
+    leg.position.set(lx,0.465,lz);
+    leg.frustumCulled=true;
+    g.add(leg);
+  });
+  const barMat=makeMat(TEX.wood,0.8,0.1);
+  const bar=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.05,0.05),barMat);
+  bar.position.set(0,0.323,0.36);
+  g.add(bar);
+  const bar2=bar.clone();
+  bar2.position.z=-0.36;
+  g.add(bar2);
+  g.position.set(x,0,z);
+  scene.add(g);
+  addCollider(x,z,1.6,0.9);
+}
+buildTable(TABLE.x,TABLE.z);
+
+function buildTVCabinet(x,z){
+  const g=new THREE.Group();
+  const mat=makeMat(TEX.wood,1.0,0.35);
+  const cabinetH=1.01;
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.56,cabinetH,2.0),mat);
+  body.position.y=cabinetH/2;
+  g.add(body);
+  const lineMat=new THREE.MeshStandardMaterial({color:0x241509,roughness:1});
+  const lineH=cabinetH*0.8;
+  const line=new THREE.Mesh(new THREE.BoxGeometry(0.005,lineH,0.02),lineMat);
+  line.position.set(0.285,cabinetH/2,0);
+  g.add(line);
+  g.position.set(x,0,z);
+  scene.add(g);
+  addCollider(x,z,0.56,2.0);
+}
+buildTVCabinet(-7.62,0);
+
+const TV={group:new THREE.Group(),center:new THREE.Vector3(-7.50,EYE_HEIGHT,0),screenW:1.62,screenH:0.92};
+
+(function buildTV(){
+  const g=TV.group;
+  g.position.copy(TV.center);
+  const frameMat=makeMat(TEX.plastic,1,1,{roughness:0.55,metalness:0.15});
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(0.09,1.1,1.8),frameMat);
+  g.add(frame);
+  const innerMat=new THREE.MeshStandardMaterial({color:0x090b0e,roughness:0.35,metalness:0.1});
+  const inner=new THREE.Mesh(new THREE.BoxGeometry(0.012,0.98,1.70),innerMat);
+  inner.position.x=0.045;
+  g.add(inner);
+  const standMat=makeMat(TEX.plastic,0.5,0.5,{roughness:0.5,metalness:0.2});
+  const stand=new THREE.Mesh(new THREE.BoxGeometry(0.36,0.06,0.5),standMat);
+  stand.position.set(-0.02,-0.58,0);
+  g.add(stand);
+  scene.add(g);
+})();
+
+const videoMat=new THREE.MeshBasicMaterial({color:0xffffff,toneMapped:false});
+const blackMat=new THREE.MeshBasicMaterial({color:0x04060a,toneMapped:false});
+
+const noChannelMat=(()=>{
+  const cv=document.createElement('canvas');
+  cv.width=512;cv.height=288;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#04060a';
+  ctx.fillRect(0,0,512,288);
+  ctx.strokeStyle='rgba(255,255,255,0.028)';
+  ctx.lineWidth=1;
+  for(let y=0;y<288;y+=4){
+    ctx.beginPath();
+    ctx.moveTo(0,y+0.5);
+    ctx.lineTo(512,y+0.5);
+    ctx.stroke();
+  }
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.fillStyle='rgba(255,255,255,0.9)';
+  ctx.font='bold 46px system-ui, -apple-system, "PingFang SC", sans-serif';
+  ctx.fillText('暂无电视台',256,132);
+  ctx.fillStyle='rgba(120,225,255,0.6)';
+  ctx.font='19px system-ui, -apple-system, "PingFang SC", sans-serif';
+  ctx.fillText('点击右上角 ⚙ 上传视频直链',256,186);
+  const t=new THREE.CanvasTexture(cv);
+  t.colorSpace=THREE.SRGBColorSpace;
+  t.minFilter=THREE.LinearFilter;
+  t.magFilter=THREE.LinearFilter;
+  t.generateMipmaps=false;
+  return new THREE.MeshBasicMaterial({map:t,toneMapped:false});
+})();
+
+const errorMat=(()=>{
+  const cv=document.createElement('canvas');
+  cv.width=512;cv.height=288;
+  const ctx=cv.getContext('2d');
+  ctx.fillStyle='#0a0304';
+  ctx.fillRect(0,0,512,288);
+  ctx.strokeStyle='rgba(255,80,80,0.05)';
+  ctx.lineWidth=1;
+  for(let y=0;y<288;y+=4){
+    ctx.beginPath();
+    ctx.moveTo(0,y+0.5);
+    ctx.lineTo(512,y+0.5);
+    ctx.stroke();
+  }
+  ctx.textAlign='center';
+  ctx.textBaseline='middle';
+  ctx.fillStyle='rgba(255,120,120,0.95)';
+  ctx.font='bold 38px system-ui, -apple-system, "PingFang SC", sans-serif';
+  ctx.fillText('此台播放失败，请另换台',256,132);
+  ctx.fillStyle='rgba(255,255,255,0.35)';
+  ctx.font='17px system-ui, -apple-system, "PingFang SC", sans-serif';
+  ctx.fillText('点击机顶盒 ▷ 换台 或 从面板另选频道',256,186);
+  const t=new THREE.CanvasTexture(cv);
+  t.colorSpace=THREE.SRGBColorSpace;
+  t.minFilter=THREE.LinearFilter;
+  t.magFilter=THREE.LinearFilter;
+  t.generateMipmaps=false;
+  return new THREE.MeshBasicMaterial({map:t,toneMapped:false});
+})();
+
+const screenMesh=new THREE.Mesh(new THREE.PlaneGeometry(1,1),noChannelMat);
+screenMesh.rotation.y=Math.PI/2;
+screenMesh.position.set(TV.center.x+0.058,TV.center.y,TV.center.z);
+screenMesh.scale.set(TV.screenW,TV.screenH,1);
+screenMesh.frustumCulled=true;
+scene.add(screenMesh);
+
+const TV_BOX={pos:new THREE.Vector3(TABLE.x,TABLE.topY,TABLE.z),size:new THREE.Vector3(0.20,0.10,0.56)};
+
+(function buildTVBox(){
+  const g=new THREE.Group();
+  g.position.copy(TV_BOX.pos);
+  const boxMat=makeMat(TEX.plastic,0.7,0.3,{roughness:0.62,metalness:0.12});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(TV_BOX.size.x,TV_BOX.size.y,TV_BOX.size.z),boxMat);
+  body.position.y=TV_BOX.size.y/2;
+  body.frustumCulled=true;
+  g.add(body);
+  const capMat=new THREE.MeshStandardMaterial({color:0x0c0e12,roughness:0.4,metalness:0.3});
+  const cap=new THREE.Mesh(new THREE.BoxGeometry(TV_BOX.size.x+0.006,0.008,TV_BOX.size.z+0.006),capMat);
+  cap.position.y=TV_BOX.size.y+0.004;
+  g.add(cap);
+  const ledMat=new THREE.MeshBasicMaterial({color:0x35ff9a,toneMapped:false});
+  const led=new THREE.Mesh(new THREE.CircleGeometry(0.011,14),ledMat);
+  led.rotation.x=-Math.PI/2;
+  led.position.set(0,TV_BOX.size.y+0.009,-0.21);
+  g.add(led);
+  scene.add(g);
+})();
+
+const tvButtons=[];
+(function buildTVButtons(){
+  const defs=[
+    {sym:'◁',key:'prev',label:'上一个视频',dz:-0.18},
+    {sym:'○',key:'black',label:'黑屏 / 显示',dz:-0.06},
+    {sym:'▷',key:'next',label:'下一个视频',dz:0.06},
+    {sym:'□',key:'pause',label:'暂停 / 播放',dz:0.18}
+  ];
+  const size=0.13;
+  const faceX=TV_BOX.pos.x+TV_BOX.size.x/2+0.003;
+  const faceY=TV_BOX.pos.y+TV_BOX.size.y/2;
+  defs.forEach(d=>{
+    const tex=makeSymbolTexture(d.sym);
+    const mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false,toneMapped:false});
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(size,size),mat);
+    m.rotation.y=Math.PI/2;
+    m.position.set(faceX,faceY,TV_BOX.pos.z+d.dz);
+    m.renderOrder=2;
+    m.frustumCulled=true;
+    scene.add(m);
+    m.userData.key=d.key;
+    m.userData.label=d.label;
+    tvButtons.push(m);
+  });
+})();
+
+const TV_API={base:'https://ntfy.sh',topic:'codehub-tv-videos',cacheKey:'tvroom_links_cache_v1'};
+const BUGPK={base:'https://api.bugpk.com/api',timeout:15000};
+
+const videoList=[];
+const seenUrls=new Set();
+let netState='connecting';
+let statusMsg='';
+let statusMsgTimer=null;
+let fetchToken=0;
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderStatus(){
+  const el=document.getElementById('link-status');
+  if(!el)return;
+  if(statusMsg){
+    el.textContent=statusMsg;
+    el.className='panel-status';
+    return;
+  }
+  const label=netState==='online'?'● 已连线':netState==='connecting'?'● 连接中':'● 离线（可用本地缓存）';
+  el.textContent=`${label} · 共 ${videoList.length} 条链接`;
+  el.className='panel-status '+(netState==='online'?'ok':netState==='offline'?'bad':'');
+}
+
+function flashStatus(msg,ms=2600){
+  statusMsg=msg;
+  renderStatus();
+  clearTimeout(statusMsgTimer);
+  statusMsgTimer=setTimeout(()=>{statusMsg='';renderStatus()},ms);
+}
+
+function addLink(url,title,ts){
+  url=String(url||'').trim();
+  if(!url)return false;
+  if(seenUrls.has(url))return false;
+  seenUrls.add(url);
+  videoList.push({url,title:String(title||'').trim(),ts:ts||0});
+  return true;
+}
+
+function ingestNdjson(txt){
+  let added=0;
+  const lines=String(txt).split('\n');
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i].trim();
+    if(!line)continue;
+    let d;
+    try{d=JSON.parse(line)}catch(e){continue}
+    if(!d||d.event!=='message'||!d.message)continue;
+    let m=null;
+    try{m=JSON.parse(d.message)}catch(e){m=null}
+    if(m&&m.type==='video'&&m.url){
+      if(addLink(m.url,m.title,d.time||m.ts))added++;
+    }else if(typeof d.message==='string'&&/^https?:\/\//i.test(d.message.trim())){
+      if(addLink(d.message.trim(),'',d.time))added++;
+    }
+  }
+  return added;
+}
+
+function loadCache(){
+  try{
+    const arr=JSON.parse(localStorage.getItem(TV_API.cacheKey)||'[]');
+    if(Array.isArray(arr)){
+      arr.forEach(v=>{if(v&&v.url)addLink(v.url,v.title,v.ts)});
+    }
+  }catch(e){}
+}
+
+function saveCache(){
+  try{localStorage.setItem(TV_API.cacheKey,JSON.stringify(videoList.slice(-300)))}catch(e){}
+}
+
+async function refreshLinks(){
+  const token=++fetchToken;
+  flashStatus('⏳ 正在拉取 API…',6000);
+  const ctrl=new AbortController();
+  const abortTimer=setTimeout(()=>ctrl.abort(),10000);
+  try{
+    const res=await fetch(`${TV_API.base}/${TV_API.topic}/json?poll=1&since=all`,{cache:'no-store',signal:ctrl.signal});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const txt=await res.text();
+    if(token!==fetchToken)return;
+    const added=ingestNdjson(txt);
+    netState='online';
+    if(added>0){saveCache();afterLinksChanged()}
+    renderStatus();
+    flashStatus(added>0?`✅ 同步完成，新增 ${added} 条`:'✅ 同步完成，无新增');
+  }catch(err){
+    if(token!==fetchToken)return;
+    netState='offline';
+    renderStatus();
+    const msg=(err&&err.name==='AbortError')?'请求超时':(err.message||'网络错误');
+    flashStatus('❌ 拉取失败：'+msg);
+  }finally{
+    clearTimeout(abortTimer);
+  }
+}
+
+let es=null;
+function connectStream(){
+  try{if(es)es.close()}catch(e){}
+  try{es=new EventSource(`${TV_API.base}/${TV_API.topic}/sse`)}catch(e){return}
+  es.onopen=()=>{netState='online';renderStatus()};
+  es.onmessage=(ev)=>{
+    try{
+      const added=ingestNdjson(ev.data);
+      if(added>0){
+        saveCache();
+        afterLinksChanged();
+        flashStatus(`📡 实时收到 ${added} 条新链接`);
+      }
+    }catch(e){}
+  };
+  es.onerror=()=>{
+    if(netState!=='offline'){netState='offline';renderStatus()}
+  };
+}
+
+function afterLinksChanged(){
+  renderLinkList();
+  renderStatus();
+  maybeAutoLoad();
+  applyScreenVisual();
+}
+
+let autoLoaded=false;
+function maybeAutoLoad(){
+  if(autoLoaded)return;
+  if(videoList.length>0){
+    autoLoaded=true;
+    tvState.index=0;
+    selectVideo(0);
+  }
+}
+
+const videoEl=document.createElement('video');
+videoEl.crossOrigin='anonymous';
+videoEl.playsInline=true;
+videoEl.setAttribute('playsinline','');
+videoEl.setAttribute('webkit-playsinline','');
+videoEl.muted=true;
+videoEl.preload='auto';
+videoEl.loop=false;
+videoEl.style.cssText='position:fixed;left:-99999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+document.body.appendChild(videoEl);
+
+const audioEl=document.createElement('audio');
+audioEl.crossOrigin='anonymous';
+audioEl.preload='auto';
+audioEl.loop=false;
+audioEl.style.cssText='position:fixed;left:-99999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+document.body.appendChild(audioEl);
+
+const videoTexture=new THREE.VideoTexture(videoEl);
+videoTexture.colorSpace=THREE.SRGBColorSpace;
+videoTexture.minFilter=THREE.LinearFilter;
+videoTexture.magFilter=THREE.LinearFilter;
+videoTexture.generateMipmaps=false;
+videoMat.map=videoTexture;
+videoMat.needsUpdate=true;
+
+const tvState={index:0,black:true,paused:true,error:false};
+let loadToken=0;
+let pendingTimer=null;
+let pendingKick=null;
+let lastSwitchTime=0;
+const SWITCH_COOLDOWN=220;
+
+function clearPendingKick(){
+  if(pendingTimer!==null){clearTimeout(pendingTimer);pendingTimer=null}
+  if(pendingKick){
+    videoEl.removeEventListener('loadeddata',pendingKick);
+    videoEl.removeEventListener('canplay',pendingKick);
+    pendingKick=null;
+  }
+}
+
+function fitScreenToVideo(){
+  const vw=videoEl.videoWidth||16;
+  const vh=videoEl.videoHeight||9;
+  const aspect=vw/vh;
+  const maxW=TV.screenW,maxH=TV.screenH;
+  let w=maxH*aspect;
+  let h=maxH;
+  if(w>maxW){w=maxW;h=maxW/aspect}
+  screenMesh.scale.set(w,h,1);
+}
+videoEl.addEventListener('loadedmetadata',fitScreenToVideo);
+
+videoEl.addEventListener('error',()=>{
+  if(videoList.length===0)return;
+  tvState.error=true;
+  applyScreenVisual();
+});
+
+videoEl.addEventListener('loadeddata',()=>{
+  if(tvState.error){
+    tvState.error=false;
+    applyScreenVisual();
+  }
+});
+
+function applyScreenVisual(){
+  if(videoList.length===0){screenMesh.material=noChannelMat;return;}
+  if(tvState.error){screenMesh.material=errorMat;return;}
+  screenMesh.material=tvState.black?blackMat:videoMat;
+}
+
+function startPlayback(){
+  if(tvState.paused)return;
+  if(videoEl.paused){
+    const p=videoEl.play();
+    if(p&&p.catch)p.catch(()=>{});
+  }
+  if(audioEl.paused){
+    const p=audioEl.play();
+    if(p&&p.catch)p.catch(()=>{});
+  }
+}
+
+function stopPlayback(){
+  if(!videoEl.paused)videoEl.pause();
+  if(!audioEl.paused)audioEl.pause();
+}
+
+function clearMediaCache(){
+  try{videoEl.pause()}catch(e){}
+  try{audioEl.pause()}catch(e){}
+  videoEl.removeAttribute('src');
+  audioEl.removeAttribute('src');
+  videoEl.load();
+  audioEl.load();
+}
+
+function selectVideo(i){
+  if(videoList.length===0){
+    clearPendingKick();
+    clearMediaCache();
+    applyScreenVisual();
+    renderLinkList();
+    return;
+  }
+  const now=performance.now();
+  if(lastSwitchTime!==0&&now-lastSwitchTime<SWITCH_COOLDOWN)return;
+  lastSwitchTime=now;
+  tvState.index=((i%videoList.length)+videoList.length)%videoList.length;
+  const url=videoList[tvState.index].url;
+  const token=++loadToken;
+  tvState.error=false;
+  clearPendingKick();
+  clearMediaCache();
+  videoEl.src=url;
+  audioEl.src=url;
+  videoEl.load();
+  audioEl.load();
+  if(!tvState.paused){
+    pendingKick=()=>{
+      if(token!==loadToken)return;
+      clearPendingKick();
+      startPlayback();
+    };
+    videoEl.addEventListener('loadeddata',pendingKick);
+    videoEl.addEventListener('canplay',pendingKick);
+    pendingTimer=setTimeout(()=>{
+      pendingTimer=null;
+      if(token!==loadToken)return;
+      startPlayback();
+    },2000);
+  }
+  renderLinkList();
+  applyScreenVisual();
+}
+
+function tvPrev(){
+  if(videoList.length===0){showTip('暂无电视台');return;}
+  selectVideo(tvState.index-1);
+  showTip('◁ '+(videoList[tvState.index].title||'频道 '+(tvState.index+1)));
+}
+
+function tvNext(){
+  if(videoList.length===0){showTip('暂无电视台');return;}
+  selectVideo(tvState.index+1);
+  showTip('▷ '+(videoList[tvState.index].title||'频道 '+(tvState.index+1)));
+}
+
+function tvToggleBlack(){
+  if(videoList.length===0){showTip('暂无电视台');return;}
+  tvState.black=!tvState.black;
+  applyScreenVisual();
+  if(!tvState.black&&!tvState.paused)startPlayback();
+  showTip(tvState.black?'黑屏':'显示');
+}
+
+function tvTogglePause(){
+  if(videoList.length===0){showTip('暂无电视台');return;}
+  tvState.paused=!tvState.paused;
+  if(tvState.paused){
+    stopPlayback();
+    showTip('已暂停');
+  }else{
+    startPlayback();
+    showTip('播放中');
+  }
+}
+
+tvButtons.forEach(btn=>{
+  const k=btn.userData.key;
+  if(k==='prev')btn.userData.onInteract=tvPrev;
+  if(k==='next')btn.userData.onInteract=tvNext;
+  if(k==='black')btn.userData.onInteract=tvToggleBlack;
+  if(k==='pause')btn.userData.onInteract=tvTogglePause;
+});
+
+let syncCooldown=0;
+setInterval(()=>{
+  if(tvState.paused)return;
+  if(videoEl.readyState<3||audioEl.readyState<3)return;
+  if(videoEl.seeking||audioEl.seeking)return;
+  const now=performance.now();
+  if(now<syncCooldown)return;
+  const diff=Math.abs(videoEl.currentTime-audioEl.currentTime);
+  if(diff>1.2){
+    try{audioEl.currentTime=videoEl.currentTime}catch(e){}
+    syncCooldown=now+4000;
+  }
+},2000);
+
+function extractLink(input){
+  if(!input)return '';
+  const raw=String(input).trim();
+  const urlMatch=raw.match(/https?:\/\/[^\s,，。；;）)】\]"'<>]+/);
+  if(urlMatch)return urlMatch[0];
+  let cleaned=raw.replace(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/g,'');
+  cleaned=cleaned.replace(/[\u3000-\u303f\uff00-\uffef\u2000-\u206f]/g,'');
+  cleaned=cleaned.replace(/[，。！？、；：""''【】《》（）—…·]/g,'');
+  cleaned=cleaned.replace(/\s+/g,'');
+  cleaned=cleaned.replace(/[^A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]/g,'');
+  const bvMatch=cleaned.match(/BV[0-9A-Za-z]{10}/);
+  if(bvMatch)return bvMatch[0];
+  const avMatch=cleaned.match(/av\d+/i);
+  if(avMatch)return avMatch[0];
+  return cleaned;
+}
+
+function detectPlatform(input){
+  const text=String(input||'').trim().toLowerCase();
+  if(!text)return null;
+  if(/bilibili\.com|b23\.tv|bili2233\.cn|b23\.wtf/.test(text)||/^bv[0-9a-z]{10}$/i.test(input.trim())||/^av\d+$/i.test(input.trim())){
+    return 'bilibili';
+  }
+  if(/kuaishou\.com|v\.kuaishou\.com|kwai\.com/.test(text)){
+    return 'kuaishou';
+  }
+  return null;
+}
+
+function parseBugpkResponse(json){
+  if(!json||typeof json!=='object')throw new Error('接口返回为空');
+  if(json.code!==undefined&&json.code!==0&&json.code!==200){
+    throw new Error(json.msg||('接口返回错误 code='+json.code));
+  }
+  const d=json.data||json;
+  const type=d.type||'video';
+  if(type!=='video'){
+    throw new Error(type==='image'?'该链接为图集作品，无法作为视频上传':type==='live'?'该链接为实况作品，无法作为视频上传':'该链接不是视频作品');
+  }
+  let videoUrl=d.url||d.video_url||d.videoUrl||d.play_url||'';
+  if(!videoUrl&&Array.isArray(d.video_backup)&&d.video_backup.length>0){
+    videoUrl=d.video_backup[0];
+  }
+  if(!videoUrl)throw new Error('未解析到视频直链');
+  let title=d.title||d.desc||(Array.isArray(d.videos)&&d.videos[0]?d.videos[0].title:'')||'';
+  let author='';
+  if(d.author&&typeof d.author==='object'){
+    author=d.author.name||d.author.nickname||'';
+  }else if(d.user&&d.user.name){
+    author=d.user.name;
+  }else if(d.auther){
+    author=d.auther;
+  }else if(typeof d.author==='string'){
+    author=d.author;
+  }
+  return{url:videoUrl,title,author,type};
+}
+
+async function resolveShareLink(link,platform){
+  const encoded=encodeURIComponent(link);
+  const apiUrl=platform==='bilibili'?`${BUGPK.base}/bilibili?url=${encoded}`:`${BUGPK.base}/kuaishou?url=${encoded}`;
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),BUGPK.timeout);
+  try{
+    const res=await fetch(apiUrl,{cache:'no-store',signal:ctrl.signal});
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const json=await res.json();
+    return parseBugpkResponse(json);
+  }catch(err){
+    if(err&&err.name==='AbortError')throw new Error('解析超时，请稍后重试');
+    throw err;
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
+const panelEl=document.getElementById('panel');
+const panelToggleEl=document.getElementById('panel-toggle');
+const linkListEl=document.getElementById('link-list');
+const linkUrlEl=document.getElementById('link-url');
+const linkTitleEl=document.getElementById('link-title');
+const linkUploadBtn=document.getElementById('link-upload');
+
+function openPanel(){panelEl.classList.add('open');panelToggleEl.classList.add('open')}
+function closePanel(){panelEl.classList.remove('open');panelToggleEl.classList.remove('open')}
+function togglePanel(){if(panelEl.classList.contains('open'))closePanel();else openPanel()}
+
+panelToggleEl.addEventListener('click',(e)=>{e.preventDefault();e.stopPropagation();togglePanel()});
+document.getElementById('panel-close').addEventListener('click',(e)=>{e.preventDefault();e.stopPropagation();closePanel()});
+panelEl.addEventListener('pointerdown',(e)=>e.stopPropagation());
+
+function renderLinkList(){
+  if(!linkListEl)return;
+  if(videoList.length===0){
+    linkListEl.innerHTML='<div class="link-empty">暂无电视台 · 请先上传视频</div>';
+    return;
+  }
+  let html='';
+  for(let i=0;i<videoList.length;i++){
+    const v=videoList[i];
+    const active=i===tvState.index;
+    html+=`<div class="link-item${active?' active':''}" data-i="${i}">
+      <div class="link-idx">${i+1}</div>
+      <div class="link-main">
+        <div class="link-name">${escapeHtml(v.title||('频道 '+(i+1)))}</div>
+        <div class="link-url" title="${escapeHtml(v.url)}">${escapeHtml(v.url)}</div>
+      </div>
+      <button class="link-play" data-play="${i}">${active?'播放中':'播放'}</button>
+    </div>`;
+  }
+  linkListEl.innerHTML=html;
+}
+
+linkListEl.addEventListener('click',(e)=>{
+  const btn=e.target.closest('[data-play]');
+  const item=e.target.closest('.link-item');
+  const raw=btn?btn.dataset.play:(item?item.dataset.i:null);
+  if(raw===null||raw===undefined)return;
+  const idx=parseInt(raw,10);
+  if(!Number.isFinite(idx))return;
+  tvState.paused=false;
+  tvState.black=false;
+  selectVideo(idx);
+  startPlayback();
+  applyScreenVisual();
+  showTip('▶ '+(videoList[idx]?(videoList[idx].title||'频道 '+(idx+1)):''));
+});
+
+function setUploading(on,label){
+  if(!linkUploadBtn)return;
+  linkUploadBtn.disabled=!!on;
+  linkUploadBtn.textContent=label||(on?'处理中…':'⬆ 上传到 API');
+}
+
+async function uploadLink(){
+  const rawInput=linkUrlEl.value.trim();
+  let title=linkTitleEl.value.trim();
+  if(!rawInput){showTip('请输入视频直链或分享链接');linkUrlEl.focus();return;}
+  const extracted=extractLink(rawInput);
+  if(!extracted){showTip('未识别到有效链接');return;}
+  const platform=detectPlatform(extracted);
+  let finalUrl=extracted;
+  let resolved=false;
+  if(platform){
+    const pName=platform==='bilibili'?'B站':'快手';
+    setUploading(true,`解析${pName}中…`);
+    flashStatus(`⏳ 检测到${pName}分享链接，正在解析无水印直链…`,15000);
+    showTip(`正在解析${pName}直链…`);
+    try{
+      const result=await resolveShareLink(extracted,platform);
+      finalUrl=result.url;
+      if(!title&&result.title)title=result.title.slice(0,30);
+      resolved=true;
+      flashStatus('✅ 直链解析成功，正在上传…',8000);
+    }catch(err){
+      setUploading(false);
+      const msg=err&&err.message?err.message:'未知错误';
+      flashStatus('❌ 解析失败：'+msg,6000);
+      showTip('解析失败：'+msg);
+      return;
+    }
+  }
+  if(!/^https?:\/\//i.test(finalUrl)){
+    setUploading(false);
+    showTip('链接需以 http:// 或 https:// 开头');
+    return;
+  }
+  setUploading(true,'上传中…');
+  const payload=JSON.stringify({type:'video',url:finalUrl,title,ts:Date.now()});
+  const added=addLink(finalUrl,title,Date.now());
+  linkUrlEl.value='';
+  linkTitleEl.value='';
+  if(added){saveCache();afterLinksChanged()}
+  try{
+    await fetch(`${TV_API.base}/${TV_API.topic}`,{
+      method:'POST',
+      body:payload,
+      headers:{'Title':'TV-Link','Priority':'default'},
+      cache:'no-store'
+    });
+    netState='online';
+    renderStatus();
+    const tag=resolved?'（已解直链）':'';
+    flashStatus(`✅ 上传成功${tag} · 共 ${videoList.length} 条链接`);
+    showTip(resolved?'已解析并上传直链':'已上传到 API');
+  }catch(err){
+    netState='offline';
+    renderStatus();
+    flashStatus('❌ 上传失败：'+((err&&err.message)||'网络错误'));
+    showTip('上传失败（已保存在本地）');
+  }finally{
+    setUploading(false);
+  }
+}
+
+linkUploadBtn.addEventListener('click',(e)=>{e.preventDefault();e.stopPropagation();uploadLink()});
+document.getElementById('link-refresh').addEventListener('click',(e)=>{e.preventDefault();e.stopPropagation();refreshLinks()});
+linkUrlEl.addEventListener('keydown',(e)=>{if(e.key==='Enter')uploadLink()});
+linkTitleEl.addEventListener('keydown',(e)=>{if(e.key==='Enter')uploadLink()});
+
+const interactables=[];
+function registerInteractive(mesh,fn,name){
+  mesh.userData.onInteract=fn;
+  mesh.userData.displayName=name;
+  mesh.frustumCulled=true;
+  interactables.push(mesh);
+}
+tvButtons.forEach(btn=>registerInteractive(btn,btn.userData.onInteract,btn.userData.label));
+
+const raycaster=new THREE.Raycaster();
+const CENTER_2D=new THREE.Vector2(0,0);
+const crosshairEl=document.getElementById('crosshair');
+const interactBtn=document.getElementById('interact');
+let currentTarget=null;
+
+function updateInteraction(){
+  raycaster.setFromCamera(CENTER_2D,camera);
+  const hits=raycaster.intersectObjects(interactables,false);
+  let found=null;
+  for(let i=0;i<hits.length;i++){
+    if(hits[i].distance<=2.0){found=hits[i].object;break;}
+  }
+  if(found!==currentTarget){
+    currentTarget=found;
+    crosshairEl.classList.toggle('active',!!found);
+    interactBtn.classList.toggle('ready',!!found);
+    if(found){
+      const n=found.userData.displayName;
+      interactBtn.textContent=n&&n.length<=2?n:'F';
+    }else{
+      interactBtn.textContent='F';
+    }
+  }
+}
+
+function doInteract(){
+  if(!currentTarget)return;
+  const fn=currentTarget.userData.onInteract;
+  if(typeof fn==='function')fn();
+}
+
+interactBtn.addEventListener('pointerdown',(e)=>{e.preventDefault();e.stopPropagation();doInteract()});
+interactBtn.addEventListener('contextmenu',e=>e.preventDefault());
+
+const PLAYER_RADIUS=0.34;
+const SPEED=2.9;
+let yaw=0;
+let pitch=0;
+
+function resolveCollisions(pos,radius){
+  for(let i=0;i<colliders.length;i++){
+    const b=colliders[i];
+    if(b.disabled)continue;
+    const cx=Math.max(b.minX,Math.min(pos.x,b.maxX));
+    const cz=Math.max(b.minZ,Math.min(pos.z,b.maxZ));
+    const dx=pos.x-cx;
+    const dz=pos.z-cz;
+    const d2=dx*dx+dz*dz;
+    if(d2<radius*radius){
+      const d=Math.sqrt(d2);
+      if(d>1e-5){
+        const push=(radius-d)/d;
+        pos.x+=dx*push;
+        pos.z+=dz*push;
+      }else{
+        const left=pos.x-b.minX;
+        const right=b.maxX-pos.x;
+        const back=pos.z-b.minZ;
+        const front=b.maxZ-pos.z;
+        const m=Math.min(left,right,back,front);
+        if(m===left)pos.x=b.minX-radius;
+        else if(m===right)pos.x=b.maxX+radius;
+        else if(m===back)pos.z=b.minZ-radius;
+        else pos.z=b.maxZ+radius;
+      }
+    }
+  }
+}
+
+const keys=Object.create(null);
+
+window.addEventListener('keydown',(e)=>{
+  if(e.repeat){
+    if(e.code==='KeyF')return;
+  }
+  keys[e.code]=true;
+  if(e.code==='KeyF'&&!e.repeat)doInteract();
+  if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)){
+    e.preventDefault();
+  }
+});
+
+window.addEventListener('keyup',(e)=>{keys[e.code]=false});
+window.addEventListener('blur',()=>{for(const k in keys)keys[k]=false});
+
+const joyEl=document.getElementById('joystick');
+const knobEl=document.getElementById('knob');
+let joyPointerId=null;
+let joyCenterX=0,joyCenterY=0,joyRadius=60;
+let joyX=0,joyY=0;
+
+function joyStart(e){
+  if(joyPointerId!==null)return;
+  joyPointerId=e.pointerId;
+  const r=joyEl.getBoundingClientRect();
+  joyCenterX=r.left+r.width/2;
+  joyCenterY=r.top+r.height/2;
+  joyRadius=r.width/2-12;
+  try{joyEl.setPointerCapture(e.pointerId)}catch(err){}
+  joyMove(e);
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+function joyMove(e){
+  if(e.pointerId!==joyPointerId)return;
+  let dx=e.clientX-joyCenterX;
+  let dy=e.clientY-joyCenterY;
+  const dist=Math.hypot(dx,dy);
+  if(dist>joyRadius){
+    dx=dx/dist*joyRadius;
+    dy=dy/dist*joyRadius;
+  }
+  knobEl.style.transform=`translate(${dx}px, ${dy}px)`;
+  joyX=dx/joyRadius;
+  joyY=-dy/joyRadius;
+  e.preventDefault();
+}
+
+function joyEnd(e){
+  if(e.pointerId!==joyPointerId)return;
+  joyPointerId=null;
+  joyX=0;
+  joyY=0;
+  knobEl.style.transform='translate(0px, 0px)';
+}
+
+joyEl.addEventListener('pointerdown',joyStart);
+joyEl.addEventListener('pointermove',joyMove);
+joyEl.addEventListener('pointerup',joyEnd);
+joyEl.addEventListener('pointercancel',joyEnd);
+joyEl.addEventListener('lostpointercapture',joyEnd);
+joyEl.addEventListener('contextmenu',e=>e.preventDefault());
+
+const LOOK_SENS=0.0032;
+let lookPointerId=null;
+let lastPX=0,lastPY=0;
+const canvasEl=renderer.domElement;
+
+canvasEl.addEventListener('pointerdown',(e)=>{
+  if(e.pointerType==='mouse'&&e.button!==0)return;
+  if(lookPointerId!==null)return;
+  lookPointerId=e.pointerId;
+  lastPX=e.clientX;
+  lastPY=e.clientY;
+  try{canvasEl.setPointerCapture(e.pointerId)}catch(err){}
+});
+
+canvasEl.addEventListener('pointermove',(e)=>{
+  if(e.pointerId!==lookPointerId)return;
+  const dx=e.clientX-lastPX;
+  const dy=e.clientY-lastPY;
+  lastPX=e.clientX;
+  lastPY=e.clientY;
+  yaw-=dx*LOOK_SENS;
+  pitch-=dy*LOOK_SENS;
+  const limit=Math.PI/2-0.02;
+  pitch=Math.max(-limit,Math.min(limit,pitch));
+});
+
+function endLook(e){
+  if(e.pointerId!==lookPointerId)return;
+  lookPointerId=null;
+  try{canvasEl.releasePointerCapture(e.pointerId)}catch(err){}
+}
+
+canvasEl.addEventListener('pointerup',endLook);
+canvasEl.addEventListener('pointercancel',endLook);
+canvasEl.addEventListener('contextmenu',e=>e.preventDefault());
+
+let lastTime=performance.now();
+let interactionTimer=0;
+
+function update(dt){
+  let ix=joyX;
+  let iy=joyY;
+  if(keys['KeyW']||keys['ArrowUp'])iy+=1;
+  if(keys['KeyS']||keys['ArrowDown'])iy-=1;
+  if(keys['KeyA']||keys['ArrowLeft'])ix-=1;
+  if(keys['KeyD']||keys['ArrowRight'])ix+=1;
+  const inLen=Math.hypot(ix,iy);
+  if(inLen>1){ix/=inLen;iy/=inLen;}
+  const fx=-Math.sin(yaw),fz=-Math.cos(yaw);
+  const rx=Math.cos(yaw),rz=-Math.sin(yaw);
+  const mx=fx*iy+rx*ix;
+  const mz=fz*iy+rz*ix;
+  if(mx!==0||mz!==0){
+    const step=SPEED*dt;
+    camera.position.x+=mx*step;
+    camera.position.z+=mz*step;
+    resolveCollisions(camera.position,PLAYER_RADIUS);
+  }
+  camera.position.y=EYE_HEIGHT;
+  camera.rotation.set(pitch,yaw,0,'YXZ');
+  interactionTimer+=dt;
+  if(interactionTimer>0.05){
+    interactionTimer=0;
+    updateInteraction();
+  }
+}
+
+function animate(now){
+  requestAnimationFrame(animate);
+  const dt=Math.min((now-lastTime)/1000,0.05);
+  lastTime=now;
+  update(dt);
+  if(!tvState.paused&&!tvState.black&&!tvState.error&&videoEl.readyState>=2){
+    videoTexture.needsUpdate=true;
+  }
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(animate);
+
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+});
+
+const tipEl=document.getElementById('tip');
+let tipTimer=setTimeout(()=>{tipEl.style.opacity='0'},6200);
+
+function showTip(text,ms=1900){
+  tipEl.textContent=text;
+  tipEl.style.opacity='1';
+  clearTimeout(tipTimer);
+  tipTimer=setTimeout(()=>{tipEl.style.opacity='0'},ms);
+}
+
+document.addEventListener('gesturestart',e=>e.preventDefault());
+document.addEventListener('dblclick',e=>e.preventDefault(),{passive:false});
+
+loadCache();
+if(videoList.length>0){
+  autoLoaded=true;
+  tvState.index=0;
+  selectVideo(0);
+}else{
+  applyScreenVisual();
+}
+renderLinkList();
+renderStatus();
+refreshLinks();
+connectStream();
+</script>
+</body>
+</html>
