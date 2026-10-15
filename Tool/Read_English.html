@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#0f1115">
+<title>英文单词翻译 · 发音</title>
+<style>
+  *,
+  *::before,
+  *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    /* ===== 组件禁用圆角效果 ===== */
+    border-radius: 0 !important;
+    -webkit-border-radius: 0 !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    background: #0f1115;
+    color: #e8ecf1;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 520px;
+    background: #181b22;
+    border: 1px solid #2c313c;
+    padding: 24px 20px;
+  }
+
+  .hd h1 {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  .hd p {
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #8b93a1;
+  }
+
+  .field {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    height: 52px;
+    padding: 0 14px;
+    font-size: 17px;
+    font-family: inherit;
+    color: #e8ecf1;
+    background: #0f1115;
+    border: 1px solid #2c313c;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: border-color .15s;
+  }
+
+  input[type="text"]::placeholder { color: #5c6470; }
+  input[type="text"]:focus { border-color: #3b82f6; }
+
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  button {
+    height: 52px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #fff;
+    background: #3b82f6;
+    border: none;
+    cursor: pointer;
+    user-select: none;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: background .15s, opacity .15s;
+    touch-action: manipulation;
+  }
+
+  button#playBtn { background: #10b981; }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+  @media (hover: hover) {
+    button:not(:disabled):hover { filter: brightness(1.1); }
+  }
+
+  /* ===== 结果区 ===== */
+  .result {
+    display: none;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #2c313c;
+  }
+
+  .result.show { display: block; }
+
+  .r-word {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    word-break: break-word;
+  }
+
+  .r-phonetic {
+    display: none;
+    margin-top: 4px;
+    font-size: 14px;
+    color: #8b93a1;
+    word-break: break-word;
+  }
+
+  .r-trans {
+    margin-top: 10px;
+    font-size: 17px;
+    line-height: 1.65;
+    color: #cfe3ff;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* ===== 自定义提示条（替代浏览器弹窗） ===== */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(32px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 16px);
+    max-width: calc(100vw - 32px);
+    padding: 12px 18px;
+    font-size: 14px;
+    line-height: 1.5;
+    text-align: center;
+    color: #fff;
+    background: #2c313c;
+    border: 1px solid #3d434f;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+    z-index: 9999;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+</style>
+</head>
+<body>
+
+<main class="card">
+  <header class="hd">
+    <h1>英文单词查询</h1>
+    <p>输入英文单词，点击「翻译」查看中文释义，点击「播放」收听读音</p>
+  </header>
+
+  <div class="field">
+    <input id="wordInput" type="text" placeholder="例如：hello"
+           autocomplete="off" autocorrect="off" autocapitalize="off"
+           spellcheck="false" inputmode="text" enterkeyhint="search"
+           aria-label="英文单词输入框">
+    <div class="actions">
+      <button id="translateBtn" type="button">翻译</button>
+      <button id="playBtn" type="button">播放</button>
+    </div>
+  </div>
+
+  <section id="result" class="result" aria-live="polite">
+    <div class="r-word" id="rWord"></div>
+    <div class="r-phonetic" id="rPhonetic"></div>
+    <div class="r-trans" id="rTrans"></div>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =========================================================
+     0. 环境限制：禁用浏览器内置弹窗 & 内置语音合成（TTS）
+     ========================================================= */
+
+  // 禁用 alert / confirm / prompt 等浏览器默认弹窗
+  window.alert = function () {};
+  window.confirm = function () { return false; };
+  window.prompt = function () { return null; };
+
+  // 禁用浏览器内置语音合成（不调用 Web Speech API，改用音频文件播放）
+  try {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.speak = function () {};
+      window.speechSynthesis.cancel();
+    }
+    if (window.SpeechSynthesisUtterance) {
+      window.SpeechSynthesisUtterance = function () {
+        throw new Error('浏览器内置语音合成已被禁用');
+      };
+    }
+  } catch (e) { /* 忽略 */ }
+
+  /* =========================================================
+     1. 元素引用
+     ========================================================= */
+  var input      = document.getElementById('wordInput');
+  var transBtn   = document.getElementById('translateBtn');
+  var playBtn    = document.getElementById('playBtn');
+  var resultBox  = document.getElementById('result');
+  var rWord      = document.getElementById('rWord');
+  var rPhonetic  = document.getElementById('rPhonetic');
+  var rTrans     = document.getElementById('rTrans');
+  var toastEl    = document.getElementById('toast');
+
+  /* =========================================================
+     2. 自定义提示（替代弹窗）
+     ========================================================= */
+  var toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toastEl.classList.remove('show');
+    }, 2200);
+  }
+
+  /* =========================================================
+     3. 输入校验
+     ========================================================= */
+  function getWord() {
+    var w = input.value.trim();
+    if (!w) {
+      toast('请先输入英文单词');
+      input.focus();
+      return '';
+    }
+    if (!/[A-Za-z]/.test(w)) {
+      toast('请输入有效的英文单词');
+      input.focus();
+      return '';
+    }
+    return w;
+  }
+
+  /* =========================================================
+     4. 翻译功能
+     ========================================================= */
+  function showResult(word, translation, phonetic) {
+    rWord.textContent = word;
+    rTrans.textContent = translation;
+    if (phonetic) {
+      rPhonetic.textContent = phonetic;
+      rPhonetic.style.display = 'block';
+    } else {
+      rPhonetic.textContent = '';
+      rPhonetic.style.display = 'none';
+    }
+    resultBox.classList.add('show');
+  }
+
+  // 主接口：MyMemory 英译中
+  function fetchChinese(word) {
+    var url = 'https://api.mymemory.translated.net/get?q=' +
+              encodeURIComponent(word) + '&langpair=en|zh-CN';
+    return fetch(url, { method: 'GET' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        var text = data && data.responseData && data.responseData.translatedText;
+        if (!text) throw new Error('EMPTY');
+        if (/MYMEMORY WARNING|QUERY LENGTH LIMIT|INVALID/i.test(text)) {
+          throw new Error('LIMIT');
+        }
+        // 未翻译（原样返回）也视为失败
+        if (text.trim().toLowerCase() === word.trim().toLowerCase()) {
+          throw new Error('NO_TRANSLATION');
+        }
+        return text;
+      });
+  }
+
+  // 备用接口：英文释义
+  function fetchEnglishDefinition(word) {
+    var url = 'https://api.dictionaryapi.dev/api/v2/entries/en/' +
+              encodeURIComponent(word);
+    return fetch(url, { method: 'GET' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        var list = Array.isArray(data) ? data : [];
+        if (!list.length) throw new Error('EMPTY');
+        var entry = list[0];
+        var def = '';
+        if (entry.meanings && entry.meanings.length) {
+          var m = entry.meanings[0];
+          if (m.definitions && m.definitions.length) {
+            def = m.definitions[0].definition || '';
+          }
+        }
+        if (!def) throw new Error('EMPTY');
+        return {
+          definition: def,
+          phonetic: entry.phonetic || (entry.phonetics && entry.phonetics[0] && entry.phonetics[0].text) || ''
+        };
+      });
+  }
+
+  function doTranslate() {
+    var word = getWord();
+    if (!word) return;
+
+    transBtn.disabled = true;
+    transBtn.textContent = '翻译中…';
+
+    fetchChinese(word)
+      .then(function (translation) {
+        showResult(word, translation, '');
+      })
+      .catch(function () {
+        // 主接口失败 -> 使用备用英文释义接口
+        return fetchEnglishDefinition(word)
+          .then(function (r) {
+            showResult(word, '【英文释义】' + r.definition, r.phonetic);
+          })
+          .catch(function () {
+            toast('翻译失败，请检查网络后重试');
+          });
+      })
+      .then(function () {
+        transBtn.disabled = false;
+        transBtn.textContent = '翻译';
+      });
+  }
+
+  /* =========================================================
+     5. 播放读音（使用音频文件，不走浏览器内置语音合成）
+     ========================================================= */
+  var currentAudio = null;
+  var playSeq = 0;
+
+  function stopAudio() {
+    if (currentAudio) {
+      try {
+        currentAudio.pause();
+        currentAudio.src = '';
+      } catch (e) { /* 忽略 */ }
+      currentAudio = null;
+    }
+  }
+
+  function setPlayState(playing) {
+    playBtn.disabled = playing;
+    playBtn.textContent = playing ? '播放中…' : '播放';
+  }
+
+  // 播放单个音频地址，返回 Promise
+  function playOnce(src) {
+    return new Promise(function (resolve, reject) {
+      var audio = new Audio();
+      audio.preload = 'auto';
+      audio.src = src;
+      currentAudio = audio;
+
+      var settled = false;
+      function finish(ok) {
+        if (settled) return;
+        settled = true;
+        audio.onended = null;
+        audio.onerror = null;
+        audio.onpause = null;
+        if (ok) { resolve(); } else { reject(new Error('AUDIO_FAIL')); }
+      }
+
+      audio.onended = function () { finish(true); };
+      audio.onerror = function () { finish(false); };
+      audio.onpause = function () { finish(true); };
+
+      var p = audio.play();
+      if (p && typeof p.then === 'function') {
+        p.catch(function () { finish(false); });
+      }
+    });
+  }
+
+  // 备用音频源：dictionaryapi.dev
+  function fetchAudioUrl(word) {
+    var url = 'https://api.dictionaryapi.dev/api/v2/entries/en/' +
+              encodeURIComponent(word);
+    return fetch(url, { method: 'GET' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        var list = Array.isArray(data) ? data : [];
+        for (var i = 0; i < list.length; i++) {
+          var phonetics = list[i].phonetics || [];
+          for (var j = 0; j < phonetics.length; j++) {
+            if (phonetics[j].audio) return phonetics[j].audio;
+          }
+        }
+        throw new Error('NO_AUDIO');
+      });
+  }
+
+  function playWord() {
+    var word = getWord();
+    if (!word) return;
+
+    var seq = ++playSeq;
+    stopAudio();
+    setPlayState(true);
+
+    var encoded = encodeURIComponent(word);
+    // 依次尝试：有道美音 -> 有道英音
+    var sources = [
+      'https://dict.youdao.com/dictvoice?type=2&audio=' + encoded,
+      'https://dict.youdao.com/dictvoice?type=1&audio=' + encoded
+    ];
+
+    var chain = Promise.reject();
+
+    sources.forEach(function (src) {
+      chain = chain.catch(function () {
+        if (seq !== playSeq) throw new Error('CANCELLED');
+        return playOnce(src);
+      });
+    });
+
+    chain
+      .catch(function () {
+        if (seq !== playSeq) throw new Error('CANCELLED');
+        // 最后尝试备用音频源
+        return fetchAudioUrl(word).then(function (url) {
+          if (!url) throw new Error('NO_AUDIO');
+          return playOnce(url);
+        });
+      })
+      .then(function () {
+        if (seq !== playSeq) return;
+        setPlayState(false);
+      })
+      .catch(function () {
+        if (seq !== playSeq) return;
+        setPlayState(false);
+        toast('读音加载失败，请检查网络后重试');
+      });
+  }
+
+  /* =========================================================
+     6. 事件绑定
+     ========================================================= */
+  transBtn.addEventListener('click', doTranslate);
+  playBtn.addEventListener('click', playWord);
+
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      e.preventDefault();
+      input.blur();
+      doTranslate();
+    }
+  });
+
+  // 页面隐藏时停止播放，避免后台残留声音
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      playSeq++;
+      stopAudio();
+      setPlayState(false);
+    }
+  });
+})();
+</script>
+</body>
+</html>
