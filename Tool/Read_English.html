@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f1f2f4">
+<title>英文单词翻译</title>
+<style>
+  /* ===== 全局：禁用圆角 ===== */
+  * {
+    box-sizing: border-box;
+    border-radius: 0 !important;
+  }
+
+  :root {
+    --bg: #f1f2f4;
+    --card: #ffffff;
+    --line: #d8dbe0;
+    --text: #16181d;
+    --muted: #767c88;
+    --primary: #1a56db;
+    --primary-d: #1544b0;
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                 "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 20px 16px calc(40px + env(safe-area-inset-bottom));
+  }
+
+  header h1 {
+    font-size: 19px;
+    margin: 0 0 4px;
+    letter-spacing: .5px;
+  }
+  header p {
+    margin: 0 0 18px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+
+  /* ===== 输入区 ===== */
+  .field-row { display: block; }
+
+  /* 输入框 + 清空按钮 的包裹层 */
+  .input-wrap {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: stretch;
+  }
+
+  input[type="text"] {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 1 1 auto;
+    width: 100%;
+    height: 46px;
+    padding: 0 48px 0 12px; /* 右侧留出清空按钮的位置 */
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--text);
+    background: #fff;
+    border: 1px solid var(--line);
+    outline: none;
+    transition: border-color .15s;
+  }
+  input[type="text"]:focus { border-color: var(--primary); }
+  input[type="text"]::placeholder { color: #a3a9b3; }
+
+  /* 输入框内的一键清空按钮 */
+  button.btn-clear-input {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    flex: 0 0 auto;
+    width: 44px;
+    height: auto;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #a3a9b3;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  button.btn-clear-input:hover { background: #eceef1; color: #d64545; }
+  button.btn-clear-input:active { opacity: 1; }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  button {
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+    font-size: 15px;
+    height: 46px;
+    padding: 0 18px;
+    flex: 1 1 0;
+    border: 1px solid transparent;
+    background: var(--primary);
+    color: #fff;
+    cursor: pointer;
+    transition: background .15s, opacity .15s;
+    user-select: none;
+  }
+  button:hover { background: var(--primary-d); }
+  button:active { opacity: .85; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+
+  button.ghost {
+    background: #fff;
+    color: var(--text);
+    border-color: var(--line);
+  }
+  button.ghost:hover { background: #eceef1; }
+
+  /* ===== 桌面端：输入框与按钮同一行 ===== */
+  @media (min-width: 560px) {
+    .field-row {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+    }
+    .field-row .input-wrap { flex: 1 1 auto; }
+    .actions { margin-top: 0; flex: 0 0 auto; }
+    .actions button { flex: 0 0 auto; padding: 0 22px; }
+  }
+
+  /* ===== 结果区 ===== */
+  #resultCard { border-left: 3px solid var(--primary); }
+  .res-word {
+    font-size: 20px;
+    font-weight: 600;
+    word-break: break-word;
+  }
+  .res-trans {
+    margin-top: 8px;
+    font-size: 17px;
+    color: #2b2f36;
+    word-break: break-word;
+  }
+  .res-label {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ===== 历史区 ===== */
+  .hist-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .hist-head h2 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: .5px;
+  }
+
+  button.link {
+    flex: 0 0 auto;
+    height: auto;
+    padding: 2px 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    border: none;
+  }
+  button.link:hover { background: transparent; color: #d64545; }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  button.tag {
+    flex: 0 0 auto;
+    height: auto;
+    padding: 7px 12px;
+    font-size: 14px;
+    background: #fff;
+    color: var(--text);
+    border: 1px solid var(--line);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: background .15s, border-color .15s;
+  }
+  button.tag:hover {
+    background: #eef1f5;
+    border-color: #b9bfc9;
+  }
+
+  .empty {
+    color: #a3a9b3;
+    font-size: 13px;
+    padding: 4px 0;
+  }
+
+  /* ===== 自定义提示（替代浏览器默认弹窗） ===== */
+  #toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(28px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 12px);
+    max-width: calc(100% - 32px);
+    padding: 11px 18px;
+    background: #16181d;
+    color: #fff;
+    font-size: 14px;
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+    z-index: 999;
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  footer {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #a3a9b3;
+    text-align: center;
+    line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>英文单词翻译</h1>
+    <p>输入英文单词 → 翻译 / 播放读音 · 翻译与发音由第三方接口提供</p>
+  </header>
+
+  <!-- 输入区 -->
+  <div class="card">
+    <div class="field-row">
+      <div class="input-wrap">
+        <input id="word" type="text" placeholder="输入英文单词，例如 hello"
+               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <!-- 一键清空文本框 -->
+        <button id="btnClearInput" class="btn-clear-input" type="button"
+                title="清空文本框" aria-label="清空文本框">×</button>
+      </div>
+      <div class="actions">
+        <button id="btnTranslate" type="button">翻译</button>
+        <button id="btnPlay" type="button" class="ghost">播放</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 结果区 -->
+  <div class="card" id="resultCard" hidden>
+    <div class="res-word" id="resWord"></div>
+    <div class="res-trans" id="resTrans"></div>
+    <div class="res-label">翻译结果 · 点击“播放”可听发音</div>
+  </div>
+
+  <!-- 历史区 -->
+  <div class="card">
+    <div class="hist-head">
+      <h2>历史单词</h2>
+      <button class="link" id="btnClear" type="button">清空</button>
+    </div>
+    <div class="tags" id="history"></div>
+  </div>
+
+  <footer>
+    翻译：MyMemory / Google 接口 &nbsp;·&nbsp; 发音：有道词典语音接口<br>
+    本地不生成音频，历史记录保存在本机浏览器
+  </footer>
+</div>
+
+<!-- 自定义提示条（不使用 alert / confirm / prompt） -->
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =========================================================
+   * 说明：
+   * 1) 禁用浏览器内置音频生成 —— 全程不使用 window.speechSynthesis，
+   *    发音统一走第三方 TTS 接口（有道词典语音）。
+   * 2) 禁用浏览器内置默认弹窗 —— 全程不使用 alert / confirm / prompt，
+   *    提示统一使用页面内的 toast 组件，清空操作用“二次点击确认”。
+   * 3) 组件禁用圆角 —— CSS 全局 border-radius: 0 !important。
+   * ========================================================= */
+
+  var STORAGE_KEY = 'word_history_v1';
+  var MAX_HISTORY = 60;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var inputEl        = $('word');
+  var btnClearInput  = $('btnClearInput');
+  var btnTranslate   = $('btnTranslate');
+  var btnPlay        = $('btnPlay');
+  var btnClear       = $('btnClear');
+  var resultCard     = $('resultCard');
+  var resWord        = $('resWord');
+  var resTrans       = $('resTrans');
+  var historyBox     = $('history');
+  var toastEl        = $('toast');
+
+  var historyData = [];
+  var currentAudio = null;
+
+  /* ---------------- 自定义提示条 ---------------- */
+  var toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toastEl.classList.remove('show');
+    }, 2200);
+  }
+
+  /* ---------------- 本地历史读写 ---------------- */
+  function loadHistory() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      var data = raw ? JSON.parse(raw) : [];
+      historyData = Array.isArray(data) ? data.filter(function (i) {
+        return i && typeof i.w === 'string' && i.w;
+      }) : [];
+    } catch (e) {
+      historyData = [];
+    }
+  }
+
+  function saveHistory() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(historyData));
+    } catch (e) {
+      /* 存储不可用（隐私模式等）时静默忽略 */
+    }
+  }
+
+  function addHistory(word, trans) {
+    var lower = word.toLowerCase();
+    historyData = historyData.filter(function (i) {
+      return String(i.w).toLowerCase() !== lower;
+    });
+    historyData.unshift({ w: word, t: trans || '', ts: Date.now() });
+    if (historyData.length > MAX_HISTORY) {
+      historyData.length = MAX_HISTORY;
+    }
+    saveHistory();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    historyBox.innerHTML = '';
+
+    if (!historyData.length) {
+      var empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = '暂无历史记录';
+      historyBox.appendChild(empty);
+      return;
+    }
+
+    historyData.forEach(function (item) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tag';
+      btn.textContent = item.w;
+      if (item.t) { btn.title = item.t; }
+
+      // 点击历史单词 → 追加到输入框（不重置原有内容）
+      btn.addEventListener('click', function () {
+        var cur = inputEl.value.trim();
+        inputEl.value = cur ? (cur + ' ' + item.w) : item.w;
+        inputEl.focus();
+
+        if (item.t) {
+          showResult(item.w, item.t);
+        }
+        toast('已填入：' + item.w);
+      });
+
+      historyBox.appendChild(btn);
+    });
+  }
+
+  /* ---------------- 结果展示 ---------------- */
+  function showResult(word, trans) {
+    resWord.textContent = word;
+    resTrans.textContent = trans;
+    resultCard.hidden = false;
+  }
+
+  /* ---------------- 第三方翻译接口 ---------------- */
+  function fetchMyMemory(word) {
+    var url = 'https://api.mymemory.translated.net/get?langpair=en|zh-CN&q=' +
+              encodeURIComponent(word);
+    return fetch(url, { method: 'GET' }).then(function (r) {
+      if (!r.ok) { throw new Error('bad status'); }
+      return r.json();
+    }).then(function (data) {
+      var t = data && data.responseData && data.responseData.translatedText;
+      if (!t || /MYMEMORY WARNING/i.test(t)) { throw new Error('no result'); }
+      return String(t).trim();
+    });
+  }
+
+  function fetchGoogle(word) {
+    var url = 'https://translate.googleapis.com/translate_a/single' +
+              '?client=gtx&sl=en&tl=zh-CN&dt=t&q=' + encodeURIComponent(word);
+    return fetch(url, { method: 'GET' }).then(function (r) {
+      if (!r.ok) { throw new Error('bad status'); }
+      return r.json();
+    }).then(function (data) {
+      var arr = (data && data[0]) || [];
+      var t = arr.map(function (seg) { return seg && seg[0] ? seg[0] : ''; }).join('');
+      if (!t) { throw new Error('no result'); }
+      return t.trim();
+    });
+  }
+
+  function fetchTranslation(word) {
+    return fetchMyMemory(word)['catch'](function () {
+      return fetchGoogle(word);
+    });
+  }
+
+  /* ---------------- 第三方发音接口（不使用内置 TTS） ---------------- */
+  function playWord(word) {
+    if (currentAudio) {
+      try { currentAudio.pause(); } catch (e) {}
+      currentAudio = null;
+    }
+
+    var url = 'https://dict.youdao.com/dictvoice?type=2&audio=' +
+              encodeURIComponent(word);
+
+    var audio = new Audio();
+    audio.preload = 'auto';
+    audio.src = url;
+    currentAudio = audio;
+
+    audio.addEventListener('error', function () {
+      toast('发音加载失败，请检查网络');
+    });
+
+    var p = audio.play();
+    if (p && typeof p['catch'] === 'function') {
+      p['catch'](function () {
+        toast('发音播放失败，请稍后重试');
+      });
+    }
+  }
+
+  /* ---------------- 输入校验 ---------------- */
+  function readWord() {
+    return inputEl.value.replace(/\s+/g, ' ').trim();
+  }
+
+  function validate(word) {
+    if (!word) {
+      toast('请先输入英文单词');
+      return false;
+    }
+    if (!/[a-zA-Z]/.test(word)) {
+      toast('请输入英文单词');
+      return false;
+    }
+    return true;
+  }
+
+  /* ---------------- 翻译 ---------------- */
+  function handleTranslate() {
+    var word = readWord();
+    if (!validate(word)) { return; }
+
+    var originalText = btnTranslate.textContent;
+    btnTranslate.disabled = true;
+    btnTranslate.textContent = '翻译中…';
+
+    fetchTranslation(word).then(function (trans) {
+      showResult(word, trans);
+      addHistory(word, trans);
+    })['catch'](function () {
+      toast('翻译服务暂时不可用，请稍后重试');
+    })['finally'](function () {
+      btnTranslate.disabled = false;
+      btnTranslate.textContent = originalText;
+    });
+  }
+
+  /* ---------------- 播放 ---------------- */
+  function handlePlay() {
+    var word = readWord();
+    if (!validate(word)) { return; }
+    playWord(word);
+  }
+
+  /* ---------------- 一键清空文本框 ---------------- */
+  function handleClearInput() {
+    if (inputEl.value) {
+      inputEl.value = '';
+      toast('已清空文本框');
+    } else {
+      toast('文本框已为空');
+    }
+    inputEl.focus();
+  }
+
+  /* ---------------- 清空历史（二次点击确认，不用 confirm） ---------------- */
+  var clearArmed = false;
+  var clearTimer = null;
+
+  function resetClearButton() {
+    clearArmed = false;
+    btnClear.textContent = '清空';
+    clearTimeout(clearTimer);
+  }
+
+  function handleClear() {
+    if (!historyData.length) {
+      toast('暂无历史记录');
+      return;
+    }
+
+    if (!clearArmed) {
+      clearArmed = true;
+      btnClear.textContent = '再次点击确认';
+      clearTimer = setTimeout(resetClearButton, 3000);
+      return;
+    }
+
+    resetClearButton();
+    historyData = [];
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    renderHistory();
+    toast('历史记录已清空');
+  }
+
+  /* ---------------- 事件绑定 ---------------- */
+  btnClearInput.addEventListener('click', handleClearInput);
+  btnTranslate.addEventListener('click', handleTranslate);
+  btnPlay.addEventListener('click', handlePlay);
+  btnClear.addEventListener('click', handleClear);
+
+  inputEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      e.preventDefault();
+      handleTranslate();
+    }
+  });
+
+  /* ---------------- 初始化 ---------------- */
+  loadHistory();
+  renderHistory();
+})();
+</script>
+</body>
+</html>
