@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Blue3D Studio · 图形化 3D 编程</title>
+<style>
+:root{
+  --blue:#2f7cf6; --blue-d:#1a5fd0; --blue-l:#e8f1ff; --blue-l2:#f4f8ff;
+  --line:#d8e6fb; --text:#1a2b45; --text2:#5c789c; --bg:#eef4ff;
+  --ok:#20c07a; --danger:#ff5b6e; --radius:10px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--text);overflow:hidden;font-size:13px;}
+#app{display:flex;flex-direction:column;height:100%;}
+
+/* ---------- 顶栏 ---------- */
+#topbar{height:54px;flex:0 0 54px;display:flex;align-items:center;gap:10px;padding:0 12px;
+  background:linear-gradient(180deg,#ffffff,#f6faff);border-bottom:1px solid var(--line);
+  box-shadow:0 2px 10px rgba(47,124,246,.06);z-index:20;}
+.brand{display:flex;align-items:center;gap:7px;font-weight:700;font-size:15px;color:var(--blue-d);white-space:nowrap;}
+.brand .logo{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#4fa1ff,#2f7cf6);
+  color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 3px 8px rgba(47,124,246,.35);}
+.brand small{font-weight:400;font-size:11px;color:var(--text2);}
+#worldTabs{display:flex;gap:6px;overflow-x:auto;flex:1;scrollbar-width:none;}
+#worldTabs::-webkit-scrollbar{display:none;}
+.wtab{padding:6px 12px;border-radius:20px;background:#fff;border:1px solid var(--line);color:var(--text2);
+  cursor:pointer;white-space:nowrap;font-size:12px;transition:.15s;}
+.wtab.on{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 3px 10px rgba(47,124,246,.35);}
+.tools{display:flex;gap:6px;align-items:center;}
+
+.btn{border:none;border-radius:8px;padding:7px 12px;font-size:12px;cursor:pointer;
+  background:var(--blue-l);color:var(--blue-d);font-weight:600;transition:.15s;white-space:nowrap;}
+.btn:hover{filter:brightness(.96);transform:translateY(-1px);}
+.btn:active{transform:translateY(0);}
+.btn.primary{background:linear-gradient(135deg,#4fa1ff,#2f7cf6);color:#fff;box-shadow:0 4px 12px rgba(47,124,246,.4);}
+.btn.danger{background:#ffe9ec;color:#e0293f;}
+.btn.ghost{background:#fff;border:1px solid var(--line);color:var(--text2);}
+.btn.mini{padding:4px 9px;font-size:11px;border-radius:6px;}
+
+/* ---------- 主体 ---------- */
+main{flex:1;display:flex;min-height:0;}
+aside{background:#fff;display:flex;flex-direction:column;min-height:0;}
+#left{width:196px;flex:0 0 196px;border-right:1px solid var(--line);}
+#right{width:310px;flex:0 0 310px;border-left:1px solid var(--line);}
+.panel-h{padding:9px 12px 6px;font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.5px;
+  border-bottom:1px solid #eef4ff;background:var(--blue-l2);}
+.list{overflow-y:auto;flex:1;padding:6px;}
+.list::-webkit-scrollbar{width:6px;}
+.list::-webkit-scrollbar-thumb{background:#cfe0f8;border-radius:3px;}
+.objrow{display:flex;align-items:center;gap:7px;padding:7px 9px;border-radius:8px;cursor:pointer;
+  font-size:12px;color:var(--text2);margin-bottom:3px;transition:.12s;}
+.objrow:hover{background:var(--blue-l2);}
+.objrow.on{background:var(--blue-l);color:var(--blue-d);font-weight:600;box-shadow:inset 0 0 0 1px #c8ddfb;}
+.objrow .dot{width:8px;height:8px;border-radius:50%;background:var(--blue);flex:0 0 8px;}
+.kindgrid{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:6px;}
+.kind{padding:8px 4px;border-radius:8px;border:1px dashed #c8ddfb;background:#fbfdff;color:var(--text2);
+  font-size:11px;cursor:pointer;text-align:center;transition:.12s;}
+.kind:hover{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d);}
+
+/* ---------- 舞台 ---------- */
+#stage{flex:1;position:relative;min-width:0;background:#dfeaff;overflow:hidden;}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;}
+#hint{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.82);backdrop-filter:blur(6px);
+  padding:6px 11px;border-radius:20px;font-size:11px;color:var(--text2);pointer-events:none;
+  border:1px solid rgba(216,230,251,.9);}
+
+/* ---------- 属性面板 ---------- */
+.tabs{display:flex;border-bottom:1px solid var(--line);background:var(--blue-l2);overflow-x:auto;}
+.tabs button{flex:1;min-width:52px;padding:10px 4px;border:none;background:transparent;font-size:11.5px;
+  color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;font-weight:600;white-space:nowrap;}
+.tabs button.on{color:var(--blue);border-bottom-color:var(--blue);background:#fff;}
+#propBody{flex:1;overflow-y:auto;padding:10px;}
+#propBody::-webkit-scrollbar{width:6px;}
+#propBody::-webkit-scrollbar-thumb{background:#cfe0f8;border-radius:3px;}
+.grp{border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:9px;background:#fbfdff;}
+.grp-t{font-size:11px;font-weight:700;color:var(--blue-d);margin-bottom:7px;display:flex;align-items:center;gap:5px;}
+.grp-t::before{content:"";width:3px;height:11px;border-radius:2px;background:var(--blue);}
+.row{display:flex;align-items:center;gap:5px;margin-bottom:6px;font-size:11.5px;color:var(--text2);}
+.row>span:first-child{flex:0 0 56px;text-align:right;color:var(--text2);}
+.row input[type=number],.row input[type=text],.row select{
+  flex:1;min-width:0;padding:5px 7px;border:1px solid var(--line);border-radius:6px;font-size:12px;
+  background:#fff;color:var(--text);outline:none;font-family:inherit;}
+.row input:focus,.row select:focus{border-color:var(--blue);box-shadow:0 0 0 2px rgba(47,124,246,.12);}
+.row input[type=range]{flex:1;accent-color:var(--blue);height:16px;}
+.row input[type=color]{flex:0 0 34px;height:26px;padding:0;border:1px solid var(--line);border-radius:6px;background:#fff;}
+.row input[type=checkbox]{accent-color:var(--blue);width:16px;height:16px;}
+.empty{text-align:center;color:#9db4d4;padding:40px 12px;font-size:12px;}
+textarea{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8px;padding:7px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;resize:vertical;outline:none;color:var(--text);}
+textarea:focus{border-color:var(--blue);}
+
+/* 模块 */
+.blk{border:1px solid #cfe0f8;border-radius:10px;margin-bottom:9px;overflow:hidden;background:#fff;}
+.blk-h{display:flex;align-items:center;gap:5px;padding:7px 8px;background:linear-gradient(90deg,#e8f1ff,#f5f9ff);
+  font-size:11.5px;flex-wrap:wrap;}
+.blk-h b{color:var(--blue-d);}
+.blk-h select,.blk-h input{padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-size:11px;
+  background:#fff;color:var(--text);outline:none;font-family:inherit;}
+.blk-h input{width:88px;}
+.blk-b{padding:7px 8px 2px;}
+.act{display:flex;align-items:center;gap:4px;margin-bottom:6px;flex-wrap:wrap;
+  background:#f7fbff;border-radius:7px;padding:5px;}
+.act select{padding:4px;border:1px solid var(--line);border-radius:6px;font-size:11px;background:#fff;
+  color:var(--blue-d);font-weight:600;outline:none;font-family:inherit;}
+.act input{padding:4px 5px;border:1px solid var(--line);border-radius:5px;font-size:11px;width:46px;
+  background:#fff;color:var(--text);outline:none;font-family:inherit;}
+.act input[type=color]{width:30px;height:24px;padding:0;flex:0 0 30px;}
+.act input[type=checkbox]{width:15px;height:15px;accent-color:var(--blue);}
+.x{border:none;background:#ffe9ec;color:#e0293f;border-radius:5px;width:20px;height:20px;
+  cursor:pointer;font-size:13px;line-height:1;flex:0 0 20px;}
+
+/* ---------- 播放 UI ---------- */
+#playUI{position:absolute;inset:0;pointer-events:none;display:none;}
+body.playing #playUI{display:block;}
+body.playing #left,body.playing #right{display:none;}
+body.playing #hint{display:none;}
+#crosshair{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;
+  border-radius:50%;border:2px solid rgba(255,255,255,.9);box-shadow:0 0 6px rgba(0,0,0,.35);}
+#crosshair::after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;
+  background:#fff;border-radius:50%;}
+.close{position:absolute;right:14px;top:14px;pointer-events:auto;border-radius:22px;padding:8px 18px;
+  font-size:13px;box-shadow:0 6px 18px rgba(47,124,246,.45);}
+#joystick{position:absolute;left:22px;bottom:26px;width:112px;height:112px;border-radius:50%;
+  background:rgba(255,255,255,.22);border:2px solid rgba(255,255,255,.6);pointer-events:auto;
+  backdrop-filter:blur(4px);}
+#stickKnob{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;
+  background:rgba(255,255,255,.85);box-shadow:0 4px 14px rgba(0,0,0,.25);}
+#hotkeys{position:absolute;inset:0;}
+.hk{position:absolute;transform:translate(-50%,-50%);width:46px;height:46px;border-radius:50%;
+  background:rgba(255,255,255,.78);border:2px solid rgba(47,124,246,.5);color:#1a5fd0;
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;
+  box-shadow:0 4px 12px rgba(0,0,0,.15);pointer-events:auto;}
+#tint{position:absolute;inset:0;pointer-events:none;mix-blend-mode:soft-light;opacity:0;transition:opacity .2s;}
+
+@media (max-width:860px){
+  #left{width:136px;flex:0 0 136px;}
+  #right{width:246px;flex:0 0 246px;}
+  .brand small{display:none;}
+  .tools .btn{padding:6px 8px;font-size:11px;}
+  #left .kindgrid{grid-template-columns:1fr;}
+}
+@media (max-width:640px){
+  #left{display:none;}
+  #right{width:200px;flex:0 0 200px;}
+  .row>span:first-child{flex:0 0 44px;font-size:10.5px;}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <div class="brand"><span class="logo">◈</span>Blue3D <small>图形化3D编程</small></div>
+    <div id="worldTabs"></div>
+    <div class="tools">
+      <button class="btn ghost" id="btnAddWorld">＋世界</button>
+      <button class="btn" id="btnDup">复制</button>
+      <button class="btn danger" id="btnDel">删除</button>
+      <button class="btn primary" id="btnTest">▶ 测试</button>
+    </div>
+  </header>
+  <main>
+    <aside id="left">
+      <div class="panel-h">组件列表</div>
+      <div class="list" id="objList"></div>
+      <div class="panel-h">添加组件</div>
+      <div class="kindgrid" id="kindGrid"></div>
+    </aside>
+    <div id="stage">
+      <canvas id="c"></canvas>
+      <div id="hint">左键选中组件 · 拖动箭头移动 / 缩放</div>
+      <div id="playUI">
+        <div id="crosshair"></div>
+        <div id="hotkeys"></div>
+        <div id="joystick"><div id="stickKnob"></div></div>
+        <button class="btn primary close" id="btnClose">关闭 · 返回编辑</button>
+      </div>
+      <div id="tint"></div>
+    </div>
+    <aside id="right">
+      <div class="tabs" id="propTabs">
+        <button data-tab="tf" class="on">变换</button>
+        <button data-tab="look">外观</button>
+        <button data-tab="dyn">动态</button>
+        <button data-tab="mod">模块</button>
+        <button data-tab="world">世界</button>
+      </div>
+      <div id="propBody"></div>
+    </aside>
+  </main>
+</div>
+
+<script type="importmap">
+{
+  "imports":{
+    "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
+
+/* =========================================================
+   0. 基础工具
+   ========================================================= */
+const $ = (s,r=document)=>r.querySelector(s);
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let _uid=0; const uid=()=>'o'+(++_uid)+Math.random().toString(36).slice(2,5);
+const fmt=v=>(Math.round((+v||0)*1000)/1000);
+const S=(a,b)=>a===b?'selected':'';
+
+/* 确定性噪声 */
+function hash2(x,y,seed){const n=Math.sin(x*127.1+y*311.7+seed*74.7)*43758.5453;return n-Math.floor(n);}
+function vnoise(x,y,seed){
+  const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi;
+  const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
+  const a=hash2(xi,yi,seed),b=hash2(xi+1,yi,seed),c=hash2(xi,yi+1,seed),d=hash2(xi+1,yi+1,seed);
+  return a*(1-u)*(1-v)+b*u*(1-v)+c*(1-u)*v+d*u*v;
+}
+function fbm(x,y,seed){let s=0,a=.5,f=1;for(let i=0;i<4;i++){s+=vnoise(x*f,y*f,seed+i*13)*a;f*=2;a*=.5;}return s;}
+
+/* =========================================================
+   1. 全局状态
+   ========================================================= */
+const State={worlds:[],wid:null,sel:null,mode:'edit'};
+const objMap=new Map();
+let curTab='tf';
+let playSnapshot=null;
+
+const getWorld=()=>State.worlds.find(w=>w.id===State.wid)||null;
+const getObj=()=>{const w=getWorld();return w?w.objects.find(o=>o.id===State.sel)||null:null;};
+
+const KIND_NAMES={box:'立方体',sphere:'球体',cylinder:'圆柱',cone:'圆锥',torus:'圆环',
+  plane:'平面',terrain:'地形区块',tree:'树',custom:'自定义顶点'};
+
+const EVENTS={init:'初始化时',broadcast:'收到广播',touch:'角色触碰',leave:'角色离开',
+  key:'按下按键',timer:'每隔N秒'};
+
+const ACTIONS={
+  move:      {label:'移动(相对)',f:[['x','n'],['y','n'],['z','n']],def:{x:0,y:1,z:0}},
+  setpos:    {label:'设置位置',  f:[['x','n'],['y','n'],['z','n']],def:{x:0,y:0,z:0}},
+  rotate:    {label:'旋转(相对)',f:[['x','n'],['y','n'],['z','n']],def:{x:0,y:.5,z:0}},
+  setscale:  {label:'设置缩放',  f:[['x','n'],['y','n'],['z','n']],def:{x:1,y:1,z:1}},
+  color:     {label:'设置颜色',  f:[['c','c']],def:{c:'#ff5c5c'}},
+  opacity:   {label:'设置透明度',f:[['n','n']],def:{n:.5}},
+  visible:   {label:'显示/隐藏', f:[['b','b']],def:{b:false}},
+  broadcast: {label:'广播消息',  f:[['s','t']],def:{s:'消息1'}},
+  setfov:    {label:'设置FOV',   f:[['n','n']],def:{n:90}},
+  settint:   {label:'设置RGB滤镜',f:[['c','c']],def:{c:'#88bbff'}},
+  noiseamp:  {label:'设置噪声幅度',f:[['n','n']],def:{n:.8}},
+  wait:      {label:'等待(毫秒)',f:[['n','n']],def:{n:500}},
+};
+
+/* =========================================================
+   2. 世界 / 组件 数据工厂
+   ========================================================= */
+function makeWorld(name){
+  return {
+    id:uid(),name,
+    objects:[],
+    spawn:{x:0,y:1.7,z:8},
+    sky:{top:'#79b4ff',bottom:'#f0f7ff'},
+    env:{fog:false,fogColor:'#dbe9ff',fogNear:25,fogFar:110,fov:72,sens:1,ambient:.9,tint:'#ffffff',tintAlpha:0},
+    keys:Array.from({length:9},(_,i)=>({show:true,text:String(i+1),x:82,y:22+i*7.5}))
+  };
+}
+function defaultGeo(kind){
+  switch(kind){
+    case 'box':return{w:1,h:1,d:1};
+    case 'sphere':return{r:.6,seg:24};
+    case 'cylinder':return{rt:.5,rb:.5,h:1.2,seg:24};
+    case 'cone':return{r:.6,h:1.2,seg:24};
+    case 'torus':return{r:.5,t:.18};
+    case 'plane':return{w:4,d:4,seg:8};
+    case 'terrain':return{w:90,d:90,seg:64,seed:1,amp:3};
+    case 'tree':return{};
+    case 'custom':return{verts:[[0,0,0],[1,0,0],[1,1,0],[0,1,0],[.5,1.6,.5]]};
+    default:return{};
+  }
+}
+function makeObject(kind){
+  const o={
+    id:uid(),name:KIND_NAMES[kind]||kind,kind,
+    geo:defaultGeo(kind),
+    pos:{x:0,y:kind==='terrain'?0:.5,z:0},
+    rot:{x:0,y:0,z:0},
+    scale:{x:1,y:1,z:1},
+    color:'#4a9dff',opacity:1,visible:true,
+    tex:{mode:'none',preset:'grass',repeat:4,face:'all',px:8,hue:110,smooth:0,alpha:1,url:null},
+    noise:{on:false,type:'noise',amp:.4,freq:1.6,speed:.9,face:'all'},
+    motion:{on:false,type:'sine',axis:'y',amp:1,speed:1},
+    blocks:[]
+  };
+  if(kind==='terrain'){o.color='#8fd0a0';o.tex={...o.tex,mode:'preset',preset:'grass',repeat:24};}
+  if(kind==='tree'){o.color='#3fae63';}
+  return o;
+}
+
+/* =========================================================
+   3. Three.js 场景
+   ========================================================= */
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.15;
+
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(70,1,.05,4000);
+camera.rotation.order='YXZ';
+camera.position.set(9,7,13);
+
+const orbit=new OrbitControls(camera,canvas);
+orbit.enableDamping=true;orbit.dampingFactor=.08;
+orbit.maxPolarAngle=Math.PI*.495;
+orbit.target.set(0,1,0);
+
+const transform=new TransformControls(camera,canvas);
+transform.setSize(.85);
+transform.addEventListener('dragging-changed',e=>{orbit.enabled=!e.value;});
+scene.add(transform);
+
+/* 灯光 */
+const hemi=new THREE.HemisphereLight(0xffffff,0x9fb8d6,.9); scene.add(hemi);
+const dir=new THREE.DirectionalLight(0xffffff,1.7);
+dir.position.set(18,28,14); dir.castShadow=true;
+dir.shadow.mapSize.set(2048,2048);
+const sc=dir.shadow.camera;
+sc.left=-50;sc.right=50;sc.top=50;sc.bottom=-50;sc.near=1;sc.far=140;
+scene.add(dir);
+
+/* 天空球 */
+const skyMat=new THREE.ShaderMaterial({
+  uniforms:{top:{value:new THREE.Color('#79b4ff')},bottom:{value:new THREE.Color('#f0f7ff')}},
+  vertexShader:`varying vec3 vP;void main(){vP=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+  fragmentShader:`uniform vec3 top;uniform vec3 bottom;varying vec3 vP;
+    void main(){float h=normalize(vP).y*.5+.5;gl_FragColor=vec4(mix(bottom,top,smoothstep(.32,.92,h)),1.0);}`,
+  side:THREE.BackSide,depthWrite:false
+});
+const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(900,32,16),skyMat);
+skyMesh.frustumCulled=false;
+scene.add(skyMesh);
+
+/* 世界根 */
+const worldRoot=new THREE.Group(); scene.add(worldRoot);
+
+/* 网格地面（仅编辑用） */
+const grid=new THREE.GridHelper(120,120,0x9fc4f0,0xcfe0f5);
+grid.position.y=0.002; scene.add(grid);
+
+/* 尺寸 */
+function resize(){
+  const st=$('#stage');
+  const w=st.clientWidth||1,h=st.clientHeight||1;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe($('#stage'));
+window.addEventListener('resize',resize);
+
+/* =========================================================
+   4. 纹理
+   ========================================================= */
+const texCache={};
+function presetTexture(name,repeat){
+  const key='p|'+name+'|'+repeat;
+  if(texCache[key])return texCache[key];
+  const N=128;
+  const cv=document.createElement('canvas');cv.width=cv.height=N;
+  const c=cv.getContext('2d');
+  if(name==='grass'){
+    c.fillStyle='#4fae5a';c.fillRect(0,0,N,N);
+    for(let i=0;i<2000;i++){
+      c.fillStyle=`hsl(${95+Math.random()*45},${40+Math.random()*35}%,${24+Math.random()*30}%)`;
+      c.fillRect(Math.random()*N,Math.random()*N,1.6,3.5);
+    }
+  }else if(name==='brick'){
+    c.fillStyle='#c96a55';c.fillRect(0,0,N,N);
+    c.fillStyle='#e8ddd0';
+    for(let y=0;y<N;y+=16){
+      c.fillRect(0,y,N,2);
+      const off=(y/16)%2?0:16;
+      for(let x=off;x<N;x+=32)c.fillRect(x,y,2,16);
+    }
+  }else if(name==='checker'){
+    for(let y=0;y<N;y+=16)for(let x=0;x<N;x+=16){
+      c.fillStyle=((x/16+y/16)%2)?'#ffffff':'#3f7fd8';
+      c.fillRect(x,y,16,16);
+    }
+  }else if(name==='sand'){
+    c.fillStyle='#e8d29a';c.fillRect(0,0,N,N);
+    for(let i=0;i<3000;i++){
+      c.fillStyle=`rgba(${170+Math.random()*60|0},${150+Math.random()*50|0},${100+Math.random()*50|0},.6)`;
+      c.fillRect(Math.random()*N,Math.random()*N,2,2);
+    }
+  }else if(name==='water'){
+    c.fillStyle='#2f8fd8';c.fillRect(0,0,N,N);
+    for(let i=0;i<40;i++){
+      c.strokeStyle=`rgba(255,255,255,${.05+Math.random()*.18})`;
+      c.lineWidth=1+Math.random()*3;c.beginPath();
+      const y=Math.random()*N;c.moveTo(0,y);
+      for(let x=0;x<N;x+=8)c.lineTo(x,y+Math.sin(x/10+i)*4);
+      c.stroke();
+    }
+  }else if(name==='metal'){
+    c.fillStyle='#b9c7d8';c.fillRect(0,0,N,N);
+    for(let y=0;y<N;y++){
+      c.fillStyle=`rgba(255,255,255,${Math.random()*.16})`;
+      c.fillRect(0,y,N,1);
+    }
+  }else if(name==='noise'){
+    const img=c.createImageData(N,N);
+    for(let i=0;i<N*N;i++){
+      const v=120+Math.random()*110|0;
+      img.data[i*4]=v;img.data[i*4+1]=v;img.data[i*4+2]=v+15;img.data[i*4+3]=255;
+    }
+    c.putImageData(img,0,0);
+  }
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.repeat.set(repeat,repeat);
+  t.anisotropy=4;
+  texCache[key]=t;
+  return t;
+}
+function customTexture(tt){
+  const key='c|'+tt.px+'|'+tt.hue+'|'+tt.smooth+'|'+tt.alpha+'|'+tt.repeat;
+  if(texCache[key])return texCache[key];
+  const N=160;
+  const cv=document.createElement('canvas');cv.width=cv.height=N;
+  const c=cv.getContext('2d');
+  const n=clamp(Math.round(+tt.px||8),2,64);
+  const cell=N/n;
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){
+    const hh=((+tt.hue||0)+(Math.random()-.5)*50+360)%360;
+    c.fillStyle=`hsla(${hh},72%,${40+Math.random()*26}%,${tt.alpha})`;
+    c.fillRect(x*cell,y*cell,cell+.6,cell+.6);
+  }
+  if(+tt.smooth>0){
+    const tmp=document.createElement('canvas');tmp.width=tmp.height=N;
+    const tc=tmp.getContext('2d');
+    tc.filter=`blur(${tt.smooth}px)`;tc.drawImage(cv,0,0);
+    c.clearRect(0,0,N,N);c.drawImage(tmp,0,0);
+  }
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.repeat.set(tt.repeat,tt.repeat);
+  t.anisotropy=4;
+  texCache[key]=t;
+  return t;
+}
+function imageTexture(url,repeat){
+  const key='i|'+url.slice(-64)+'|'+repeat;
+  if(texCache[key])return texCache[key];
+  const t=new THREE.TextureLoader().load(url);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.repeat.set(repeat,repeat);
+  t.colorSpace=THREE.SRGBColorSpace;
+  texCache[key]=t;
+  return t;
+}
+function resolveTexture(o){
+  const t=o.tex;
+  if(!t||t.mode==='none')return null;
+  if(t.mode==='preset')return presetTexture(t.preset,t.repeat);
+  if(t.mode==='custom')return customTexture(t);
+  if(t.mode==='image'&&t.url)return imageTexture(t.url,t.repeat);
+  return null;
+}
+
+/* =========================================================
+   5. 几何体构建
+   ========================================================= */
+function buildGeometry(o){
+  const g=o.geo||{};
+  let geo;
+  switch(o.kind){
+    case 'box':geo=new THREE.BoxGeometry(g.w??1,g.h??1,g.d??1);break;
+    case 'sphere':geo=new THREE.SphereGeometry(g.r??.6,g.seg??24,Math.max(8,(g.seg??24)/2));break;
+    case 'cylinder':geo=new THREE.CylinderGeometry(g.rt??.5,g.rb??.5,g.h??1.2,g.seg??24);break;
+    case 'cone':geo=new THREE.ConeGeometry(g.r??.6,g.h??1.2,g.seg??24);break;
+    case 'torus':geo=new THREE.TorusGeometry(g.r??.5,g.t??.18,16,36);break;
+    case 'plane':geo=new THREE.PlaneGeometry(g.w??4,g.d??4,g.seg??8,g.seg??8);geo.rotateX(-Math.PI/2);break;
+    case 'terrain':{
+      const seg=clamp(Math.round(g.seg||64),4,128);
+      geo=new THREE.PlaneGeometry(g.w??90,g.d??90,seg,seg);
+      geo.rotateX(-Math.PI/2);
+      const pos=geo.attributes.position;
+      const seed=g.seed??1,amp=g.amp??3;
+      for(let i=0;i<pos.count;i++){
+        const x=pos.getX(i),z=pos.getZ(i);
+        pos.setY(i,(fbm(x*.028,z*.028,seed)-.5)*2*amp);
+      }
+      geo.computeVertexNormals();
+      break;
+    }
+    case 'custom':{
+      const raw=g.verts||[];
+      const v=raw.filter(p=>p.length>=3).map(p=>new THREE.Vector3(+p[0]||0,+p[1]||0,+p[2]||0));
+      if(v.length<3){geo=new THREE.BoxGeometry(.6,.6,.6);break;}
+      const center=new THREE.Vector3();
+      v.forEach(p=>center.add(p));center.divideScalar(v.length);
+      const arr=[];
+      for(let i=0;i<v.length;i++){
+        const a=v[i],b=v[(i+1)%v.length];
+        arr.push(center.x,center.y,center.z,a.x,a.y,a.z,b.x,b.y,b.z);
+      }
+      geo=new THREE.BufferGeometry();
+      geo.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));
+      geo.computeVertexNormals();
+      break;
+    }
+    default:geo=new THREE.BoxGeometry(1,1,1);
+  }
+  geo.userData.basePos=geo.attributes.position.array.slice();
+  let maxY=-Infinity;
+  const bp=geo.userData.basePos;
+  for(let i=1;i<bp.length;i+=3)if(bp[i]>maxY)maxY=bp[i];
+  geo.userData.maxY=maxY;
+  return geo;
+}
+
+function baseMat(o){
+  return new THREE.MeshStandardMaterial({
+    color:new THREE.Color(o.color),
+    transparent:o.opacity<1,
+    opacity:o.opacity,
+    roughness:.82,metalness:.06,
+    side:THREE.DoubleSide
+  });
+}
+function texMat(o,tex){
+  const m=new THREE.MeshStandardMaterial({
+    color:new THREE.Color(o.color),
+    map:tex,
+    transparent:o.opacity<1,
+    opacity:o.opacity,
+    roughness:.85,metalness:.05,
+    side:THREE.DoubleSide
+  });
+  m.userData.tex=true;
+  return m;
+}
+function buildMaterials(o){
+  const tex=resolveTexture(o);
+  if(!tex)return baseMat(o);
+  if(o.kind==='box'&&o.tex.face!=='all'){
+    const idx=clamp(parseInt(o.tex.face)||0,0,5);
+    return Array.from({length:6},(_,i)=>i===idx?texMat(o,tex):baseMat(o));
+  }
+  return texMat(o,tex);
+}
+
+function buildObject3D(o){
+  const root=new THREE.Group();
+  root.userData.objId=o.id;
+  root.position.set(o.pos.x,o.pos.y,o.pos.z);
+  root.rotation.set(o.rot.x,o.rot.y,o.rot.z);
+  root.scale.set(o.scale.x,o.scale.y,o.scale.z);
+  root.visible=o.visible!==false;
+
+  if(o.kind==='tree'){
+    const trunkMat=new THREE.MeshStandardMaterial({color:0x8b5a2b,roughness:.95});
+    trunkMat.userData.fixed=true;
+    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.11,.17,1.1,8),trunkMat);
+    trunk.position.y=.55;trunk.castShadow=true;trunk.receiveShadow=true;
+    root.add(trunk);
+    const leafMat=new THREE.MeshStandardMaterial({
+      color:new THREE.Color(o.color),roughness:.9,
+      transparent:o.opacity<1,opacity:o.opacity});
+    leafMat.userData.leaf=true;
+    for(let i=0;i<3;i++){
+      const c=new THREE.Mesh(new THREE.ConeGeometry(.75-i*.2,.95,10),leafMat);
+      c.position.y=1.15+i*.44;c.castShadow=true;c.receiveShadow=true;
+      root.add(c);
+    }
+    return root;
+  }
+
+  const geo=buildGeometry(o);
+  const mesh=new THREE.Mesh(geo,buildMaterials(o));
+  mesh.castShadow=true;mesh.receiveShadow=true;
+  root.add(mesh);
+  return root;
+}
+
+function disposeObj3D(root){
+  root.traverse(n=>{
+    if(n.isMesh){
+      n.geometry?.dispose?.();
+      const ms=Array.isArray(n.material)?n.material:[n.material];
+      ms.forEach(m=>m&&m.dispose&&m.dispose());
+    }
+  });
+}
+
+/* =========================================================
+   6. 世界重建
+   ========================================================= */
+function buildAll(){
+  objMap.forEach(g=>{worldRoot.remove(g);disposeObj3D(g);});
+  objMap.clear();
+  const w=getWorld();
+  if(!w)return;
+  for(const o of w.objects){
+    const g=buildObject3D(o);
+    worldRoot.add(g);
+    objMap.set(o.id,g);
+  }
+  applyEnv();
+}
+function rebuildObject(o){
+  const old=objMap.get(o.id);
+  if(old){worldRoot.remove(old);disposeObj3D(old);}
+  const g=buildObject3D(o);
+  worldRoot.add(g);
+  objMap.set(o.id,g);
+  if(State.sel===o.id&&State.mode==='edit')transform.attach(g);
+}
+function syncMeshTransform(o){
+  const g=objMap.get(o.id);
+  if(!g)return;
+  g.position.set(o.pos.x,o.pos.y,o.pos.z);
+  g.rotation.set(o.rot.x,o.rot.y,o.rot.z);
+  g.scale.set(o.scale.x,o.scale.y,o.scale.z);
+  g.visible=o.visible!==false;
+}
+function applyEnv(){
+  const w=getWorld();if(!w)return;
+  const e=w.env;
+  if(State.mode==='edit'){
+    camera.fov=e.fov;camera.updateProjectionMatrix();
+  }
+  scene.fog=e.fog?new THREE.Fog(new THREE.Color(e.fogColor),e.fogNear,e.fogFar):null;
+  hemi.intensity=e.ambient;
+  dir.intensity=1.7*clamp(e.ambient+.5,.4,1.6);
+  skyMat.uniforms.top.value.set(w.sky.top);
+  skyMat.uniforms.bottom.value.set(w.sky.bottom);
+  renderer.setClearColor(new THREE.Color(w.sky.bottom));
+  const tint=$('#tint');
+  tint.style.background=e.tint||'#ffffff';
+  tint.style.opacity=e.tintAlpha||0;
+  grid.visible=State.mode==='edit';
+}
+
+/* =========================================================
+   7. 动画：噪声 / 运动
+   ========================================================= */
+let frameCount=0;
+function applyNoise(o,g,t){
+  const n=o.noise;
+  g.traverse(m=>{
+    if(!m.isMesh)return;
+    const geo=m.geometry;
+    if(!geo.attributes||!geo.attributes.position)return;
+    const base=geo.userData.basePos;
+    if(!base)return;
+    const pos=geo.attributes.position;
+    const arr=pos.array;
+    const maxY=geo.userData.maxY;
+    for(let i=0;i<pos.count;i++){
+      const bx=base[i*3],by=base[i*3+1],bz=base[i*3+2];
+      if(n.face==='top'&&by<maxY-.001)continue;
+      let d;
+      if(n.type==='sine'){
+        d=(Math.sin(bx*n.freq+t*n.speed)+Math.sin(bz*n.freq*1.7-t*n.speed*.8))*.5*n.amp;
+      }else{
+        d=(vnoise(bx*n.freq+t*n.speed*.35,bz*n.freq,17)-.5)*2*n.amp;
+      }
+      arr[i*3+1]=by+d;
+    }
+    pos.needsUpdate=true;
+    geo.computeVertexNormals();
+  });
+  o._noiseApplied=true;
+}
+function restoreGeo(g){
+  g.traverse(m=>{
+    if(!m.isMesh||!m.geometry?.userData?.basePos)return;
+    const geo=m.geometry,base=geo.userData.basePos;
+    const pos=geo.attributes.position;
+    pos.array.set(base);
+    pos.needsUpdate=true;
+    geo.computeVertexNormals();
+  });
+}
+function animateWorld(t){
+  frameCount++;
+  const w=getWorld();if(!w)return;
+  for(const o of w.objects){
+    const g=objMap.get(o.id);if(!g)continue;
+    const dragging=transform.dragging&&transform.object===g;
+
+    if(o.noise&&o.noise.on){
+      if(frameCount%2===0&&!dragging)applyNoise(o,g,t);
+    }else if(o._noiseApplied){
+      restoreGeo(g);o._noiseApplied=false;
+    }
+
+    if(o.motion&&o.motion.on&&!dragging){
+      const m=o.motion;
+      let ox=0,oy=0,oz=0;
+      if(m.type==='sine'){
+        const v=Math.sin(t*m.speed)*m.amp;
+        if(m.axis==='x')ox=v;else if(m.axis==='y')oy=v;else oz=v;
+      }else if(m.type==='orbit'){
+        ox=Math.cos(t*m.speed)*m.amp;
+        oz=Math.sin(t*m.speed)*m.amp;
+        oy=Math.sin(t*m.speed*2)*m.amp*.3;
+      }else if(m.type==='linear'){
+        const v=((t*m.speed)%(m.amp*2))-m.amp;
+        if(m.axis==='x')ox=v;else if(m.axis==='y')oy=v;else oz=v;
+      }else if(m.type==='spin'){
+        g.rotation.y=o.rot.y+t*m.speed;
+      }
+      g.position.set(o.pos.x+ox,o.pos.y+oy,o.pos.z+oz);
+    }
+  }
+}
+
+/* =========================================================
+   8. 选择 / 变换
+   ========================================================= */
+function selectObject(id){
+  State.sel=id;
+  const g=id?objMap.get(id):null;
+  if(g&&State.mode==='edit')transform.attach(g);else transform.detach();
+  renderObjectList();
+  renderProps();
+}
+transform.addEventListener('objectChange',()=>{
+  const o=getObj();if(!o)return;
+  const g=objMap.get(o.id);if(!g)return;
+  o.pos={x:g.position.x,y:g.position.y,z:g.position.z};
+  o.rot={x:g.rotation.x,y:g.rotation.y,z:g.rotation.z};
+  o.scale={x:g.scale.x,y:g.scale.y,z:g.scale.z};
+  if(curTab==='tf')renderProps();
+});
+
+/* 点击拾取 */
+const ray=new THREE.Raycaster();
+const ndc=new THREE.Vector2();
+let downPos=null;
+canvas.addEventListener('pointerdown',e=>{
+  if(State.mode!=='edit')return;
+  downPos={x:e.clientX,y:e.clientY};
+});
+canvas.addEventListener('pointerup',e=>{
+  if(State.mode!=='edit'||!downPos)return;
+  if(Math.hypot(e.clientX-downPos.x,e.clientY-downPos.y)>6)return;
+  const r=canvas.getBoundingClientRect();
+  ndc.x=((e.clientX-r.left)/r.width)*2-1;
+  ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(ndc,camera);
+  const hits=ray.intersectObjects(worldRoot.children,true);
+  if(hits.length){
+    let p=hits[0].object;
+    while(p&&!p.userData.objId)p=p.parent;
+    if(p)selectObject(p.userData.objId);
+  }else selectObject(null);
+});
+
+/* =========================================================
+   9. 运行时（模块系统）
+   ========================================================= */
+const RT={running:false,timers:[],touched:new Set(),keysDown:{},depth:0};
+
+function execAction(o,a){
+  const n=v=>parseFloat(v)||0;
+  switch(a.type){
+    case 'move':o.pos.x+=n(a.x);o.pos.y+=n(a.y);o.pos.z+=n(a.z);break;
+    case 'setpos':o.pos={x:n(a.x),y:n(a.y),z:n(a.z)};break;
+    case 'rotate':o.rot.x+=n(a.x);o.rot.y+=n(a.y);o.rot.z+=n(a.z);break;
+    case 'setscale':o.scale={x:n(a.x)||1,y:n(a.y)||1,z:n(a.z)||1};break;
+    case 'color':o.color=a.c;break;
+    case 'opacity':o.opacity=clamp(n(a.n),0,1);break;
+    case 'visible':o.visible=!!a.b;break;
+    case 'setfov':camera.fov=clamp(n(a.n),20,140);camera.updateProjectionMatrix();break;
+    case 'settint':{
+      const w=getWorld();
+      w.env.tint=a.c;w.env.tintAlpha=.85;
+      applyEnv();break;
+    }
+    case 'noiseamp':if(o.noise)o.noise.amp=n(a.n);break;
+    case 'broadcast':broadcast(a.s);break;
+  }
+  applyDataToMesh(o);
+}
+function applyDataToMesh(o){
+  const g=objMap.get(o.id);if(!g)return;
+  g.position.set(o.pos.x,o.pos.y,o.pos.z);
+  g.rotation.set(o.rot.x,o.rot.y,o.rot.z);
+  g.scale.set(o.scale.x,o.scale.y,o.scale.z);
+  g.visible=o.visible!==false;
+  g.traverse(m=>{
+    if(!m.isMesh)return;
+    const ms=Array.isArray(m.material)?m.material:[m.material];
+    ms.forEach(mm=>{
+      if(!mm)return;
+      if(!mm.userData.fixed&&!mm.userData.tex)mm.color.set(o.color);
+      mm.opacity=o.opacity;
+      mm.transparent=o.opacity<1;
+      mm.needsUpdate=true;
+    });
+  });
+}
+async function runActions(o,actions){
+  if(!actions||!actions.length)return;
+  for(const a of actions){
+    if(!RT.running)return;
+    if(a.type==='wait'){await sleep(clamp(parseFloat(a.n)||0,0,60000));continue;}
+    execAction(o,a);
+  }
+}
+function broadcast(name){
+  if(RT.depth>6)return;
+  RT.depth++;
+  const w=getWorld();if(w){
+    for(const o of w.objects){
+      (o.blocks||[]).forEach(b=>{
+        if(b.event==='broadcast'&&(b.param||'')===name)runActions(o,b.actions);
+      });
+    }
+  }
+  RT.depth--;
+}
+function startRuntime(){
+  RT.running=true;RT.timers=[];RT.touched.clear();RT.keysDown={};RT.depth=0;
+  const w=getWorld();if(!w)return;
+  for(const o of w.objects){
+    (o.blocks||[]).forEach(b=>{
+      if(b.event==='init')runActions(o,b.actions);
+      else if(b.event==='timer'){
+        RT.timers.push({o,b,sec:Math.max(.2,parseFloat(b.param)||2),acc:0});
+      }
+    });
+  }
+}
+function tickRuntime(dt){
+  if(!RT.running)return;
+  for(const tm of RT.timers){
+    tm.acc+=dt;
+    if(tm.acc>=tm.sec){tm.acc=0;runActions(tm.o,tm.b.actions);}
+  }
+}
+
+/* =========================================================
+   10. 玩家（第一视角）
+   ========================================================= */
+const EYE=1.7;
+const player={pos:new THREE.Vector3(),vel:new THREE.Vector3(),yaw:0,pitch:0};
+const joy={active:false,x:0,y:0,id:null};
+
+function updatePlayer(dt){
+  const w=getWorld();if(!w)return;
+  let ix=0,iz=0;
+  if(RT.keysDown['w']||RT.keysDown['arrowup'])iz+=1;
+  if(RT.keysDown['s']||RT.keysDown['arrowdown'])iz-=1;
+  if(RT.keysDown['a']||RT.keysDown['arrowleft'])ix-=1;
+  if(RT.keysDown['d']||RT.keysDown['arrowright'])ix+=1;
+  if(joy.active){ix+=joy.x;iz+=-joy.y;}
+  const len=Math.hypot(ix,iz);
+  if(len>1){ix/=len;iz/=len;}
+
+  const speed=6;
+  const s=Math.sin(player.yaw),c=Math.cos(player.yaw);
+  player.pos.x+=(-s*iz+c*ix)*speed*dt;
+  player.pos.z+=(-c*iz-s*ix)*speed*dt;
+
+  player.vel.y-=26*dt;
+  player.pos.y+=player.vel.y*dt;
+
+  /* 贴地 */
+  const rayc=new THREE.Raycaster(
+    new THREE.Vector3(player.pos.x,player.pos.y+2.5,player.pos.z),
+    new THREE.Vector3(0,-1,0),0,80);
+  const hits=rayc.intersectObjects(worldRoot.children,true);
+  let gY=-999;
+  if(hits.length)gY=hits[0].point.y;
+  if(player.pos.y<=gY+EYE){
+    player.pos.y=gY+EYE;player.vel.y=0;
+  }
+  if(player.pos.y<-80){
+    player.pos.set(w.spawn.x,w.spawn.y,w.spawn.z);
+    player.vel.set(0,0,0);
+  }
+
+  camera.position.copy(player.pos);
+  camera.rotation.set(player.pitch,player.yaw,0);
+
+  /* 触碰事件 */
+  const body=new THREE.Vector3(player.pos.x,player.pos.y-EYE+.9,player.pos.z);
+  const box=new THREE.Box3();
+  for(const o of w.objects){
+    const g=objMap.get(o.id);if(!g)continue;
+    if(!(o.blocks||[]).some(b=>b.event==='touch'||b.event==='leave'))continue;
+    box.setFromObject(g);box.expandByScalar(.35);
+    const inside=box.containsPoint(body);
+    const was=RT.touched.has(o.id);
+    if(inside&&!was){RT.touched.add(o.id);fireObjEvent(o,'touch');}
+    else if(!inside&&was){RT.touched.delete(o.id);fireObjEvent(o,'leave');}
+  }
+}
+function fireObjEvent(o,ev){
+  (o.blocks||[]).forEach(b=>{if(b.event===ev)runActions(o,b.actions);});
+}
+
+/* 视角拖动 */
+let lookDrag=false,lastX=0,lastY=0,lookPointerId=null;
+canvas.addEventListener('pointerdown',e=>{
+  if(State.mode!=='play')return;
+  lookDrag=true;lastX=e.clientX;lastY=e.clientY;lookPointerId=e.pointerId;
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove',e=>{
+  if(!lookDrag||State.mode!=='play')return;
+  const w=getWorld();
+  const sens=(w?w.env.sens:1)*.0035;
+  player.yaw-=(e.clientX-lastX)*sens;
+  player.pitch-=(e.clientY-lastY)*sens;
+  player.pitch=clamp(player.pitch,-Math.PI/2+.05,Math.PI/2-.05);
+  lastX=e.clientX;lastY=e.clientY;
+});
+canvas.addEventListener('pointerup',()=>{lookDrag=false;});
+canvas.addEventListener('pointercancel',()=>{lookDrag=false;});
+
+/* 键盘 */
+window.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  RT.keysDown[k]=true;
+  if(State.mode==='play'){
+    if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k))e.preventDefault();
+    const w=getWorld();
+    if(w)for(const o of w.objects){
+      (o.blocks||[]).forEach(b=>{
+        if(b.event==='key'&&(b.param||'').toLowerCase()===k)runActions(o,b.actions);
+      });
+    }
+  }
+});
+window.addEventListener('keyup',e=>{RT.keysDown[e.key.toLowerCase()]=false;});
+
+/* 摇杆 */
+(function bindJoystick(){
+  const el=$('#joystick'),knob=$('#stickKnob');
+  const R=44;
+  function setKnob(dx,dy){
+    knob.style.transform=`translate(${dx}px,${dy}px)`;
+  }
+  function handle(e){
+    const r=el.getBoundingClientRect();
+    let dx=e.clientX-(r.left+r.width/2);
+    let dy=e.clientY-(r.top+r.height/2);
+    const d=Math.hypot(dx,dy);
+    if(d>R){dx=dx/d*R;dy=dy/d*R;}
+    setKnob(dx,dy);
+    joy.x=dx/R;joy.y=dy/R;
+    joy.active=true;
+  }
+  el.addEventListener('pointerdown',e=>{
+    e.stopPropagation();e.preventDefault();
+    joy.id=e.pointerId;el.setPointerCapture(e.pointerId);handle(e);
+  });
+  el.addEventListener('pointermove',e=>{
+    if(joy.id!==e.pointerId)return;
+    e.stopPropagation();handle(e);
+  });
+  const end=e=>{
+    if(joy.id!==e.pointerId)return;
+    joy.active=false;joy.x=joy.y=0;joy.id=null;setKnob(0,0);
+  };
+  el.addEventListener('pointerup',end);
+  el.addEventListener('pointercancel',end);
+})();
+
+/* =========================================================
+   11. 进入 / 退出 测试
+   ========================================================= */
+function buildHotkeys(){
+  const w=getWorld();if(!w)return;
+  const el=$('#hotkeys');
+  el.innerHTML=w.keys.map(k=>k.show
+    ?`<div class="hk" style="left:${k.x}%;top:${k.y}%">${k.text}</div>`:'').join('');
+}
+function enterPlay(){
+  const w=getWorld();if(!w)return;
+  playSnapshot=JSON.stringify(w.objects);
+  State.mode='play';
+  document.body.classList.add('playing');
+  RT.running=false;
+  player.pos.set(w.spawn.x,w.spawn.y,w.spawn.z);
+  player.vel.set(0,0,0);
+  player.yaw=0;player.pitch=0;
+  camera.position.copy(player.pos);
+  camera.rotation.set(0,0,0);
+  orbit.enabled=false;
+  transform.detach();
+  transform.visible=false;
+  grid.visible=false;
+  camera.fov=w.env.fov;camera.updateProjectionMatrix();
+  scene.fog=w.env.fog?new THREE.Fog(new THREE.Color(w.env.fogColor),w.env.fogNear,w.env.fogFar):null;
+  startRuntime();
+  buildHotkeys();
+  $('#btnTest').textContent='◼ 停止';
+}
+function exitPlay(){
+  State.mode='edit';
+  document.body.classList.remove('playing');
+  RT.running=false;
+  if(playSnapshot){
+    const w=getWorld();
+    if(w)w.objects=JSON.parse(playSnapshot);
+    playSnapshot=null;
+  }
+  buildAll();
+  orbit.enabled=true;
+  transform.visible=true;
+  grid.visible=true;
+  camera.position.set(9,7,13);
+  camera.rotation.set(0,0,0);
+  orbit.target.set(0,1,0);
+  orbit.update();
+  $('#tint').style.opacity=0;
+  $('#btnTest').textContent='▶ 测试';
+  selectObject(null);
+}
+$('#btnTest').addEventListener('click',()=>{
+  if(State.mode==='edit')enterPlay();else exitPlay();
+});
+$('#btnClose').addEventListener('click',exitPlay);
+
+/* =========================================================
+   12. UI：世界标签 / 组件列表 / 类型
+   ========================================================= */
+function renderWorldTabs(){
+  const el=$('#worldTabs');
+  el.innerHTML=State.worlds.map(w=>
+    `<div class="wtab ${w.id===State.wid?'on':''}" data-wid="${w.id}">${w.name}</div>`).join('');
+  el.querySelectorAll('.wtab').forEach(t=>t.addEventListener('click',()=>{
+    State.wid=t.dataset.wid;State.sel=null;
+    renderWorldTabs();buildAll();renderObjectList();renderProps();
+  }));
+}
+function renderObjectList(){
+  const w=getWorld();
+  const el=$('#objList');
+  if(!w){el.innerHTML='';return;}
+  el.innerHTML=w.objects.map(o=>
+    `<div class="objrow ${o.id===State.sel?'on':''}" data-oid="${o.id}">
+      <span class="dot" style="background:${o.color}"></span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.name}</span>
+    </div>`).join('')||'<div class="empty">还没有组件</div>';
+  el.querySelectorAll('.objrow').forEach(r=>r.addEventListener('click',()=>selectObject(r.dataset.oid)));
+}
+function renderKindGrid(){
+  const el=$('#kindGrid');
+  el.innerHTML=Object.entries(KIND_NAMES).map(([k,v])=>
+    `<div class="kind" data-kind="${k}">${v}</div>`).join('');
+  el.querySelectorAll('.kind').forEach(b=>b.addEventListener('click',()=>{
+    const w=getWorld();if(!w)return;
+    const o=makeObject(b.dataset.kind);
+    /* 放在相机前方附近 */
+    const dirv=new THREE.Vector3();camera.getWorldDirection(dirv);
+    const p=camera.position.clone().add(dirv.multiplyScalar(10));
+    o.pos.x=Math.round(p.x*10)/10;
+    o.pos.z=Math.round(p.z*10)/10;
+    o.pos.y=b.dataset.kind==='terrain'?0:.5;
+    w.objects.push(o);
+    rebuildObject(o);
+    renderObjectList();
+    selectObject(o.id);
+    if(curTab==='world'){curTab='tf';syncTabsUI();}
+    renderProps();
+  }));
+}
+
+/* =========================================================
+   13. 属性面板 HTML
+   ========================================================= */
+function numRow(label,path,val,step=.1){
+  return `<label class="row"><span>${label}</span>
+    <input type="number" step="${step}" data-prop="${path}" value="${fmt(val)}"></label>`;
+}
+function vecRow(label,base,v,step=.1){
+  return `<div class="row"><span>${label}</span>
+    <input type="number" step="${step}" data-prop="${base}.x" value="${fmt(v.x)}">
+    <input type="number" step="${step}" data-prop="${base}.y" value="${fmt(v.y)}">
+    <input type="number" step="${step}" data-prop="${base}.z" value="${fmt(v.z)}"></div>`;
+}
+function chkRow(label,path,val){
+  return `<label class="row"><span>${label}</span>
+    <input type="checkbox" data-prop="${path}" ${val?'checked':''}></label>`;
+}
+function selRow(label,path,val,opts){
+  return `<label class="row"><span>${label}</span><select data-prop="${path}">
+    ${opts.map(([k,v])=>`<option value="${k}" ${S(val,k)}>${v}</option>`).join('')}
+  </select></label>`;
+}
+function rngRow(label,path,val,min,max,step){
+  return `<label class="row"><span>${label}</span>
+    <input type="range" min="${min}" max="${max}" step="${step}" data-prop="${path}" value="${val}">
+    <b style="width:34px;text-align:right;color:#2f7cf6">${fmt(val)}</b></label>`;
+}
+
+function tfHTML(o){
+  let s='';
+  s+=`<div class="grp"><div class="grp-t">基础信息</div>
+    <label class="row"><span>名称</span><input type="text" data-prop="name" value="${o.name}"></label>
+    ${chkRow('显示','visible',o.visible!==false)}
+  </div>`;
+  s+=`<div class="grp"><div class="grp-t">位置</div>${vecRow('XYZ','pos',o.pos)}</div>`;
+  s+=`<div class="grp"><div class="grp-t">旋转 (弧度)</div>${vecRow('XYZ','rot',o.rot,.05)}</div>`;
+  s+=`<div class="grp"><div class="grp-t">缩放</div>${vecRow('XYZ','scale',o.scale,.05)}</div>`;
+
+  /* 几何参数 */
+  const g=o.geo;
+  let geoRows='';
+  if(o.kind==='box'){
+    geoRows=numRow('宽','geo.w',g.w)+numRow('高','geo.h',g.h)+numRow('深','geo.d',g.d);
+  }else if(o.kind==='sphere'){
+    geoRows=numRow('半径','geo.r',g.r)+numRow('分段','geo.seg',g.seg,1);
+  }else if(o.kind==='cylinder'){
+    geoRows=numRow('顶半径','geo.rt',g.rt)+numRow('底半径','geo.rb',g.rb)+numRow('高','geo.h',g.h)+numRow('分段','geo.seg',g.seg,1);
+  }else if(o.kind==='cone'){
+    geoRows=numRow('半径','geo.r',g.r)+numRow('高','geo.h',g.h)+numRow('分段','geo.seg',g.seg,1);
+  }else if(o.kind==='torus'){
+    geoRows=numRow('半径','geo.r',g.r)+numRow('管径','geo.t',g.t);
+  }else if(o.kind==='plane'){
+    geoRows=numRow('宽','geo.w',g.w)+numRow('深','geo.d',g.d)+numRow('细分','geo.seg',g.seg,1);
+  }else if(o.kind==='terrain'){
+    geoRows=numRow('宽','geo.w',g.w)+numRow('深','geo.d',g.d)+numRow('网格','geo.seg',g.seg,1)
+      +numRow('噪声种子','geo.seed',g.seed,1)+numRow('起伏幅度','geo.amp',g.amp);
+  }else if(o.kind==='custom'){
+    const txt=(g.verts||[]).map(v=>v.join(',')).join('\n');
+    geoRows=`<div class="row" style="align-items:flex-start"><span>顶点</span>
+      <textarea data-prop="geo.vertsRaw" placeholder="每行一个顶点：x,y,z">${txt}</textarea></div>
+      <div style="font-size:10.5px;color:#9db4d4;padding:0 2px 4px">按顺序连接成三角面（扇形拼接）</div>`;
+  }
+  if(geoRows)s+=`<div class="grp"><div class="grp-t">几何参数</div>${geoRows}</div>`;
+  return s;
+}
+
+function lookHTML(o){
+  const t=o.tex;
+  let s='';
+  s+=`<div class="grp"><div class="grp-t">基础外观</div>
+    <label class="row"><span>颜色</span><input type="color" data-prop="color" value="${o.color}"></label>
+    ${rngRow('透明度','opacity',o.opacity,0,1,.01)}
+  </div>`;
+
+  s+=`<div class="grp"><div class="grp-t">贴图</div>`;
+  s+=selRow('来源','tex.mode',t.mode,[['none','无'],['preset','预设'],['custom','自定义生成'],['image','上传图片']]);
+  if(t.mode==='preset'){
+    s+=selRow('预设','tex.preset',t.preset,[
+      ['grass','草地'],['brick','砖块'],['checker','棋盘'],['sand','沙地'],
+      ['water','水面'],['metal','金属'],['noise','噪声']]);
+  }
+  if(t.mode!=='none'){
+    s+=numRow('拼图大小','tex.repeat',t.repeat,.5);
+    if(o.kind==='box'){
+      s+=selRow('作用面','tex.face',String(t.face),[
+        ['all','全部面'],['0','右(+X)'],['1','左(-X)'],['2','上(+Y)'],
+        ['3','下(-Y)'],['4','前(+Z)'],['5','后(-Z)']]);
+    }
+  }
+  if(t.mode==='custom'){
+    s+=numRow('像素格尺寸','tex.px',t.px,1);
+    s+=numRow('色相范围(0-360)','tex.hue',t.hue,5);
+    s+=rngRow('平滑度','tex.smooth',t.smooth,0,8,.5);
+    s+=rngRow('不透明度','tex.alpha',t.alpha,.1,1,.05);
+  }
+  if(t.mode==='image'){
+    s+=`<div class="row"><span>图片</span><input type="file" accept="image/*" id="texFile" style="flex:1;font-size:11px"></div>`;
+  }
+  s+=`</div>`;
+  return s;
+}
+
+function dynHTML(o){
+  const n=o.noise,m=o.motion;
+  let s='';
+  s+=`<div class="grp"><div class="grp-t">表面起伏（噪声 / 正弦波）</div>
+    ${chkRow('启用','noise.on',n.on)}
+    ${selRow('类型','noise.type',n.type,[['noise','噪声'],['sine','正弦波']])}
+    ${selRow('作用面','noise.face',n.face,[['all','全部面'],['top','顶面']])}
+    ${rngRow('幅度','noise.amp',n.amp,0,3,.02)}
+    ${rngRow('频率','noise.freq',n.freq,.05,8,.05)}
+    ${rngRow('速度','noise.speed',n.speed,0,6,.05)}
+  </div>`;
+  s+=`<div class="grp"><div class="grp-t">运动器</div>
+    ${chkRow('启用','motion.on',m.on)}
+    ${selRow('类型','motion.type',m.type,[['sine','正弦往返'],['linear','线性往返'],['orbit','圆周环绕'],['spin','自转']])}
+    ${selRow('轴','motion.axis',m.axis,[['x','X'],['y','Y'],['z','Z']])}
+    ${rngRow('幅度','motion.amp',m.amp,0,10,.1)}
+    ${rngRow('速度','motion.speed',m.speed,0,6,.05)}
+  </div>`;
+  s+=`<div class="grp"><div class="grp-t">碰撞</div>
+    <div class="row"><span>说明</span><span style="flex:1;font-size:11px;color:#9db4d4">
+      角色贴地行走会自动检测所有组件表面</span></div>
+  </div>`;
+  return s;
+}
+
+function actionHTML(a,bi,ai){
+  const def=ACTIONS[a.type]||ACTIONS.move;
+  let fields='';
+  def.f.forEach(([k,t])=>{
+    if(t==='c')fields+=`<input type="color" data-blk="${bi}" data-ai="${ai}" data-k="${k}" value="${a[k]||'#ffffff'}">`;
+    else if(t==='b')fields+=`<input type="checkbox" data-blk="${bi}" data-ai="${ai}" data-k="${k}" ${a[k]?'checked':''}>`;
+    else if(t==='t')fields+=`<input type="text" data-blk="${bi}" data-ai="${ai}" data-k="${k}" value="${a[k]||''}" style="width:74px">`;
+    else fields+=`<input type="number" step="0.1" data-blk="${bi}" data-ai="${ai}" data-k="${k}" value="${a[k]??0}">`;
+  });
+  return `<div class="act">
+    <select data-blk="${bi}" data-ai="${ai}" data-k="__type">
+      ${Object.entries(ACTIONS).map(([k,v])=>`<option value="${k}" ${S(a.type,k)}>${v.label}</option>`).join('')}
+    </select>
+    ${fields}
+    <button class="x" data-act="delaction" data-bi="${bi}" data-ai="${ai}">×</button>
+  </div>`;
+}
+function modHTML(o){
+  if(!o.blocks)o.blocks=[];
+  let s='<div class="mods">';
+  o.blocks.forEach((b,bi)=>{
+    s+=`<div class="blk">
+      <div class="blk-h">
+        <b>当</b>
+        <select data-blk="${bi}" data-field="event">
+          ${Object.entries(EVENTS).map(([k,v])=>`<option value="${k}" ${S(b.event,k)}>${v}</option>`).join('')}
+        </select>
+        <input data-blk="${bi}" data-field="param" value="${b.param||''}" placeholder="消息/按键/秒">
+        <button class="x" data-act="delblock" data-bi="${bi}">×</button>
+      </div>
+      <div class="blk-b">
+        ${(b.actions||[]).map((a,ai)=>actionHTML(a,bi,ai)).join('')}
+      </div>
+      <div style="padding:0 8px 8px">
+        <button class="btn mini" data-act="addaction" data-bi="${bi}">＋ 动作</button>
+      </div>
+    </div>`;
+  });
+  s+='</div>';
+  s+=`<button class="btn" data-act="addblock" style="width:100%">＋ 添加事件</button>`;
+  return s;
+}
+
+function worldHTML(){
+  const w=getWorld();if(!w)return '<div class="empty">无世界</div>';
+  const e=w.env;
+  let s='';
+  s+=`<div class="grp"><div class="grp-t">天空球</div>
+    <label class="row"><span>顶部色</span><input type="color" data-wprop="sky.top" value="${w.sky.top}"></label>
+    <label class="row"><span>地平线</span><input type="color" data-wprop="sky.bottom" value="${w.sky.bottom}"></label>
+  </div>`;
+  s+=`<div class="grp"><div class="grp-t">环境</div>
+    <label class="row"><span>雾</span><input type="checkbox" data-wprop="env.fog" ${e.fog?'checked':''}></label>
+    <label class="row"><span>雾颜色</span><input type="color" data-wprop="env.fogColor" value="${e.fogColor}"></label>
+    ${numRow2('雾起点','env.fogNear',e.fogNear,1)}
+    ${numRow2('雾终点','env.fogFar',e.fogFar,1)}
+    ${rngRow2('环境光','env.ambient',e.ambient,0,2,.05)}
+    ${rngRow2('FOV','env.fov',e.fov,30,120,1)}
+    ${rngRow2('鼠标灵敏度','env.sens',e.sens,.2,4,.05)}
+    <label class="row"><span>RGB滤镜</span><input type="color" data-wprop="env.tint" value="${e.tint||'#ffffff'}"></label>
+    ${rngRow2('滤镜强度','env.tintAlpha',e.tintAlpha||0,0,1,.02)}
+  </div>`;
+  s+=`<div class="grp"><div class="grp-t">出生点</div>
+    <div class="row"><span>XYZ</span>
+      <input type="number" step="0.5" data-wprop="spawn.x" value="${fmt(w.spawn.x)}">
+      <input type="number" step="0.5" data-wprop="spawn.y" value="${fmt(w.spawn.y)}">
+      <input type="number" step="0.5" data-wprop="spawn.z" value="${fmt(w.spawn.z)}"></div>
+  </div>`;
+  s+=`<div class="grp"><div class="grp-t">按键 1~9</div>`;
+  w.keys.forEach((k,i)=>{
+    s+=`<div class="row" style="gap:4px">
+      <span>${i+1}键</span>
+      <input type="checkbox" data-wkey="${i}" data-kf="show" ${k.show?'checked':''} title="显示">
+      <input type="text" data-wkey="${i}" data-kf="text" value="${k.text}" style="flex:1;min-width:0;padding:4px;border:1px solid var(--line);border-radius:5px;font-size:11px">
+      <input type="number" data-wkey="${i}" data-kf="x" value="${k.x}" style="width:38px;padding:4px;border:1px solid var(--line);border-radius:5px;font-size:11px">
+      <input type="number" data-wkey="${i}" data-kf="y" value="${k.y}" style="width:38px;padding:4px;border:1px solid var(--line);border-radius:5px;font-size:11px">
+    </div>`;
+  });
+  s+=`</div>`;
+  return s;
+}
+function numRow2(label,path,val,step){
+  return `<label class="row"><span>${label}</span>
+    <input type="number" step="${step}" data-wprop="${path}" value="${fmt(val)}"></label>`;
+}
+function rngRow2(label,path,val,min,max,step){
+  return `<label class="row"><span>${label}</span>
+    <input type="range" min="${min}" max="${max}" step="${step}" data-wprop="${path}" value="${val}">
+    <b style="width:34px;text-align:right;color:#2f7cf6">${fmt(val)}</b></label>`;
+}
+
+function renderProps(){
+  const body=$('#propBody');
+  if(curTab==='world'){body.innerHTML=worldHTML();return;}
+  const o=getObj();
+  if(!o){
+    body.innerHTML='<div class="empty">未选中组件<br><br>从左侧选择或添加组件</div>';
+    return;
+  }
+  if(curTab==='tf')body.innerHTML=tfHTML(o);
+  else if(curTab==='look')body.innerHTML=lookHTML(o);
+  else if(curTab==='dyn')body.innerHTML=dynHTML(o);
+  else if(curTab==='mod')body.innerHTML=modHTML(o);
+  if(curTab==='look'){
+    const f=$('#texFile');
+    if(f)f.addEventListener('change',e=>{
+      const file=e.target.files[0];
+      if(!file)return;
+      const fr=new FileReader();
+      fr.onload=()=>{
+        o.tex.url=fr.result;
+        o.tex.mode='image';
+        rebuildObject(o);
+        renderProps();
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+}
+
+/* =========================================================
+   14. 属性输入处理
+   ========================================================= */
+function setPath(obj,path,val){
+  const parts=path.split('.');
+  let t=obj;
+  for(let i=0;i<parts.length-1;i++)t=t[parts[i]];
+  const k=parts[parts.length-1];
+  const old=t[k];
+  if(typeof old==='number')t[k]=parseFloat(val)||0;
+  else if(typeof old==='boolean')t[k]=!!val;
+  else t[k]=val;
+}
+
+$('#propBody').addEventListener('input',e=>{
+  const el=e.target;
+
+  /* 世界属性 */
+  if(el.dataset.wprop){
+    const w=getWorld();if(!w)return;
+    const p=el.dataset.wprop;
+    let v=el.type==='checkbox'?el.checked:el.value;
+    if(el.type==='number'||el.type==='range')v=parseFloat(v)||0;
+    const parts=p.split('.');
+    let t=w;
+    for(let i=0;i<parts.length-1;i++)t=t[parts[i]];
+    const k=parts[parts.length-1];
+    if(typeof t[k]==='number')t[k]=parseFloat(v)||0;
+    else if(typeof t[k]==='boolean')t[k]=!!v;
+    else t[k]=v;
+    applyEnv();
+    return;
+  }
+
+  /* 按键设置 */
+  if(el.dataset.wkey!==undefined){
+    const w=getWorld();if(!w)return;
+    const k=w.keys[+el.dataset.wkey];
+    const f=el.dataset.kf;
+    if(f==='show')k.show=el.checked;
+    else if(f==='text')k.text=el.value;
+    else k[f]=parseFloat(el.value)||0;
+    return;
+  }
+
+  /* 模块-事件 */
+  if(el.dataset.blk!==undefined&&el.dataset.ai===undefined){
+    const o=getObj();if(!o)return;
+    const b=o.blocks[+el.dataset.blk];
+    if(!b)return;
+    b[el.dataset.field]=el.value;
+    return;
+  }
+
+  /* 模块-动作 */
+  if(el.dataset.blk!==undefined&&el.dataset.ai!==undefined){
+    const o=getObj();if(!o)return;
+    const b=o.blocks[+el.dataset.blk];
+    if(!b)return;
+    const a=b.actions[+el.dataset.ai];
+    if(!a)return;
+    const k=el.dataset.k;
+    if(k==='__type'){
+      a.type=el.value;
+      Object.assign(a,ACTIONS[el.value].def);
+      renderProps();
+      return;
+    }
+    if(el.type==='checkbox')a[k]=el.checked;
+    else if(el.type==='number')a[k]=parseFloat(el.value)||0;
+    else a[k]=el.value;
+    return;
+  }
+
+  /* 组件属性 */
+  const path=el.dataset.prop;
+  if(!path)return;
+  const o=getObj();if(!o)return;
+
+  if(path==='geo.vertsRaw'){
+    o.geo.verts=el.value.split('\n').map(l=>l.split(/[,\s]+/).map(Number))
+      .filter(a=>a.length>=3&&a.every(n=>!isNaN(n)));
+    rebuildObject(o);
+    return;
+  }
+
+  let v=el.type==='checkbox'?el.checked:el.value;
+  if(el.type==='number'||el.type==='range')v=parseFloat(v)||0;
+  setPath(o,path,v);
+
+  if(path==='name'){renderObjectList();return;}
+  if(path==='visible'){syncMeshTransform(o);return;}
+  if(/^(pos|rot|scale)\./.test(path)){syncMeshTransform(o);return;}
+  if(path==='color'||path==='opacity'){
+    const g=objMap.get(o.id);
+    if(g)g.traverse(m=>{
+      if(!m.isMesh)return;
+      const ms=Array.isArray(m.material)?m.material:[m.material];
+      ms.forEach(mm=>{
+        if(!mm||mm.userData.fixed)return;
+        if(!mm.userData.tex)mm.color.set(o.color);
+        mm.opacity=o.opacity;mm.transparent=o.opacity<1;mm.needsUpdate=true;
+      });
+    });
+    renderObjectList();
+    return;
+  }
+  /* 其它（几何 / 贴图）→ 重建 */
+  rebuildObject(o);
+});
+
+/* 模块按钮 */
+$('#propBody').addEventListener('click',e=>{
+  const btn=e.target.closest('[data-act]');
+  if(!btn)return;
+  const o=getObj();if(!o)return;
+  if(!o.blocks)o.blocks=[];
+  const act=btn.dataset.act;
+  const bi=+btn.dataset.bi;
+  const ai=+btn.dataset.ai;
+  if(act==='addblock'){
+    o.blocks.push({event:'init',param:'',actions:[]});
+  }else if(act==='delblock'){
+    o.blocks.splice(bi,1);
+  }else if(act==='addaction'){
+    o.blocks[bi].actions.push({type:'move',...ACTIONS.move.def});
+  }else if(act==='delaction'){
+    o.blocks[bi].actions.splice(ai,1);
+  }
+  renderProps();
+});
+
+/* 标签页 */
+function syncTabsUI(){
+  document.querySelectorAll('#propTabs button').forEach(b=>
+    b.classList.toggle('on',b.dataset.tab===curTab));
+}
+document.querySelectorAll('#propTabs button').forEach(b=>{
+  b.addEventListener('click',()=>{curTab=b.dataset.tab;syncTabsUI();renderProps();});
+});
+
+/* =========================================================
+   15. 顶部按钮
+   ========================================================= */
+$('#btnAddWorld').addEventListener('click',()=>{
+  const w=makeWorld('世界 '+(State.worlds.length+1));
+  State.worlds.push(w);
+  State.wid=w.id;State.sel=null;
+  renderWorldTabs();buildAll();renderObjectList();renderProps();
+});
+$('#btnDel').addEventListener('click',()=>{
+  const w=getWorld();if(!w||!State.sel)return;
+  const i=w.objects.findIndex(o=>o.id===State.sel);
+  if(i<0)return;
+  const g=objMap.get(State.sel);
+  if(g){worldRoot.remove(g);disposeObj3D(g);objMap.delete(State.sel);}
+  w.objects.splice(i,1);
+  selectObject(null);
+  renderObjectList();
+});
+$('#btnDup').addEventListener('click',()=>{
+  const w=getWorld();const o=getObj();
+  if(!w||!o)return;
+  const c=JSON.parse(JSON.stringify(o));
+  c.id=uid();c.name=o.name+' 副本';
+  c.pos.x+=1.2;c.pos.z+=1.2;
+  w.objects.push(c);
+  rebuildObject(c);
+  renderObjectList();
+  selectObject(c.id);
+});
+
+/* =========================================================
+   16. 主循环
+   ========================================================= */
+let lastT=performance.now();
+function loop(){
+  requestAnimationFrame(loop);
+  const now=performance.now();
+  const dt=Math.min(.05,(now-lastT)/1000);
+  lastT=now;
+  const t=now/1000;
+
+  if(State.mode==='edit'){
+    orbit.update();
+  }
+  animateWorld(t);
+  if(State.mode==='play'){
+    updatePlayer(dt);
+    tickRuntime(dt);
+  }
+  skyMesh.position.copy(camera.position);
+  renderer.render(scene,camera);
+}
+
+/* =========================================================
+   17. 启动
+   ========================================================= */
+(function init(){
+  const w=makeWorld('世界 1');
+  State.worlds.push(w);
+  State.wid=w.id;
+
+  /* 默认场景：出生点前放一块地形和一个树 */
+  const terrain=makeObject('terrain');
+  terrain.name='地形区块';
+  terrain.pos={x:0,y:0,z:0};
+  terrain.geo.w=110;terrain.geo.d=110;terrain.geo.seg=72;terrain.geo.amp=2.6;
+  w.objects.push(terrain);
+
+  const box=makeObject('box');
+  box.name='方块';
+  box.pos={x:-3,y:.5,z:2};box.color='#4a9dff';
+  w.objects.push(box);
+
+  const tree=makeObject('tree');
+  tree.name='树';
+  tree.pos={x:3,y:0,z:1};
+  w.objects.push(tree);
+
+  renderWorldTabs();
+  renderKindGrid();
+  buildAll();
+  renderObjectList();
+  renderProps();
+  resize();
+  loop();
+})();
+
+/* 自动保存到 localStorage */
+setInterval(()=>{
+  try{
+    localStorage.setItem('blue3d_state',JSON.stringify({
+      worlds:State.worlds,wid:State.wid
+    }));
+  }catch(e){}
+},4000);
+</script>
+</body>
+</html>
