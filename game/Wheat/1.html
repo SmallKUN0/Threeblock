@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>无限麦田 · Three.js</title>
+<style>
+  html,body{
+    margin:0;padding:0;height:100%;overflow:hidden;background:#9aa0a6;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;
+  }
+  canvas{display:block;touch-action:none;}
+  #hud{
+    position:fixed;left:0;top:0;padding:10px 14px;color:#eef2f5;font-size:13px;
+    line-height:1.55;text-shadow:0 1px 3px rgba(0,0,0,.65);pointer-events:none;
+    opacity:.92;z-index:5;
+  }
+  #hud .sub{opacity:.7;font-size:12px;}
+  #stick{
+    position:fixed;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;
+    border:2px solid rgba(255,255,255,.4);background:rgba(255,255,255,.07);
+    display:none;pointer-events:none;z-index:10;
+  }
+  #knob{
+    position:absolute;width:52px;height:52px;border-radius:50%;
+    background:rgba(255,255,255,.45);left:50%;top:50%;margin:-26px 0 0 -26px;
+    box-shadow:0 0 10px rgba(0,0,0,.25);
+  }
+  /* ---- 分辨率滑块 ---- */
+  #resBar{
+    position:fixed;right:12px;top:12px;z-index:20;
+    display:flex;align-items:center;gap:8px;
+    padding:7px 12px;border-radius:20px;
+    background:rgba(18,22,26,.42);
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+    color:#eef2f5;font-size:12px;line-height:1;
+    box-shadow:0 2px 10px rgba(0,0,0,.28);
+    max-width:calc(100vw - 24px);
+  }
+  #resBar span{white-space:nowrap;opacity:.9;}
+  #resRange{
+    width:130px;max-width:40vw;
+    accent-color:#e8c26a;
+    cursor:pointer;
+    background:transparent;
+  }
+  #resVal{
+    min-width:34px;text-align:right;
+    font-variant-numeric:tabular-nums;
+    opacity:.95;
+  }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div>无限麦田 · Three.js</div>
+  <div class="sub">
+    PC：WASD 移动 / 鼠标拖拽看视角 / Shift 加速<br>
+    移动端：左侧虚拟摇杆移动 / 右侧滑动看视角
+  </div>
+</div>
+
+<div id="resBar">
+  <span>分辨率</span>
+  <input id="resRange" type="range" min="0.5" max="2" step="0.1" value="1">
+  <span id="resVal">1.0×</span>
+</div>
+
+<div id="stick"><div id="knob"></div></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer }  from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { GLTFLoader }      from 'three/addons/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/* ============================================================
+   0. 全局配置
+   ============================================================ */
+const CHUNK_SIZE  = 64;                    // 单个区块边长（世界单位）
+const VIEW_RADIUS = 4;                     // 区块半径
+const CHUNK_SEGS  = 64;                    // 所有区块统一细分（禁用距离 LOD）
+const EYE_HEIGHT  = 1.62;                  // 第一人称眼高
+
+const FOG_NEAR    = 0.0;
+const FOG_FAR     = 250.0;
+const FOG_COLOR   = new THREE.Vector3(0.615, 0.635, 0.655);
+const SKY_TOP     = new THREE.Vector3(0.435, 0.465, 0.495);
+const SKY_BOTTOM  = new THREE.Vector3(0.615, 0.635, 0.655);
+const SUN_DIR     = new THREE.Vector3(0.45, 0.80, 0.35).normalize();
+
+const WHEAT_SPACING = 1.5;                 // 麦子网格间距（越小越密）
+const WHEAT_HEIGHT  = 1.30;                // 归一化后的麦子高度（米）
+
+const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
+
+/* ============================================================
+   1. 确定性噪声
+   ============================================================ */
+function hash21(x, y) {
+  let px = x * 123.34;
+  let py = y * 456.21;
+  px -= Math.floor(px);
+  py -= Math.floor(py);
+  const d = px * (px + 45.32) + py * (py + 45.32);
+  px += d;
+  py += d;
+  const r = px * py;
+  return r - Math.floor(r);
+}
+
+function vnoise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
+  const a = hash21(ix, iy);
+  const b = hash21(ix + 1, iy);
+  const c = hash21(ix, iy + 1);
+  const d = hash21(ix + 1, iy + 1);
+  const ab = a + (b - a) * ux;
+  const cd = c + (d - c) * ux;
+  return ab + (cd - ab) * uy;
+}
+
+function terrainHeightJS(x, z) {
+  let v = 0.0, a = 0.5;
+  let px = x * 0.0085, pz = z * 0.0085;
+  for (let i = 0; i < 3; i++) {
+    v += a * vnoise(px, pz);
+    const nx = 1.6 * px - 1.2 * pz;
+    const nz = 1.2 * px + 1.6 * pz;
+    px = nx; pz = nz;
+    a *= 0.5;
+  }
+  let h = (v - 0.44) * 48.0;
+  h += (vnoise(x * 0.040, z * 0.040) - 0.5) * 2.6;
+  h += (vnoise(x * 0.120, z * 0.120) - 0.5) * 0.55;
+  return h;
+}
+
+/* ============================================================
+   2. 渲染器 / 场景 / 相机
+   ============================================================ */
+let pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: 'high-performance'
+});
+renderer.setPixelRatio(pixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const maxAniso = renderer.capabilities.getMaxAnisotropy();
+
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(
+  72, window.innerWidth / window.innerHeight, 0.1, 1500
+);
+camera.position.set(0, 20, 12);
+
+/* ============================================================
+   3. 天空穹
+   ============================================================ */
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide,
+  depthWrite: false,
+  fog: false,
+  uniforms: {
+    uTop:    { value: SKY_TOP },
+    uBottom: { value: SKY_BOTTOM }
+  },
+  vertexShader: /* glsl */`
+    varying vec3 vDir;
+    void main() {
+      vDir = position;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */`
+    uniform vec3 uTop;
+    uniform vec3 uBottom;
+    varying vec3 vDir;
+    void main() {
+      float h = normalize(vDir).y;
+      float t = smoothstep(-0.08, 0.62, h);
+      gl_FragColor = vec4(mix(uBottom, uTop, t), 1.0);
+    }
+  `
+});
+const sky = new THREE.Mesh(new THREE.SphereGeometry(1000, 32, 20), skyMat);
+sky.frustumCulled = false;
+scene.add(sky);
+
+/* ============================================================
+   4. 程序化泥土纹理
+   ============================================================ */
+function createDirtTexture(size = 256) {
+  const cvs = document.createElement('canvas');
+  cvs.width = cvs.height = size;
+  const ctx = cvs.getContext('2d');
+  const img = ctx.createImageData(size, size);
+  const data = img.data;
+
+  function pnoise(x, y, period, seed) {
+    const ix = Math.floor(x), iy = Math.floor(y);
+    const fx = x - ix, fy = y - iy;
+    const ux = fx * fx * (3 - 2 * fx);
+    const uy = fy * fy * (3 - 2 * fy);
+    const m = v => ((v % period) + period) % period;
+    const a = hash21(m(ix) + seed, m(iy) + seed);
+    const b = hash21(m(ix + 1) + seed, m(iy) + seed);
+    const c = hash21(m(ix) + seed, m(iy + 1) + seed);
+    const d = hash21(m(ix + 1) + seed, m(iy + 1) + seed);
+    const ab = a + (b - a) * ux;
+    const cd = c + (d - c) * ux;
+    return ab + (cd - ab) * uy;
+  }
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const u = x / size, v = y / size;
+
+      let n = 0, amp = 0.5, freq = 8;
+      for (let o = 0; o < 5; o++) {
+        n += amp * pnoise(u * freq, v * freq, freq, o * 37.13);
+        amp *= 0.5;
+        freq *= 2;
+      }
+
+      let t = n * 1.28;
+      t = clamp(t, 0, 1);
+      t = t * t * (3 - 2 * t);
+
+      const grain = (Math.random() - 0.5) * 0.14;
+
+      let r = 88 + t * 100;
+      let g = 58 + t * 70;
+      let b = 36 + t * 46;
+
+      r *= (1 + grain);
+      g *= (1 + grain);
+      b *= (1 + grain);
+
+      const rr = Math.random();
+      if (rr < 0.0045) { r *= 0.52; g *= 0.52; b *= 0.52; }
+      else if (rr < 0.0075) { r *= 1.30; g *= 1.26; b *= 1.20; }
+
+      const i = (y * size + x) * 4;
+      data[i]     = clamp(r, 0, 255);
+      data[i + 1] = clamp(g, 0, 255);
+      data[i + 2] = clamp(b, 0, 255);
+      data[i + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(img, 0, 0);
+
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = maxAniso;
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+const dirtTex = createDirtTexture(256);
+
+/* ============================================================
+   5. 地形材质
+   ============================================================ */
+const terrainUniforms = {
+  uDirtTex:  { value: dirtTex },
+  uPlayerPos:{ value: new THREE.Vector3() },
+  uFogColor: { value: FOG_COLOR },
+  uFogNear:  { value: FOG_NEAR },
+  uFogFar:   { value: FOG_FAR },
+  uSunDir:   { value: SUN_DIR }
+};
+
+const terrainMaterial = new THREE.ShaderMaterial({
+  uniforms: terrainUniforms,
+  vertexShader: /* glsl */`
+    precision highp float;
+    varying vec3 vWorldPos;
+    varying vec3 vNormal;
+    void main() {
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vWorldPos = wp.xyz;
+      vNormal   = normalize(mat3(modelMatrix) * normal);
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }
+  `,
+  fragmentShader: /* glsl */`
+    precision highp float;
+
+    uniform sampler2D uDirtTex;
+    uniform vec3  uPlayerPos;
+    uniform vec3  uFogColor;
+    uniform vec3  uSunDir;
+    uniform float uFogNear;
+    uniform float uFogFar;
+
+    varying vec3 vWorldPos;
+    varying vec3 vNormal;
+
+    float hash21(vec2 p) {
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+
+    float vnoise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      float a = hash21(i);
+      float b = hash21(i + vec2(1.0, 0.0));
+      float c = hash21(i + vec2(0.0, 1.0));
+      float d = hash21(i + vec2(1.0, 1.0));
+      return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+    }
+
+    void main() {
+      vec3 N = normalize(vNormal);
+      vec2 p = vWorldPos.xz;
+
+      vec3 t1 = texture2D(uDirtTex, p * 0.055).rgb;
+      vec3 t2 = texture2D(uDirtTex, p * 0.210).rgb;
+      vec3 t3 = texture2D(uDirtTex, p * 0.870).rgb;
+      vec3 tex = t1 * 0.50 + t2 * 0.32 + t3 * 0.18;
+
+      float detail = tex.r * 0.60 + tex.g * 0.30 + tex.b * 0.10;
+
+      float macro = vnoise(p * 0.013) * 0.65 + vnoise(p * 0.043) * 0.35;
+
+      vec3 soil = mix(vec3(0.205, 0.142, 0.092),
+                      vec3(0.500, 0.360, 0.228), macro);
+      soil *= 0.62 + detail * 1.05;
+
+      float slope   = 1.0 - clamp(N.y, 0.0, 1.0);
+      float rockMix = smoothstep(0.16, 0.52, slope);
+      vec3  rock    = vec3(0.365, 0.350, 0.330) * (0.65 + detail * 0.95);
+
+      vec3 col = mix(soil, rock, rockMix);
+
+      vec3  L    = normalize(uSunDir);
+      float ndl  = max(dot(N, L), 0.0);
+      float hemi = 0.5 + 0.5 * N.y;
+
+      vec3 light = vec3(0.30, 0.32, 0.35) * hemi
+                 + vec3(1.05, 0.99, 0.90) * ndl;
+
+      col *= light;
+
+      float dist   = length(vWorldPos - uPlayerPos);
+      float f      = smoothstep(uFogNear, uFogFar, dist);
+      float fogAmt = mix(0.30, 1.0, f);
+
+      col = mix(col, uFogColor, fogAmt);
+
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+});
+
+/* ============================================================
+   6. 麦子几何（Wheat.glb → 合并 / 归一化 / 顶点色）
+   ============================================================ */
+function mix3(a, b, t) {
+  return [
+    a[0] + (b[0] - a[0]) * t,
+    a[1] + (b[1] - a[1]) * t,
+    a[2] + (b[2] - a[2]) * t
+  ];
+}
+
+function wheatColorAt(t) {
+  const cBase = [0.24, 0.32, 0.09];
+  const cMid  = [0.46, 0.52, 0.14];
+  const cTop  = [0.78, 0.72, 0.30];
+  const cEar  = [0.92, 0.80, 0.38];
+  if (t < 0.50) return mix3(cBase, cMid, t / 0.50);
+  if (t < 0.82) return mix3(cMid,  cTop, (t - 0.50) / 0.32);
+  return mix3(cTop, cEar, (t - 0.82) / 0.18);
+}
+
+/* 程序化麦子（GLB 加载失败时的兜底） */
+function buildWheatGeometry() {
+  const pos = [], idx = [];
+  const H = 1.10;
+  const SEGS = 3;
+  const W0 = 0.030;
+
+  for (let i = 0; i <= SEGS; i++) {
+    const t = i / SEGS;
+    const y = t * H;
+    const w = W0 * (1.0 - 0.5 * t);
+    pos.push(-w, y, 0,  w, y, 0);
+  }
+  for (let i = 0; i < SEGS; i++) {
+    const a = i * 2, b = i * 2 + 1, c2 = (i + 1) * 2, d = (i + 1) * 2 + 1;
+    idx.push(a, c2, b,  b, c2, d);
+  }
+
+  const b0 = pos.length / 3;
+  const yb = H - 0.02;
+  const ym = H + 0.14;
+  const yt = H + 0.30;
+
+  pos.push(-0.016, yb, 0);
+  pos.push( 0.016, yb, 0);
+  pos.push( 0.062, ym, 0);
+  pos.push(-0.062, ym, 0);
+  pos.push( 0.000, yt, 0);
+
+  idx.push(b0 + 0, b0 + 1, b0 + 2);
+  idx.push(b0 + 0, b0 + 2, b0 + 3);
+  idx.push(b0 + 3, b0 + 2, b0 + 4);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(idx);
+
+  // 归一化到统一高度 + 顶点色
+  geo.computeBoundingBox();
+  const bb = geo.boundingBox;
+  const sy = Math.max(bb.max.y - bb.min.y, 1e-4);
+  const s = WHEAT_HEIGHT / sy;
+  geo.scale(s, s, s);
+  geo.computeBoundingBox();
+  const bb2 = geo.boundingBox;
+  geo.translate(
+    -(bb2.min.x + bb2.max.x) * 0.5,
+    -bb2.min.y,
+    -(bb2.min.z + bb2.max.z) * 0.5
+  );
+
+  const posAttr = geo.getAttribute('position');
+  const colors = new Float32Array(posAttr.count * 3);
+  for (let i = 0; i < posAttr.count; i++) {
+    const t = clamp(posAttr.getY(i) / WHEAT_HEIGHT, 0, 1);
+    const c = wheatColorAt(t);
+    colors[i * 3] = c[0];
+    colors[i * 3 + 1] = c[1];
+    colors[i * 3 + 2] = c[2];
+  }
+  geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+/* 把 GLB 场景拍平成一个可实例化的几何 */
+function prepareWheatGeometry(gltf) {
+  gltf.scene.updateMatrixWorld(true);
+
+  const parts = [];
+
+  gltf.scene.traverse(obj => {
+    if (!obj.isMesh || !obj.geometry) return;
+    const src = obj.geometry;
+    const srcPos = src.getAttribute('position');
+    if (!srcPos) return;
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', srcPos.clone());
+
+    if (src.index) {
+      g.setIndex(src.index.clone());
+    } else {
+      const n = srcPos.count;
+      const arr = n > 65535 ? new Uint32Array(n) : new Uint16Array(n);
+      for (let i = 0; i < n; i++) arr[i] = i;
+      g.setIndex(new THREE.BufferAttribute(arr, 1));
+    }
+
+    g.applyMatrix4(obj.matrixWorld);
+    parts.push(g);
+  });
+
+  if (!parts.length) {
+    console.warn('Wheat.glb 中没有可用网格，使用程序化麦子');
+    return buildWheatGeometry();
+  }
+
+  let merged = null;
+  try {
+    merged = mergeGeometries(parts, false);
+  } catch (e) {
+    console.warn('Wheat.glb 几何合并失败，使用程序化麦子', e);
+  }
+  if (!merged) return buildWheatGeometry();
+
+  // ---- 统一尺寸：高度归一化为 WHEAT_HEIGHT，底部贴 y=0，水平居中 ----
+  merged.computeBoundingBox();
+  const bb = merged.boundingBox;
+  const sy = Math.max(bb.max.y - bb.min.y, 1e-4);
+  const s = WHEAT_HEIGHT / sy;
+  merged.scale(s, s, s);
+
+  merged.computeBoundingBox();
+  const bb2 = merged.boundingBox;
+  merged.translate(
+    -(bb2.min.x + bb2.max.x) * 0.5,
+    -bb2.min.y,
+    -(bb2.min.z + bb2.max.z) * 0.5
+  );
+
+  // ---- 按高度生成顶点色（供自定义着色器使用）----
+  const posAttr = merged.getAttribute('position');
+  const colors = new Float32Array(posAttr.count * 3);
+  for (let i = 0; i < posAttr.count; i++) {
+    const t = clamp(posAttr.getY(i) / WHEAT_HEIGHT, 0, 1);
+    const c = wheatColorAt(t);
+    colors[i * 3] = c[0];
+    colors[i * 3 + 1] = c[1];
+    colors[i * 3 + 2] = c[2];
+  }
+  merged.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+  merged.computeBoundingSphere();
+
+  return merged;
+}
+
+/* ---- 全局麦子几何（异步加载完成前为 null）---- */
+let wheatGeometry = null;
+
+/* ============================================================
+   7. 麦子材质（风吹 + 雾 + 防泛光）
+   ============================================================ */
+const wheatUniforms = {
+  uTime:     { value: 0 },
+  uSunDir:   { value: SUN_DIR },
+  uFogColor: { value: FOG_COLOR },
+  uFogNear:  { value: FOG_NEAR },
+  uFogFar:   { value: FOG_FAR },
+  uPlayerPos:{ value: new THREE.Vector3() }
+};
+
+const wheatMaterial = new THREE.ShaderMaterial({
+  uniforms: wheatUniforms,
+  side: THREE.DoubleSide,
+  vertexShader: /* glsl */`
+    precision highp float;
+
+    uniform float uTime;
+
+    attribute vec3 aColor;
+
+    varying vec3  vColor;
+    varying vec3  vWorldPos;
+    varying float vH;
+
+    void main() {
+      vec3 iWorld = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+
+      float h = position.y;
+      vH = clamp(h / ${WHEAT_HEIGHT.toFixed(2)}, 0.0, 1.0);
+
+      float phase = iWorld.x * 0.28 + iWorld.z * 0.24;
+      float t = uTime;
+
+      // 主风 + 阵风 + 高频抖动
+      float bend = sin(t * 1.70 + phase)        * 0.060
+                 + sin(t * 0.90 + phase * 1.90) * 0.038
+                 + sin(t * 3.10 + phase * 0.70) * 0.014;
+
+      float k = vH * vH;
+      vec3 p = position;
+      p.x += bend * k;
+      p.z += bend * 0.55 * k;
+
+      vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
+      vWorldPos = wp.xyz;
+      vColor = aColor;
+
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }
+  `,
+  fragmentShader: /* glsl */`
+    precision highp float;
+
+    uniform vec3  uSunDir;
+    uniform vec3  uFogColor;
+    uniform float uFogNear;
+    uniform float uFogFar;
+    uniform vec3  uPlayerPos;
+
+    varying vec3  vColor;
+    varying vec3  vWorldPos;
+    varying float vH;
+
+    void main() {
+      float sunUp = clamp(uSunDir.y, 0.0, 1.0);
+      vec3 lightCol = mix(vec3(0.42, 0.46, 0.55),
+                          vec3(1.06, 0.99, 0.84), sunUp);
+
+      // 底部自遮挡 + 顶部透光
+      float ao    = mix(0.45, 1.0, vH);
+      float trans = pow(vH, 2.0) * 0.22;
+
+      vec3 col = vColor * lightCol * (ao + trans);
+
+      float dist   = length(vWorldPos - uPlayerPos);
+      float f      = smoothstep(uFogNear, uFogFar, dist);
+      float fogAmt = mix(0.30, 1.0, f);
+      col = mix(col, uFogColor, fogAmt);
+
+      /* ---------- 关键：抑制亮度，确保麦子不触发 Bloom 泛光 ---------- */
+      float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+      col *= min(1.0, 0.70 / max(lum, 1e-4));
+      col = min(col, vec3(0.78));
+
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+});
+
+/* ============================================================
+   8. 麦田实例化
+   ============================================================ */
+function createWheatField(cx, cz) {
+  const S = CHUNK_SIZE;
+  const n = Math.max(1, Math.round(S / WHEAT_SPACING));
+  const cell = S / n;
+  const total = n * n;
+
+  const mesh = new THREE.InstancedMesh(wheatGeometry, wheatMaterial, total);
+  mesh.position.set(cx * S, 0, cz * S);
+  mesh.matrixAutoUpdate = false;
+  mesh.updateMatrix();
+  mesh.frustumCulled = false;
+
+  const mtx  = new THREE.Matrix4();
+  const quat = new THREE.Quaternion();
+  const scl  = new THREE.Vector3();
+  const trs  = new THREE.Vector3();
+  const UP   = new THREE.Vector3(0, 1, 0);
+
+  const half = -S / 2;
+  let i = 0;
+
+  for (let iz = 0; iz < n; iz++) {
+    for (let ix = 0; ix < n; ix++) {
+      const lx = half + (ix + 0.5 + (Math.random() - 0.5) * 0.95) * cell;
+      const lz = half + (iz + 0.5 + (Math.random() - 0.5) * 0.95) * cell;
+
+      const wx = cx * S + lx;
+      const wz = cz * S + lz;
+      // 略微下沉，避免地形插值误差导致根部悬空
+      const wy = terrainHeightJS(wx, wz) - 0.06;
+
+      quat.setFromAxisAngle(UP, Math.random() * Math.PI * 2);
+      const s = 0.85 + Math.random() * 0.45;
+      scl.set(s, s * (0.88 + Math.random() * 0.32), s);
+
+      trs.set(lx, wy, lz);
+      mtx.compose(trs, quat, scl);
+      mesh.setMatrixAt(i++, mtx);
+    }
+  }
+
+  mesh.count = i;
+  mesh.instanceMatrix.needsUpdate = true;
+  return mesh;
+}
+
+/* ============================================================
+   9. 区块管理
+   ============================================================ */
+const chunks = new Map();
+let lastCenterCX = null;
+let lastCenterCZ = null;
+
+function buildChunkGeometry(cx, cz, seg) {
+  const S = CHUNK_SIZE;
+  const geo = new THREE.PlaneGeometry(S, S, seg, seg);
+  geo.rotateX(-Math.PI / 2);
+
+  const baseX = cx * S;
+  const baseZ = cz * S;
+  const n = seg + 1;
+  const step = S / seg;
+
+  const H = new Float32Array(n * n);
+  for (let iy = 0; iy < n; iy++) {
+    const lz = -S / 2 + iy * step;
+    for (let ix = 0; ix < n; ix++) {
+      const lx = -S / 2 + ix * step;
+      H[iy * n + ix] = terrainHeightJS(baseX + lx, baseZ + lz);
+    }
+  }
+
+  const pos = geo.attributes.position;
+  const nor = geo.attributes.normal;
+
+  for (let iy = 0; iy < n; iy++) {
+    for (let ix = 0; ix < n; ix++) {
+      const k = iy * n + ix;
+      pos.setY(k, H[k]);
+
+      const x0 = Math.max(ix - 1, 0), x1 = Math.min(ix + 1, seg);
+      const y0 = Math.max(iy - 1, 0), y1 = Math.min(iy + 1, seg);
+
+      const dxw = (x1 - x0) * step;
+      const dzw = (y1 - y0) * step;
+
+      const nx = (H[iy * n + x0] - H[iy * n + x1]) / dxw;
+      const nz = (H[y0 * n + ix] - H[y1 * n + ix]) / dzw;
+
+      const inv = 1.0 / Math.sqrt(nx * nx + 1.0 + nz * nz);
+      nor.setXYZ(k, nx * inv, inv, nz * inv);
+    }
+  }
+
+  pos.needsUpdate = true;
+  nor.needsUpdate = true;
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+function createChunk(cx, cz) {
+  const geo  = buildChunkGeometry(cx, cz, CHUNK_SEGS);
+  const mesh = new THREE.Mesh(geo, terrainMaterial);
+  mesh.position.set(cx * CHUNK_SIZE, 0, cz * CHUNK_SIZE);
+  mesh.matrixAutoUpdate = false;
+  mesh.updateMatrix();
+  scene.add(mesh);
+
+  const chunk = { cx, cz, mesh, geo, wheat: null };
+
+  // 麦子几何就绪后再建（否则由 GLB 加载回调补上）
+  if (wheatGeometry) {
+    chunk.wheat = createWheatField(cx, cz);
+    scene.add(chunk.wheat);
+  }
+
+  return chunk;
+}
+
+function disposeChunk(chunk) {
+  scene.remove(chunk.mesh);
+  chunk.geo.dispose();
+
+  if (chunk.wheat) {
+    scene.remove(chunk.wheat);
+    chunk.wheat.dispose();
+    chunk.wheat = null;
+  }
+}
+
+function updateChunks(px, pz) {
+  const ccx = Math.floor(px / CHUNK_SIZE);
+  const ccz = Math.floor(pz / CHUNK_SIZE);
+
+  if (ccx === lastCenterCX && ccz === lastCenterCZ) return;
+  lastCenterCX = ccx;
+  lastCenterCZ = ccz;
+
+  const needed = new Set();
+  const R2 = (VIEW_RADIUS + 0.35) * (VIEW_RADIUS + 0.35);
+
+  for (let dz = -VIEW_RADIUS; dz <= VIEW_RADIUS; dz++) {
+    for (let dx = -VIEW_RADIUS; dx <= VIEW_RADIUS; dx++) {
+      if (dx * dx + dz * dz > R2) continue;
+
+      const cx = ccx + dx;
+      const cz = ccz + dz;
+      const key = cx + ',' + cz;
+      needed.add(key);
+
+      if (chunks.has(key)) continue;
+      chunks.set(key, createChunk(cx, cz));
+    }
+  }
+
+  for (const [key, chunk] of chunks) {
+    if (!needed.has(key)) {
+      disposeChunk(chunk);
+      chunks.delete(key);
+    }
+  }
+}
+
+/* ============================================================
+   10. 平面动态云（受光 + Silver Lining）
+   ============================================================ */
+const cloudUniforms = {
+  uTime:   { value: 0 },
+  uSunDir: { value: SUN_DIR },
+  uCamPos: { value: new THREE.Vector3() }
+};
+
+const cloudMaterial = new THREE.ShaderMaterial({
+  uniforms: cloudUniforms,
+  transparent: true,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  vertexShader: /* glsl */`
+    precision highp float;
+    varying vec3 vWorldPos;
+    void main() {
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vWorldPos = wp.xyz;
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }
+  `,
+  fragmentShader: /* glsl */`
+    precision highp float;
+
+    uniform float uTime;
+    uniform vec3  uSunDir;
+    uniform vec3  uCamPos;
+
+    varying vec3 vWorldPos;
+
+    float hash21(vec2 p) {
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+    float vnoise(vec2 p) {
+      vec2 i = floor(p), f = fract(p);
+      vec2 u = f * f * (3.0 - 2.0 * f);
+      float a = hash21(i);
+      float b = hash21(i + vec2(1.0, 0.0));
+      float c = hash21(i + vec2(0.0, 1.0));
+      float d = hash21(i + vec2(1.0, 1.0));
+      return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+    }
+    float fbm(vec2 p) {
+      float v = 0.0, a = 0.5;
+      mat2 m = mat2(1.6, 1.2, -1.2, 1.6);
+      for (int i = 0; i < 5; i++) {
+        v += a * vnoise(p);
+        p = m * p;
+        a *= 0.5;
+      }
+      return v;
+    }
+
+    void main() {
+      vec3 toFrag = vWorldPos - uCamPos;
+      float dist  = length(toFrag);
+      vec3 V = toFrag / max(dist, 1e-4);
+
+      vec2 p = vWorldPos.xz * 0.0022;
+      float t = uTime;
+
+      float n1 = fbm(p + vec2(t * 0.0120, t * 0.0070));
+      float n2 = fbm(p * 2.3 + vec2(-t * 0.0180, t * 0.0110) + 19.7);
+      float d  = n1 * 0.72 + n2 * 0.28;
+
+      float dens = smoothstep(0.42, 0.70, d);
+
+      float edge = 1.0 - abs(dens * 2.0 - 1.0);
+      edge = pow(edge, 2.5);
+
+      vec3 L = normalize(uSunDir);
+      float sunFace = max(dot(V, L), 0.0);
+      float silver  = edge * pow(sunFace, 5.0) * 2.6;
+
+      float sunUp = clamp(L.y, 0.0, 1.0);
+      vec3 litCol   = mix(vec3(0.70, 0.66, 0.62),
+                          vec3(0.98, 0.97, 0.95), sunUp);
+      vec3 shadeCol = vec3(0.46, 0.49, 0.55);
+
+      float lit = clamp(d * 1.7 - 0.35, 0.0, 1.0);
+      vec3 col = mix(shadeCol, litCol, lit);
+      col += vec3(1.00, 0.88, 0.68) * silver;
+
+      float fade  = 1.0 - smoothstep(430.0, 780.0, dist);
+      float alpha = dens * fade * 0.92;
+
+      if (alpha < 0.004) discard;
+      gl_FragColor = vec4(col, alpha);
+    }
+  `
+});
+
+const cloudGeo = new THREE.PlaneGeometry(1600, 1600, 1, 1);
+cloudGeo.rotateX(-Math.PI / 2);
+
+const cloudMesh = new THREE.Mesh(cloudGeo, cloudMaterial);
+cloudMesh.position.set(0, 150, 0);
+cloudMesh.frustumCulled = false;
+cloudMesh.renderOrder = 2;
+scene.add(cloudMesh);
+
+/* ============================================================
+   11. 太阳 + 泛光
+   ============================================================ */
+const sunMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(22, 24, 16),
+  new THREE.MeshBasicMaterial({
+    color: new THREE.Color(3.6, 3.2, 2.6),
+    fog: false,
+    depthWrite: false
+  })
+);
+sunMesh.frustumCulled = false;
+scene.add(sunMesh);
+
+function createGlowTexture() {
+  const size = 128;
+  const cvs = document.createElement('canvas');
+  cvs.width = cvs.height = size;
+  const ctx = cvs.getContext('2d');
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0.00, 'rgba(255,252,240,1)');
+  g.addColorStop(0.22, 'rgba(255,238,196,0.62)');
+  g.addColorStop(0.55, 'rgba(255,222,162,0.16)');
+  g.addColorStop(1.00, 'rgba(255,210,150,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(cvs);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: createGlowTexture(),
+  color: new THREE.Color(2.0, 1.75, 1.35),
+  blending: THREE.AdditiveBlending,
+  transparent: true,
+  depthWrite: false,
+  fog: false
+}));
+sunGlow.scale.set(420, 420, 1);
+sunGlow.frustumCulled = false;
+scene.add(sunGlow);
+
+/* ---- 后处理：UnrealBloom ---- */
+const composer = new EffectComposer(renderer);
+composer.setPixelRatio(pixelRatio);
+composer.setSize(window.innerWidth, window.innerHeight);
+
+composer.addPass(new RenderPass(scene, camera));
+
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  0.85,   // strength
+  0.55,   // radius
+  0.82    // threshold
+);
+composer.addPass(bloomPass);
+
+/* ============================================================
+   12. 灯光
+   ============================================================ */
+const hemiLight = new THREE.HemisphereLight(0xc3c8ce, 0x3c2f22, 1.9);
+scene.add(hemiLight);
+
+const dirLight = new THREE.DirectionalLight(0xfff4e2, 2.0);
+dirLight.position.copy(SUN_DIR).multiplyScalar(80);
+scene.add(dirLight);
+
+/* ============================================================
+   13. 第一人称状态
+   ============================================================ */
+const playerPos = new THREE.Vector3(0, terrainHeightJS(0, 0), 0);
+
+let yaw   = 0;
+let pitch = 0.0;
+
+/* ============================================================
+   14. 输入
+   ============================================================ */
+const keys = Object.create(null);
+
+const lookDelta = { x: 0, y: 0 };
+const joyVec = { x: 0, y: 0 };
+
+let dragging = false;
+let lastPX = 0, lastPY = 0;
+
+let joyId = null, joyOriginX = 0, joyOriginY = 0;
+let lookId = null;
+
+const stickEl = document.getElementById('stick');
+const knobEl  = document.getElementById('knob');
+const canvas  = renderer.domElement;
+
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+}, { passive: false });
+
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+function showStick(x, y) {
+  stickEl.style.display = 'block';
+  stickEl.style.left = x + 'px';
+  stickEl.style.top  = y + 'px';
+  knobEl.style.transform = 'translate(0px, 0px)';
+}
+
+function hideStick() {
+  stickEl.style.display = 'none';
+  knobEl.style.transform = 'translate(0px, 0px)';
+}
+
+canvas.addEventListener('pointerdown', e => {
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+
+  if (e.pointerType === 'mouse') {
+    dragging = true;
+    lastPX = e.clientX;
+    lastPY = e.clientY;
+  } else {
+    if (e.clientX < window.innerWidth * 0.5 && joyId === null) {
+      joyId = e.pointerId;
+      joyOriginX = e.clientX;
+      joyOriginY = e.clientY;
+      joyVec.x = 0;
+      joyVec.y = 0;
+      showStick(e.clientX, e.clientY);
+    } else if (lookId === null) {
+      lookId = e.pointerId;
+      lastPX = e.clientX;
+      lastPY = e.clientY;
+    }
+  }
+});
+
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerType === 'mouse') {
+    if (!dragging) return;
+    lookDelta.x += (e.clientX - lastPX) * 0.0032;
+    lookDelta.y += (e.clientY - lastPY) * 0.0032;
+    lastPX = e.clientX;
+    lastPY = e.clientY;
+    return;
+  }
+
+  if (e.pointerId === joyId) {
+    let dx = e.clientX - joyOriginX;
+    let dy = e.clientY - joyOriginY;
+    const R = 58;
+    const len = Math.hypot(dx, dy);
+    if (len > R) { dx *= R / len; dy *= R / len; }
+    joyVec.x = dx / R;
+    joyVec.y = dy / R;
+    knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+  } else if (e.pointerId === lookId) {
+    lookDelta.x += (e.clientX - lastPX) * 0.0050;
+    lookDelta.y += (e.clientY - lastPY) * 0.0050;
+    lastPX = e.clientX;
+    lastPY = e.clientY;
+  }
+});
+
+function endPointer(e) {
+  if (e.pointerType === 'mouse') {
+    dragging = false;
+    return;
+  }
+  if (e.pointerId === joyId) {
+    joyId = null;
+    joyVec.x = 0;
+    joyVec.y = 0;
+    hideStick();
+  } else if (e.pointerId === lookId) {
+    lookId = null;
+  }
+}
+
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ============================================================
+   15. 分辨率滑块
+   ============================================================ */
+const resRange = document.getElementById('resRange');
+const resVal   = document.getElementById('resVal');
+
+resRange.value = pixelRatio;
+resVal.textContent = pixelRatio.toFixed(1) + '×';
+
+function applyPixelRatio(pr) {
+  pixelRatio = pr;
+  renderer.setPixelRatio(pr);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setPixelRatio(pr);
+  composer.setSize(window.innerWidth, window.innerHeight);
+}
+
+let pendingPR = pixelRatio;
+let prRaf = 0;
+
+resRange.addEventListener('input', () => {
+  pendingPR = parseFloat(resRange.value);
+  resVal.textContent = pendingPR.toFixed(1) + '×';
+  if (!prRaf) {
+    prRaf = requestAnimationFrame(() => {
+      prRaf = 0;
+      applyPixelRatio(pendingPR);
+    });
+  }
+});
+
+/* ============================================================
+   16. 更新
+   ============================================================ */
+const lookTarget = new THREE.Vector3();
+
+function update(dt, time) {
+  /* ---------- 视角 ---------- */
+  yaw   -= lookDelta.x;
+  pitch += lookDelta.y;
+  lookDelta.x = 0;
+  lookDelta.y = 0;
+  pitch = clamp(pitch, -1.30, 1.30);
+
+  /* ---------- 移动输入 ---------- */
+  let mx = 0, my = 0;
+
+  if (keys['KeyW'] || keys['ArrowUp'])    my += 1;
+  if (keys['KeyS'] || keys['ArrowDown'])  my -= 1;
+  if (keys['KeyA'] || keys['ArrowLeft'])  mx -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
+
+  mx += joyVec.x;
+  my -= joyVec.y;
+
+  const inLen = Math.hypot(mx, my);
+  if (inLen > 1) { mx /= inLen; my /= inLen; }
+  else if (inLen < 0.001) { mx = 0; my = 0; }
+
+  /* ---------- 方向基向量 ---------- */
+  const fwdX = -Math.sin(yaw), fwdZ = -Math.cos(yaw);
+  const rgtX =  Math.cos(yaw), rgtZ = -Math.sin(yaw);
+
+  const dirX = fwdX * my + rgtX * mx;
+  const dirZ = fwdZ * my + rgtZ * mx;
+  const dLen = Math.hypot(dirX, dirZ);
+
+  const speed = (keys['ShiftLeft'] || keys['ShiftRight']) ? 11.0 : 6.0;
+
+  if (dLen > 0.0001) {
+    playerPos.x += (dirX / dLen) * speed * dt;
+    playerPos.z += (dirZ / dLen) * speed * dt;
+  }
+
+  /* ---------- 贴合地形 ---------- */
+  playerPos.y = terrainHeightJS(playerPos.x, playerPos.z);
+
+  /* ---------- 第一人称相机 ---------- */
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+
+  const lookX = -Math.sin(yaw) * cp;
+  const lookY = -sp;
+  const lookZ = -Math.cos(yaw) * cp;
+
+  camera.position.set(
+    playerPos.x,
+    playerPos.y + EYE_HEIGHT,
+    playerPos.z
+  );
+
+  lookTarget.set(
+    camera.position.x + lookX,
+    camera.position.y + lookY,
+    camera.position.z + lookZ
+  );
+  camera.lookAt(lookTarget);
+
+  /* ---------- 区块流式加载 ---------- */
+  updateChunks(playerPos.x, playerPos.z);
+
+  /* ---------- 雾中心 / 麦子风 ---------- */
+  terrainUniforms.uPlayerPos.value.copy(camera.position);
+  wheatUniforms.uPlayerPos.value.copy(camera.position);
+  wheatUniforms.uTime.value = time;
+
+  /* ---------- 云 ---------- */
+  cloudMesh.position.x = camera.position.x;
+  cloudMesh.position.z = camera.position.z;
+  cloudUniforms.uTime.value = time;
+  cloudUniforms.uCamPos.value.copy(camera.position);
+
+  /* ---------- 太阳 & 天空跟随 ---------- */
+  sunMesh.position.copy(camera.position).addScaledVector(SUN_DIR, 700);
+  sunGlow.position.copy(sunMesh.position);
+  sky.position.copy(camera.position);
+}
+
+/* ============================================================
+   17. 加载 Wheat.glb → 补建所有区块麦田
+   ============================================================ */
+function attachWheatToAllChunks() {
+  if (!wheatGeometry) return;
+  for (const chunk of chunks.values()) {
+    if (!chunk.wheat) {
+      chunk.wheat = createWheatField(chunk.cx, chunk.cz);
+      scene.add(chunk.wheat);
+    }
+  }
+}
+
+new GLTFLoader().load(
+  'Wheat.glb',
+  gltf => {
+    wheatGeometry = prepareWheatGeometry(gltf);
+    attachWheatToAllChunks();
+    console.log('Wheat.glb 加载完成，麦子几何顶点数：', wheatGeometry.getAttribute('position').count);
+  },
+  undefined,
+  err => {
+    console.warn('Wheat.glb 加载失败，回退到程序化麦子', err);
+    wheatGeometry = buildWheatGeometry();
+    attachWheatToAllChunks();
+  }
+);
+
+/* ============================================================
+   18. 主循环 & 自适应
+   ============================================================ */
+let prevTime = performance.now();
+let elapsed  = 0;
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min((now - prevTime) / 1000, 0.05);
+  prevTime = now;
+  elapsed += dt;
+
+  update(dt, elapsed);
+  composer.render();
+}
+
+// 初始区块（麦子等 GLB 加载完成后再补）
+updateChunks(playerPos.x, playerPos.z);
+terrainUniforms.uPlayerPos.value.set(playerPos.x, playerPos.y + EYE_HEIGHT, playerPos.z);
+wheatUniforms.uPlayerPos.value.copy(terrainUniforms.uPlayerPos.value);
+
+requestAnimationFrame(animate);
+
+/* 窗口自适应 */
+function onResize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+
+  renderer.setPixelRatio(pixelRatio);
+  renderer.setSize(w, h);
+
+  composer.setPixelRatio(pixelRatio);
+  composer.setSize(w, h);
+}
+window.addEventListener('resize', onResize);
+window.addEventListener('orientationchange', () => setTimeout(onResize, 120));
+</script>
+</body>
+</html>
