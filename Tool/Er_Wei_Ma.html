@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#12a05c" />
+<title>二维码生成器 · 扫码直达</title>
+<style>
+  :root{
+    --green:#12a05c;
+    --green-2:#0d8b4f;
+    --green-soft:#e9f8f0;
+    --green-line:#cfeadd;
+    --ink:#10241a;
+    --muted:#6d8b7c;
+    --danger:#d64545;
+  }
+
+  *,*::before,*::after{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+    border-radius:0 !important;   /* 全局禁用圆角 */
+  }
+
+  html{-webkit-text-size-adjust:100%;}
+
+  body{
+    min-height:100vh;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",
+                "Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:14px;
+    line-height:1.5;
+    color:var(--ink);
+    background-color:#fff;
+    background-image:
+      linear-gradient(rgba(18,160,92,.055) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(18,160,92,.055) 1px,transparent 1px);
+    background-size:22px 22px;
+    display:flex;
+    justify-content:center;
+    padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .wrap{
+    width:100%;
+    max-width:840px;
+  }
+
+  /* ---------- 头部 ---------- */
+  .head{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding-bottom:10px;
+    border-bottom:2px solid var(--green);
+    margin-bottom:14px;
+  }
+  .logo{
+    width:34px;
+    height:34px;
+    flex:0 0 34px;
+    background:var(--green);
+    color:#fff;
+    font-size:12px;
+    font-weight:800;
+    letter-spacing:.5px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .head h1{
+    font-size:16px;
+    font-weight:700;
+    letter-spacing:.5px;
+    line-height:1.2;
+  }
+  .head p{
+    font-size:12px;
+    color:var(--muted);
+    margin-top:2px;
+  }
+
+  /* ---------- 布局 ---------- */
+  .grid{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:12px;
+  }
+  @media (min-width:720px){
+    .grid{
+      grid-template-columns:1.1fr .9fr;
+      gap:14px;
+      align-items:start;
+    }
+  }
+
+  /* ---------- 卡片 ---------- */
+  .card{
+    position:relative;
+    background:#fff;
+    border:1px solid var(--green-line);
+    padding:12px 14px 14px 16px;
+  }
+  .card::before{
+    content:"";
+    position:absolute;
+    left:-1px;
+    top:-1px;
+    bottom:-1px;
+    width:3px;
+    background:var(--green);
+  }
+  .card-title{
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:1.5px;
+    color:var(--green);
+    margin-bottom:10px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .card-title span{
+    font-size:10px;
+    color:var(--muted);
+    font-weight:600;
+    letter-spacing:.5px;
+  }
+
+  /* ---------- 输入区 ---------- */
+  .field-label{
+    display:block;
+    font-size:12px;
+    font-weight:600;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+
+  .input-group{
+    display:flex;
+    gap:8px;
+  }
+
+  input[type="text"]{
+    flex:1 1 auto;
+    min-width:0;
+    -webkit-appearance:none;
+    appearance:none;
+    font-family:inherit;
+    font-size:13px;
+    color:var(--ink);
+    background:#fbfefc;
+    border:1px solid var(--green-line);
+    padding:9px 10px;
+    outline:none;
+    transition:border-color .15s,background .15s,box-shadow .15s;
+  }
+  input[type="text"]::placeholder{color:#a9c2b6;}
+  input[type="text"]:focus{
+    border-color:var(--green);
+    background:#fff;
+    box-shadow:0 0 0 3px rgba(18,160,92,.12);
+  }
+
+  /* ---------- 按钮 ---------- */
+  .btn{
+    -webkit-appearance:none;
+    appearance:none;
+    font-family:inherit;
+    font-size:13px;
+    font-weight:700;
+    letter-spacing:.5px;
+    padding:9px 14px;
+    border:1px solid var(--green);
+    background:#fff;
+    color:var(--green);
+    cursor:pointer;
+    white-space:nowrap;
+    transition:background .15s,color .15s,transform .05s,border-color .15s;
+    user-select:none;
+  }
+  .btn:hover{background:var(--green-soft);}
+  .btn:active{transform:translateY(1px);}
+  .btn:focus-visible{outline:2px solid var(--green);outline-offset:2px;}
+  .btn-primary{
+    background:var(--green);
+    color:#fff;
+  }
+  .btn-primary:hover{background:var(--green-2);border-color:var(--green-2);}
+  .btn:disabled{
+    opacity:.38;
+    cursor:not-allowed;
+    transform:none;
+    background:#fff;
+    color:var(--green);
+  }
+
+  .tip{
+    margin-top:8px;
+    font-size:12px;
+    color:var(--muted);
+    min-height:18px;
+    word-break:break-all;
+  }
+  .tip.err{color:var(--danger);}
+
+  /* ---------- 二维码预览 ---------- */
+  .qr-box{
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    max-width:300px;
+    margin:0 auto;
+    aspect-ratio:1 / 1;
+    padding:10px;
+    border:1px dashed var(--green-line);
+    background:#fff;
+  }
+  .qr-box canvas,
+  .qr-box img{
+    display:block;
+    width:100%;
+    height:auto;
+    max-width:100%;
+    max-height:100%;
+    image-rendering:pixelated;
+  }
+  .qr-ph{
+    font-size:12px;
+    letter-spacing:1px;
+    color:#a9c2b6;
+    text-align:center;
+    line-height:1.8;
+  }
+
+  .actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-top:12px;
+  }
+  .actions .btn{padding:8px 10px;font-size:12.5px;}
+
+  /* ---------- 页脚 ---------- */
+  .foot{
+    margin-top:14px;
+    padding-top:10px;
+    border-top:1px solid var(--green-line);
+    font-size:11px;
+    color:var(--muted);
+    text-align:center;
+    letter-spacing:.5px;
+  }
+
+  @media (max-width:400px){
+    .input-group{flex-wrap:wrap;}
+    .input-group .btn{flex:1 1 100%;}
+    .qr-box{max-width:260px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="head">
+    <div class="logo">QR</div>
+    <div>
+      <h1>二维码生成器</h1>
+      <p>输入网址 → 生成二维码 → 扫码直达</p>
+    </div>
+  </header>
+
+  <main class="grid">
+
+    <!-- 输入卡片 -->
+    <section class="card">
+      <h2 class="card-title">01 输入网址 <span>/ INPUT</span></h2>
+
+      <label class="field-label" for="url">目标链接</label>
+      <div class="input-group">
+        <input
+          id="url"
+          type="text"
+          inputmode="url"
+          placeholder="https://example.com"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+        />
+        <button id="genBtn" class="btn btn-primary" type="button">生成</button>
+      </div>
+
+      <p class="tip" id="tip">支持 http / https，未写协议时自动补全 https://</p>
+    </section>
+
+    <!-- 预览卡片 -->
+    <section class="card">
+      <h2 class="card-title">02 扫码访问 <span>/ SCAN</span></h2>
+
+      <div class="qr-box" id="qrBox">
+        <div class="qr-ph">二维码预览区<br>等待生成</div>
+      </div>
+
+      <div class="actions">
+        <button id="dlBtn" class="btn" type="button" disabled>下载 PNG</button>
+        <button id="copyBtn" class="btn" type="button" disabled>复制链接</button>
+      </div>
+    </section>
+
+  </main>
+
+  <p class="foot">白绿极简 · 双端自适应 · 全直角组件</p>
+</div>
+
+<!-- 二维码生成库（优先使用；加载失败自动降级为在线接口） -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (sel) { return document.querySelector(sel); };
+
+  var input      = $('#url');
+  var genBtn     = $('#genBtn');
+  var qrBox      = $('#qrBox');
+  var tip        = $('#tip');
+  var dlBtn      = $('#dlBtn');
+  var copyBtn    = $('#copyBtn');
+
+  var currentUrl = '';
+  var busy       = false;
+
+  /* ---------------- 工具函数 ---------------- */
+
+  function setTip(msg, isError) {
+    tip.textContent = msg;
+    tip.classList.toggle('err', !!isError);
+  }
+
+  // 补全协议、去掉空格
+  function normalize(raw) {
+    var v = String(raw || '').trim().replace(/\s+/g, '');
+    if (!v) return '';
+    if (!/^[a-zA-Z][a-zA-Z0-9+.\-]*:\/\//.test(v)) {
+      v = 'https://' + v;
+    }
+    return v;
+  }
+
+  // 简单校验
+  function isValidUrl(v) {
+    try {
+      var u = new URL(v);
+      var h = u.hostname;
+      if (!h) return false;
+      if (h === 'localhost') return true;
+      if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return true;
+      return h.indexOf('.') > 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // 在线接口降级
+  function fallbackImage(url) {
+    var img = document.createElement('img');
+    img.alt = '二维码';
+    img.src = 'https://api.qrserver.com/v1/create-qr-code/?size=512x512&margin=12&data=' +
+              encodeURIComponent(url);
+    qrBox.innerHTML = '';
+    qrBox.appendChild(img);
+  }
+
+  /* ---------------- 渲染二维码 ---------------- */
+
+  function render(url) {
+    qrBox.innerHTML = '<div class="qr-ph">生成中…</div>';
+
+    if (typeof QRCode === 'undefined' || !QRCode.toCanvas) {
+      fallbackImage(url);
+      setTip('本地组件未加载，已使用在线接口生成', false);
+      return;
+    }
+
+    var canvas = document.createElement('canvas');
+    qrBox.innerHTML = '';
+    qrBox.appendChild(canvas);
+
+    QRCode.toCanvas(canvas, url, {
+      width: 512,
+      margin: 3,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#0b3d2b', light: '#ffffff' }
+    }, function (err) {
+      if (err) {
+        fallbackImage(url);
+        setTip('内容较长，已改用在线接口生成', false);
+      } else {
+        setTip('生成成功，扫码即可跳转 ↗', false);
+      }
+    });
+  }
+
+  /* ---------------- 生成流程 ---------------- */
+
+  function generate() {
+    if (busy) return;
+
+    var raw = input.value.trim();
+    if (!raw) {
+      setTip('请先输入要生成二维码的网址', true);
+      input.focus();
+      return;
+    }
+
+    var url = normalize(raw);
+    if (!isValidUrl(url)) {
+      setTip('网址格式不正确，请检查后重试', true);
+      return;
+    }
+
+    currentUrl = url;
+    if (input.value !== url) input.value = url;
+
+    dlBtn.disabled = false;
+    copyBtn.disabled = false;
+
+    busy = true;
+    genBtn.disabled = true;
+    render(url);
+
+    setTimeout(function () {
+      busy = false;
+      genBtn.disabled = false;
+    }, 260);
+  }
+
+  /* ---------------- 复制 ---------------- */
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, ta.value.length);
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        resolve();
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  /* ---------------- 事件绑定 ---------------- */
+
+  genBtn.addEventListener('click', generate);
+
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      e.preventDefault();
+      generate();
+    }
+  });
+
+  input.addEventListener('input', function () {
+    if (tip.classList.contains('err')) {
+      setTip('支持 http / https，未写协议时自动补全 https://', false);
+    }
+  });
+
+  copyBtn.addEventListener('click', function () {
+    if (!currentUrl) return;
+    copyText(currentUrl).then(function () {
+      var old = copyBtn.textContent;
+      copyBtn.textContent = '已复制 ✓';
+      setTimeout(function () { copyBtn.textContent = old; }, 1200);
+    }).catch(function () {
+      setTip('复制失败，请手动选中输入框内容复制', true);
+    });
+  });
+
+  dlBtn.addEventListener('click', function () {
+    if (!currentUrl) return;
+
+    var canvas = qrBox.querySelector('canvas');
+    if (canvas) {
+      var a = document.createElement('a');
+      a.download = 'qrcode-' + Date.now() + '.png';
+      a.href = canvas.toDataURL('image/png');
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTip('二维码图片已保存到本地', false);
+      return;
+    }
+
+    var img = qrBox.querySelector('img');
+    if (img) window.open(img.src, '_blank');
+  });
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Black Hole · 实时黑洞模拟</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background: #000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #c { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  #c:active { cursor: grabbing; }
+
+  #ui {
+    position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    display: flex; flex-direction: column; gap: 9px;
+    padding: 12px 18px;
+    border-radius: 16px;
+    background: rgba(12, 12, 16, 0.55);
+    border: 1px solid rgba(255, 200, 120, 0.14);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 8px 36px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+    opacity: 0.55;
+    transition: opacity 0.35s ease;
+    max-width: calc(100vw - 28px);
+  }
+  #ui:hover, #ui:active { opacity: 1; }
+
+  .row { display: flex; align-items: center; gap: 10px; }
+  .row label {
+    color: rgba(255, 214, 160, 0.78);
+    font-size: 11px; letter-spacing: 0.14em; width: 52px;
+    text-transform: uppercase; flex: none;
+  }
+  .row output {
+    color: rgba(255, 226, 186, 0.62);
+    font-size: 11px; width: 44px; text-align: right;
+    font-variant-numeric: tabular-nums; flex: none;
+  }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 170px; height: 3px; border-radius: 3px; outline: none;
+    background: linear-gradient(90deg, rgba(255,180,80,0.85), rgba(255,255,255,0.12));
+    flex: 1; min-width: 90px;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 13px; height: 13px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff3d0, #ffab3d 55%, #c2661a);
+    box-shadow: 0 0 10px rgba(255,170,60,0.9), 0 0 22px rgba(255,140,30,0.4);
+    cursor: pointer; border: none;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 13px; height: 13px; border-radius: 50%; border: none;
+    background: radial-gradient(circle at 35% 30%, #fff3d0, #ffab3d 55%, #c2661a);
+    box-shadow: 0 0 10px rgba(255,170,60,0.9);
+    cursor: pointer;
+  }
+  input[type=text] {
+    flex: 1; min-width: 90px; width: 170px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 9px;
+    border: 1px solid rgba(255, 175, 80, 0.28);
+    background: rgba(0, 0, 0, 0.32);
+    color: rgba(255, 232, 200, 0.94);
+    font-size: 12px;
+    font-family: inherit;
+    letter-spacing: 0.04em;
+    outline: none;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    -webkit-user-select: text; user-select: text;
+  }
+  input[type=text]:focus {
+    border-color: rgba(255, 175, 80, 0.66);
+    box-shadow: 0 0 12px rgba(255, 150, 50, 0.26);
+  }
+  input[type=text]::placeholder { color: rgba(255, 210, 160, 0.28); }
+
+  #fire, #modeBtn {
+    flex: 1; min-width: 90px;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 9px;
+    border: 1px solid rgba(255, 175, 80, 0.40);
+    background: linear-gradient(180deg, rgba(255,160,60,0.30), rgba(200,90,20,0.14));
+    color: rgba(255, 226, 186, 0.94);
+    font-size: 11px; letter-spacing: 0.18em;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.1s ease;
+    box-shadow: 0 0 14px rgba(255,150,50,0.18), inset 0 1px 0 rgba(255,255,255,0.10);
+  }
+  #fire:hover, #modeBtn:hover {
+    background: linear-gradient(180deg, rgba(255,180,80,0.48), rgba(220,100,20,0.22));
+    box-shadow: 0 0 22px rgba(255,150,50,0.42), inset 0 1px 0 rgba(255,255,255,0.14);
+  }
+  #fire:active, #modeBtn:active { transform: scale(0.96); }
+
+  #modeBtn.white {
+    border-color: rgba(190, 220, 255, 0.55);
+    background: linear-gradient(180deg, rgba(190,220,255,0.34), rgba(120,160,220,0.18));
+    color: rgba(235, 245, 255, 0.96);
+    box-shadow: 0 0 18px rgba(160,200,255,0.32), inset 0 1px 0 rgba(255,255,255,0.12);
+  }
+  #modeBtn.white:hover {
+    background: linear-gradient(180deg, rgba(210,230,255,0.50), rgba(140,180,240,0.26));
+    box-shadow: 0 0 26px rgba(170,210,255,0.5), inset 0 1px 0 rgba(255,255,255,0.16);
+  }
+
+  .hint {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(max(14px, env(safe-area-inset-bottom)) + 208px);
+    color: rgba(255, 220, 175, 0.30);
+    font-size: 11px; letter-spacing: 0.2em;
+    pointer-events: none; white-space: nowrap;
+    animation: fadeHint 9s ease forwards;
+  }
+  @keyframes fadeHint {
+    0% { opacity: 0; } 12% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; }
+  }
+  #loading {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: #000; color: rgba(255,200,140,0.75); font-size: 12px; letter-spacing: 0.4em;
+    transition: opacity 0.8s ease; z-index: 10;
+  }
+  #loading.gone { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="loading">INITIALIZING SPACETIME…</div>
+<div class="hint">拖拽旋转 · 右键/双指平移 · 滚轮缩放 · F 发射 · 模式可切换</div>
+
+<div id="ui">
+  <div class="row">
+    <label>模式</label>
+    <button id="modeBtn">黑洞</button>
+  </div>
+  <div class="row">
+    <label>分辨率</label>
+    <input type="range" id="res" min="0.25" max="1" step="0.05" value="0.35">
+    <output id="resOut">35%</output>
+  </div>
+  <div class="row">
+    <label>曝光</label>
+    <input type="range" id="exp" min="0.2" max="3" step="0.05" value="1.05">
+    <output id="expOut">1.05</output>
+  </div>
+  <div class="row">
+    <label>悬浮</label>
+    <input type="text" id="labelText" value="小坤坤♡" maxlength="16" placeholder="留空则不显示">
+  </div>
+  <div class="row">
+    <label>发射</label>
+    <button id="fire">发射 (F)</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* =========================================================================
+   渲染器
+   ========================================================================= */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: false,
+  alpha: false,
+  powerPreference: 'high-performance',
+  preserveDrawingBuffer: false
+});
+renderer.setPixelRatio(1);
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+renderer.autoClear = true;
+
+const orthoCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+const quadGeo = new THREE.PlaneGeometry(2, 2);
+const scene = new THREE.Scene();
+const quad = new THREE.Mesh(quadGeo, new THREE.MeshBasicMaterial());
+quad.frustumCulled = false;
+scene.add(quad);
+
+/* =========================================================================
+   全屏顶点着色器
+   ========================================================================= */
+const VERT = /* glsl */`
+precision highp float;
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = vec4(position.xy, 0.0, 1.0);
+}
+`;
+
+/* =========================================================================
+   主光线步进着色器（黑洞 / 白洞 / 吸积盘 / 星空）
+   ========================================================================= */
+const FRAG_BH = /* glsl */`
+precision highp float;
+
+varying vec2 vUv;
+
+uniform vec2  uResolution;
+uniform float uTime;
+uniform float uSpinPhase;
+uniform float uDiskBright;
+uniform vec3  uCamPos;
+uniform mat3  uCamBasis;
+uniform float uTanHalfFov;
+uniform vec2  uJitter;
+uniform float uDiskInner;
+uniform float uDiskOuter;
+uniform float uIsWhite;   /* 0 = 黑洞, 1 = 白洞 */
+
+#define MAX_STEPS 288
+#define WHITE_HOLE_R 0.9   /* 白洞球体半径 */
+
+/* ---------------- 哈希 / 噪声 ---------------- */
+float hash13(vec3 p3) {
+  p3 = fract(p3 * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+vec3 hash33(vec3 p) {
+  return vec3(
+    hash13(p),
+    hash13(p + vec3(19.19, 7.31, 3.17)),
+    hash13(p + vec3(37.71, 11.13, 5.53))
+  );
+}
+
+float vnoise(vec3 p) {
+  vec3 i = floor(p);
+  vec3 f = fract(p);
+  f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  float a = hash13(i);
+  float b = hash13(i + vec3(1.0, 0.0, 0.0));
+  float c = hash13(i + vec3(0.0, 1.0, 0.0));
+  float d = hash13(i + vec3(1.0, 1.0, 0.0));
+  float e = hash13(i + vec3(0.0, 0.0, 1.0));
+  float g = hash13(i + vec3(1.0, 0.0, 1.0));
+  float h = hash13(i + vec3(0.0, 1.0, 1.0));
+  float k = hash13(i + vec3(1.0, 1.0, 1.0));
+  return mix(
+    mix(mix(a, b, f.x), mix(c, d, f.x), f.y),
+    mix(mix(e, g, f.x), mix(h, k, f.x), f.y),
+    f.z
+  );
+}
+
+/* ---------------- 程序化星层 ---------------- */
+float starLayer(vec3 d, float scale, float keep, float angSize, float seed) {
+  vec3 p  = d * scale;
+  vec3 ip = floor(p);
+  float h = hash13(ip + seed);
+  if (h > keep) return 0.0;
+
+  vec3 rnd = hash33(ip + seed + 3.71);
+  vec3 center = 0.5 + (rnd - 0.5) * 0.5;
+  float dist = length(p - ip - center) / scale;
+
+  float pixAng = 2.0 * uTanHalfFov / uResolution.y;
+  float sig    = max(sqrt(angSize * angSize + pixAng * pixAng), pixAng * 1.1);
+  float energy = (angSize * angSize) / (sig * sig);
+
+  float b = exp(-(dist * dist) / (sig * sig));
+  float lum = 0.12 + 0.88 * pow(rnd.y, 3.0);
+  return b * lum * energy;
+}
+
+/* ---------------- 深空背景 ---------------- */
+vec3 background(vec3 d) {
+  vec3 col = vec3(0.0);
+
+  float s1 = starLayer(d,  55.0, 0.01225, 0.0045,  1.0);
+  float s2 = starLayer(d, 140.0, 0.01225, 0.0028,  7.0);
+  float s3 = starLayer(d, 360.0, 0.01225, 0.0018, 13.0);
+
+  col += vec3(1.00, 0.95, 0.90) * s1 * 5.2;
+  col += vec3(0.82, 0.90, 1.00) * s2 * 2.0;
+  col += vec3(1.00, 0.86, 0.72) * s3 * 0.55;
+
+  vec3 bandDir = normalize(vec3(0.42, 0.55, 0.72));
+  float bandC = dot(d, bandDir);
+  float band = exp(-bandC * bandC * 6.0);
+
+  float n = vnoise(d * 3.0) * 0.62
+          + vnoise(d * 7.0) * 0.38;
+
+  float dust = smoothstep(0.38, 0.80, n);
+  col += band * dust * vec3(0.085, 0.100, 0.175) * 0.85;
+  col += band * pow(dust, 4.0) * vec3(0.20, 0.14, 0.29) * 0.40;
+
+  col += vec3(0.0055, 0.0070, 0.0130);
+
+  vec3 bsDir = normalize(vec3(0.36, 0.30, -0.88));
+  float bsCos = clamp(dot(d, bsDir), -1.0, 1.0);
+  float bsAng = acos(bsCos);
+
+  float bsCore = exp(-bsAng * bsAng / 8.1e-5);
+  float bsHalo = exp(-bsAng * bsAng / 0.00405);
+  float bsGlow = exp(-bsAng * 1.4667);
+
+  vec3 bsCol = mix(vec3(0.52, 0.72, 1.00), vec3(1.0), bsCore);
+  col += bsCol * (bsCore * 4.2 + bsHalo * 0.48 + bsGlow * 0.045);
+
+  return col;
+}
+
+/* ---------------- 吸积盘采样 ---------------- */
+float diskSample(vec3 p, float rr, vec3 vdir, out vec3 emission) {
+  float ang  = atan(p.z, p.x);
+
+  float omega = 2.1 / pow(rr, 1.5);
+  float angT  = ang + omega * uSpinPhase * 5.0;
+
+  vec2 cs = vec2(cos(angT), sin(angT));
+  float n1 = vnoise(vec3(cs * 3.0,  rr * 1.2));
+  float n2 = vnoise(vec3(cs * 6.5,  rr * 3.6));
+  float n3 = vnoise(vec3(cs * 13.0, rr * 8.0));
+  float pattern = n1 * 0.52 + n2 * 0.31 + n3 * 0.17;
+
+  float arms  = 0.5 + 0.5 * sin(angT * 2.0 + rr * 2.4);
+  float arms2 = 0.5 + 0.5 * sin(angT * 3.0 - rr * 1.6);
+  float swirl = arms * 0.65 + arms2 * 0.35;
+
+  float x = clamp((rr - uDiskInner) / (uDiskOuter - uDiskInner), 0.0, 1.0);
+
+  float innerFade = smoothstep(0.0, 0.12, x);
+  float outerFade = pow(max(1.0 - x, 0.0), 1.25);
+  float radial    = innerFade * outerFade;
+
+  float dens = radial * (0.25 + 0.90 * pattern) * (0.60 + 0.70 * swirl);
+  dens = clamp(dens, 0.0, 1.0);
+
+  vec3 cHot  = mix(vec3(1.00, 0.98, 0.92), vec3(1.00, 1.00, 1.00), uIsWhite);
+  vec3 cGold = mix(vec3(1.00, 0.72, 0.26), vec3(0.88, 0.94, 1.00), uIsWhite);
+  vec3 cRed  = mix(vec3(1.00, 0.30, 0.06), vec3(0.62, 0.78, 1.00), uIsWhite);
+  vec3 col = mix(cHot, cGold, smoothstep(0.0, 0.30, x));
+  col = mix(col, cRed, smoothstep(0.30, 0.92, x));
+
+  float bright = pow(1.0 - x, 1.6) * 2.4 + 0.32;
+
+  vec3 tang = normalize(vec3(-p.z, 0.0, p.x));
+  float beta = clamp(0.55 / sqrt(rr), 0.0, 0.55);
+  float cosA = dot(tang, -vdir);
+  float dopp = pow(1.0 / max(1.0 - beta * cosA, 0.20), 2.6);
+  dopp = clamp(dopp, 0.18, 4.5);
+
+  emission = col * bright * dopp * dens * uDiskBright;
+  return clamp(dens * 0.82, 0.0, 0.92);
+}
+
+/* ---------------- 主函数 ---------------- */
+void main() {
+  vec2 fragCoord = vUv * uResolution;
+  vec2 uv = (fragCoord - 0.5 * uResolution + uJitter) / uResolution.y;
+
+  vec3 rd = normalize(uCamBasis * vec3(
+    uv.x * 2.0 * uTanHalfFov,
+    uv.y * 2.0 * uTanHalfFov,
+    1.0
+  ));
+
+  vec3 pos = uCamPos;
+  vec3 dir = rd;
+
+  vec3 Lvec = cross(pos, dir);
+  float h2 = dot(Lvec, Lvec);
+
+  vec3  col = vec3(0.0);
+  float alpha = 0.0;
+  bool  captured = false;
+
+  for (int i = 0; i < MAX_STEPS; i++) {
+    float r = length(pos);
+
+    /* 白洞球体：直接命中白色球面，输出纯白并终止 */
+    if (uIsWhite > 0.5) {
+      if (r < WHITE_HOLE_R) {
+        vec3 nrm = normalize(pos);
+        float shade = 0.94 + 0.08 * (nrm.y * 0.5 + 0.5);
+        col += vec3(2.5 * shade) * (1.0 - alpha);
+        alpha = 1.0;
+        break;
+      }
+    } else {
+      if (r < 1.0) { captured = true; break; }
+    }
+
+    if (r > 45.0 && dot(pos, dir) > 0.0) break;
+
+    float dt = clamp(0.062 * r, 0.018, 0.60);
+
+    vec3 prev = pos;
+    pos += dir * dt;
+
+    float r2 = dot(pos, pos);
+    float r5 = r2 * r2 * sqrt(r2);
+    float lensFall = mix(1.0, 0.05, smoothstep(1.0, 26.0, sqrt(r2)));
+    dir += (-1.6 * h2 / r5) * pos * dt * lensFall;
+    dir = normalize(dir);
+
+    if (prev.y * pos.y < 0.0) {
+      float t = prev.y / (prev.y - pos.y);
+      vec3  hp = mix(prev, pos, t);
+      float rr = length(hp.xz);
+      if (rr > uDiskInner && rr < uDiskOuter) {
+        vec3 em;
+        float a = diskSample(hp, rr, normalize(dir), em);
+        col += em * (1.0 - alpha);
+        alpha += a * (1.0 - alpha);
+      }
+    }
+
+    if (alpha > 0.995) break;
+  }
+
+  if (!captured) {
+    col += background(normalize(dir)) * (1.0 - alpha);
+  }
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+/* =========================================================================
+   动态缓存累积混合着色器
+   ========================================================================= */
+const FRAG_BLEND = /* glsl */`
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D tCurrent;
+uniform sampler2D tPrev;
+uniform float uBlend;
+void main() {
+  vec3 cur = texture2D(tCurrent, vUv).rgb;
+  vec3 prv = texture2D(tPrev, vUv).rgb;
+  gl_FragColor = vec4(mix(cur, prv, uBlend), 1.0);
+}
+`;
+
+/* =========================================================================
+   显示 / 后处理
+   ========================================================================= */
+const FRAG_DISPLAY = /* glsl */`
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D tDiffuse;
+uniform vec2  uResolution;
+uniform float uTime;
+uniform float uExposure;
+
+vec3 acesFilm(vec3 x) {
+  return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);
+}
+
+void main() {
+  vec3 c = texture2D(tDiffuse, vUv).rgb;
+
+  c *= uExposure;
+  c = acesFilm(c);
+
+  vec2 q = vUv - 0.5;
+  float vig = 1.0 - 0.85 * pow(clamp(length(q) * 1.35, 0.0, 1.0), 2.4);
+  c *= clamp(vig, 0.0, 1.0);
+
+  c = pow(max(c, 0.0), vec3(1.0 / 2.2));
+
+  gl_FragColor = vec4(c, 1.0);
+}
+`;
+
+/* =========================================================================
+   小行星着色器
+   ========================================================================= */
+const AST_VERT = /* glsl */`
+precision highp float;
+
+uniform float uTime;
+uniform float uDistort;
+uniform float uSeed;
+
+varying vec2 vUv;
+varying vec3 vNormalW;
+varying vec3 vPosW;
+
+float hash13(vec3 p3) {
+  p3 = fract(p3 * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+float vnoise(vec3 p) {
+  vec3 i = floor(p);
+  vec3 f = fract(p);
+  f = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  float a = hash13(i);
+  float b = hash13(i + vec3(1.0, 0.0, 0.0));
+  float c = hash13(i + vec3(0.0, 1.0, 0.0));
+  float d = hash13(i + vec3(1.0, 1.0, 0.0));
+  float e = hash13(i + vec3(0.0, 0.0, 1.0));
+  float g = hash13(i + vec3(1.0, 0.0, 1.0));
+  float h = hash13(i + vec3(0.0, 1.0, 1.0));
+  float k = hash13(i + vec3(1.0, 1.0, 1.0));
+  return mix(
+    mix(mix(a, b, f.x), mix(c, d, f.x), f.y),
+    mix(mix(e, g, f.x), mix(h, k, f.x), f.y),
+    f.z
+  );
+}
+
+void main() {
+  vUv = uv;
+
+  vec3 n = normalize(normal);
+  vec3 p = position;
+
+  float d = 0.0;
+  d += (vnoise(p * 2.2 + uSeed)        - 0.5) * 0.30;
+  d += (vnoise(p * 5.5 + uSeed * 1.7)  - 0.5) * 0.14;
+  d += (vnoise(p * 13.0 + uSeed * 2.3) - 0.5) * 0.05;
+
+  vec3 warp = vec3(0.0);
+  if (uDistort > 0.001) {
+    float tt = mod(uTime, 120.0);
+    float w1 = vnoise(p * 3.0 + vec3(0.0, 0.0, tt * 2.0));
+    float w2 = vnoise(p * 4.0 + vec3(17.0, 0.0, tt * 2.5));
+    float w3 = vnoise(p * 3.5 + vec3(0.0, 31.0, tt * 1.7));
+    warp = (vec3(w1, w2, w3) - 0.5) * uDistort * 1.35;
+    d  += (vnoise(p * 7.0 + tt * 3.0) - 0.5) * uDistort * 0.55;
+  }
+
+  vec3 displaced = p + n * d + warp;
+
+  vec4 mvPosition = modelViewMatrix * vec4(displaced, 1.0);
+
+  vPosW    = (modelMatrix * vec4(displaced, 1.0)).xyz;
+  vNormalW = normalize(mat3(modelMatrix) * n);
+
+  gl_Position = projectionMatrix * mvPosition;
+}
+`;
+
+const AST_FRAG = /* glsl */`
+precision highp float;
+
+uniform sampler2D uMap;
+uniform float uGlow;
+
+varying vec2 vUv;
+varying vec3 vNormalW;
+varying vec3 vPosW;
+
+void main() {
+  vec3 N = normalize(cross(dFdx(vPosW), dFdy(vPosW)));
+  if (dot(N, vNormalW) < 0.0) N = -N;
+
+  vec3 L = normalize(vec3(0.55, 0.72, 0.42));
+  float diff = max(dot(N, L), 0.0);
+  float amb  = 0.22 + 0.20 * (N.y * 0.5 + 0.5);
+
+  vec3 tex = texture2D(uMap, vUv).rgb;
+  vec3 col = tex * (amb + diff * 1.30);
+
+  vec3 V = normalize(cameraPosition - vPosW);
+  float rim = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+  col += vec3(1.0, 0.55, 0.18) * rim * uGlow;
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+/* =========================================================================
+   材质
+   ========================================================================= */
+const bhMat = new THREE.ShaderMaterial({
+  vertexShader: VERT,
+  fragmentShader: FRAG_BH,
+  uniforms: {
+    uResolution:  { value: new THREE.Vector2(1, 1) },
+    uTime:        { value: 0 },
+    uSpinPhase:   { value: 0 },
+    uDiskBright:  { value: 1.0 },
+    uCamPos:      { value: new THREE.Vector3() },
+    uCamBasis:    { value: new THREE.Matrix3() },
+    uTanHalfFov:  { value: Math.tan(THREE.MathUtils.degToRad(56) * 0.5) },
+    uJitter:      { value: new THREE.Vector2() },
+    uDiskInner:   { value: 2.35 },
+    uDiskOuter:   { value: 11.5 },
+    uIsWhite:     { value: 0.0 }
+  },
+  depthTest: false,
+  depthWrite: false
+});
+
+const blendMat = new THREE.ShaderMaterial({
+  vertexShader: VERT,
+  fragmentShader: FRAG_BLEND,
+  uniforms: {
+    tCurrent: { value: null },
+    tPrev:    { value: null },
+    uBlend:   { value: 0.0 }
+  },
+  depthTest: false,
+  depthWrite: false
+});
+
+const displayMat = new THREE.ShaderMaterial({
+  vertexShader: VERT,
+  fragmentShader: FRAG_DISPLAY,
+  uniforms: {
+    tDiffuse:    { value: null },
+    uResolution: { value: new THREE.Vector2(1, 1) },
+    uTime:       { value: 0 },
+    uExposure:   { value: 1.05 }
+  },
+  depthTest: false,
+  depthWrite: false
+});
+
+/* =========================================================================
+   渲染目标
+   ========================================================================= */
+const RT_OPTS = {
+  type: THREE.HalfFloatType,
+  format: THREE.RGBAFormat,
+  minFilter: THREE.LinearMipmapLinearFilter,
+  magFilter: THREE.LinearFilter,
+  depthBuffer: false,
+  stencilBuffer: false,
+  generateMipmaps: true
+};
+
+let rtScene = null, rtA = null, rtB = null;
+let readTarget = null, writeTarget = null;
+
+const makeRT = (w, h) => {
+  const rt = new THREE.WebGLRenderTarget(w, h, RT_OPTS);
+  rt.texture.generateMipmaps = true;
+  rt.texture.minFilter = THREE.LinearMipmapLinearFilter;
+  rt.texture.magFilter = THREE.LinearFilter;
+  return rt;
+};
+
+/* =========================================================================
+   小行星纹理（多套，随机选用）
+   ========================================================================= */
+function makeAsteroidTexture() {
+  const S = 512;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const ctx = cv.getContext('2d');
+
+  ctx.fillStyle = '#57503f';
+  ctx.fillRect(0, 0, S, S);
+
+  for (let i = 0; i < 90; i++) {
+    const x = Math.random() * S;
+    const y = Math.random() * S;
+    const r = 20 + Math.random() * 90;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const tone = 26 + Math.random() * 76;
+    const a = 0.10 + Math.random() * 0.26;
+    g.addColorStop(0, `rgba(${tone + 22},${tone + 14},${tone + 2},${a})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  for (let i = 0; i < 150; i++) {
+    const x = Math.random() * S;
+    const y = Math.random() * S;
+    const r = 2 + Math.random() * 16;
+
+    const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+    g.addColorStop(0, 'rgba(18,16,13,0.85)');
+    g.addColorStop(0.62, 'rgba(58,54,46,0.42)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(186,176,158,0.20)';
+    ctx.lineWidth = 1 + Math.random() * 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.94, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  const img = ctx.getImageData(0, 0, S, S);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const n = (Math.random() - 0.5) * 38;
+    d[i]     = Math.max(0, Math.min(255, d[i] + n));
+    d[i + 1] = Math.max(0, Math.min(255, d[i + 1] + n));
+    d[i + 2] = Math.max(0, Math.min(255, d[i + 2] + n));
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = true;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+const ASTEROID_TEX_COUNT = 5;
+const asteroidTextures = [];
+for (let i = 0; i < ASTEROID_TEX_COUNT; i++) {
+  asteroidTextures.push(makeAsteroidTexture());
+}
+
+/* 悬浮文本纹理 */
+function makeLabelTexture(text) {
+  const pad = 36;
+  const fontSize = 64;
+  const fontStr = `600 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif`;
+
+  const measure = document.createElement('canvas').getContext('2d');
+  measure.font = fontStr;
+  const textW = Math.ceil(measure.measureText(text).width);
+
+  const cv = document.createElement('canvas');
+  cv.width  = Math.max(8, textW + pad * 2);
+  cv.height = Math.max(8, fontSize + pad * 2);
+
+  const ctx = cv.getContext('2d');
+  ctx.font = fontStr;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const cx = cv.width * 0.5;
+  const cy = cv.height * 0.5;
+
+  ctx.shadowColor = 'rgba(255,165,55,0.95)';
+  ctx.shadowBlur = 26;
+  ctx.fillStyle = 'rgba(255,238,210,1)';
+  ctx.fillText(text, cx, cy);
+
+  ctx.shadowBlur = 9;
+  ctx.fillStyle = 'rgba(255,252,242,1)';
+  ctx.fillText(text, cx, cy);
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = true;
+
+  return { tex, aspect: cv.width / cv.height };
+}
+
+/* =========================================================================
+   小行星 / 前景场景
+   ========================================================================= */
+const asteroidGeo = new THREE.IcosahedronGeometry(1, 20);
+const asteroidScene = new THREE.Scene();
+const asteroidCam = new THREE.PerspectiveCamera(56, 1, 0.05, 500);
+
+const asteroids = [];
+const ASTEROID_GM = 200.0;
+const ASTEROID_RADIUS = 0.42;
+const ASTEROID_MAX_DIST = 90.0;
+
+const labelInput = document.getElementById('labelText');
+
+/* =========================================================================
+   白洞 / 黑洞 模式 & 音效
+   ========================================================================= */
+let isWhite = false;
+
+const BLACK_AUDIO_URL = 'https://tymov2.a.kwimgs.com/upic/2023/07/21/19/BMjAyMzA3MjExOTQ5MTJfMTk4Mzc4MDMyOV8xMDg1MzE3ODc2MTZfMV8z_b_Bf2498e8600d05ccb266aa0fd1b82a588.mp4?clientCacheKey=3xt7x4q45rxmhca_b.mp4&tt=b&di=89f966a&bp=10004';
+const WHITE_AUDIO_URL = 'https://txmov2.a.kwimgs.com/upic/2021/02/11/18/BMjAyMTAyMTExODMyNDBfMTk4MTk1NzgxM180NDA1MzM4Mjg4MF8yXzM=_b_Bb94cccfa198274180216eeb4752691a6.mp4?clientCacheKey=3xhrt49febzjicy_b.mp4&tt=b&di=89f966a&bp=10004';
+
+const audioBlack = new Audio(BLACK_AUDIO_URL);
+audioBlack.loop = true;
+audioBlack.preload = 'none';
+audioBlack.volume = 0.9;
+
+const audioWhite = new Audio(WHITE_AUDIO_URL);
+audioWhite.loop = true;
+audioWhite.preload = 'none';
+audioWhite.volume = 0.9;
+
+let audioUnlocked = false;
+
+function applyAudioForMode() {
+  if (!audioUnlocked) return;
+  const active   = isWhite ? audioWhite : audioBlack;
+  const inactive = isWhite ? audioBlack : audioWhite;
+
+  try {
+    inactive.pause();
+    active.currentTime = 0;
+    const p = active.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  } catch (e) { /* ignore */ }
+}
+
+function unlockAudioAndPlay() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  applyAudioForMode();
+}
+
+['pointerdown', 'keydown', 'touchstart', 'click'].forEach(ev => {
+  window.addEventListener(ev, unlockAudioAndPlay, { passive: true });
+});
+
+/* 模式切换按钮 */
+const modeBtn = document.getElementById('modeBtn');
+
+function applyMode() {
+  bhMat.uniforms.uIsWhite.value = isWhite ? 1.0 : 0.0;
+
+  if (isWhite) {
+    bhMat.uniforms.uDiskInner.value = 1.7;
+    bhMat.uniforms.uDiskOuter.value = 14.0;
+    modeBtn.textContent = '白洞';
+    modeBtn.classList.add('white');
+    surgeStart = -1;
+  } else {
+    bhMat.uniforms.uDiskInner.value = 2.35;
+    bhMat.uniforms.uDiskOuter.value = 11.5;
+    modeBtn.textContent = '黑洞';
+    modeBtn.classList.remove('white');
+    surgeStart = -1;
+  }
+
+  applyAudioForMode();
+}
+
+modeBtn.addEventListener('click', () => {
+  isWhite = !isWhite;
+  applyMode();
+  markInteract();
+});
+
+/* =========================================================================
+   小行星生成 / 更新
+   ========================================================================= */
+function spawnAsteroid() {
+  const tex = asteroidTextures[(Math.random() * asteroidTextures.length) | 0];
+
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: AST_VERT,
+    fragmentShader: AST_FRAG,
+    uniforms: {
+      uMap:     { value: tex },
+      uTime:    { value: 0 },
+      uDistort: { value: 0 },
+      uSeed:    { value: Math.random() * 120 },
+      uGlow:    { value: 0 }
+    },
+    side: THREE.FrontSide,
+    depthTest: false,
+    depthWrite: false
+  });
+
+  const mesh = new THREE.Mesh(asteroidGeo, mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 1;
+  asteroidScene.add(mesh);
+
+  let sprite = null;
+  const labelStr = (labelInput.value || '').trim();
+  if (labelStr.length > 0) {
+    const label = makeLabelTexture(labelStr);
+    const spriteMat = new THREE.SpriteMaterial({
+      map: label.tex,
+      transparent: true,
+      depthTest: false,
+      depthWrite: false
+    });
+    sprite = new THREE.Sprite(spriteMat);
+    const h = 1.0;
+    sprite.scale.set(h * label.aspect, h, 1);
+    sprite.position.set(0, 2.2, 0);
+    sprite.renderOrder = 5;
+    mesh.add(sprite);
+  }
+
+  const dir = vFwd.clone().normalize();
+  const spread = 0.11;
+  dir.x += (Math.random() - 0.5) * spread;
+  dir.y += (Math.random() - 0.5) * spread;
+  dir.z += (Math.random() - 0.5) * spread;
+  dir.normalize();
+
+  const pos = camPosition.clone().addScaledVector(dir, 2.0);
+  const baseRadius = ASTEROID_RADIUS * (0.7 + Math.random() * 0.7);
+
+  asteroids.push({
+    mesh, mat, sprite,
+    pos,
+    vel: dir.clone().multiplyScalar(4.0),
+    baseRadius,
+    age: 0
+  });
+}
+
+function disposeAsteroid(a) {
+  if (a.sprite) {
+    if (a.sprite.material.map) a.sprite.material.map.dispose();
+    a.sprite.material.dispose();
+    a.mesh.remove(a.sprite);
+  }
+  asteroidScene.remove(a.mesh);
+  a.mat.dispose();
+}
+
+function updateAsteroids(dt) {
+  for (let i = asteroids.length - 1; i >= 0; i--) {
+    const a = asteroids[i];
+    a.age += dt;
+
+    const steps = 4;
+    const h = dt / steps;
+    for (let s = 0; s < steps; s++) {
+      const r = a.pos.length();
+      if (r < 1.05) break;
+      if (!isWhite) {
+        const inv = 1.0 / (r * r * r);
+        a.vel.addScaledVector(a.pos, -ASTEROID_GM * inv * h);
+      }
+      a.pos.addScaledVector(a.vel, h);
+    }
+
+    const r = a.pos.length();
+
+    if (r > ASTEROID_MAX_DIST) {
+      disposeAsteroid(a);
+      asteroids.splice(i, 1);
+      continue;
+    }
+
+    if (isWhite) {
+      a.mesh.position.copy(a.pos);
+      a.mesh.scale.setScalar(a.baseRadius);
+      a.mat.uniforms.uDistort.value = 0;
+      a.mat.uniforms.uGlow.value    = 0;
+      a.mat.uniforms.uTime.value    = a.age;
+      continue;
+    }
+
+    const shrink  = THREE.MathUtils.smoothstep(r, 1.2, 5.5);
+    const distort = 1.0 - THREE.MathUtils.smoothstep(r, 2.0, 9.0);
+
+    a.mesh.position.copy(a.pos);
+    const sc = Math.max(a.baseRadius * shrink, 1e-4);
+    a.mesh.scale.setScalar(sc);
+
+    a.mat.uniforms.uDistort.value = distort;
+    a.mat.uniforms.uGlow.value    = distort * 1.6;
+    a.mat.uniforms.uTime.value    = a.age;
+
+    if (r < 1.5 || sc < 1e-3) {
+      triggerSurge();
+      disposeAsteroid(a);
+      asteroids.splice(i, 1);
+    }
+  }
+}
+
+/* =========================================================================
+   尺寸 / 分辨率
+   ========================================================================= */
+let renderScale = 0.35;
+let curRW = 2, curRH = 2;
+const PIXEL_BUDGET = 2.3e6;
+
+function resize() {
+  const cssW = window.innerWidth;
+  const cssH = window.innerHeight;
+  const dpr  = Math.min(window.devicePixelRatio || 1, 2);
+  const cw = Math.max(2, Math.floor(cssW * dpr));
+  const ch = Math.max(2, Math.floor(cssH * dpr));
+
+  renderer.setSize(cw, ch, false);
+  canvas.style.width  = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+
+  let rw = Math.max(2, Math.floor(cw * renderScale));
+  let rh = Math.max(2, Math.floor(ch * renderScale));
+
+  const total = rw * rh;
+  if (total > PIXEL_BUDGET) {
+    const k = Math.sqrt(PIXEL_BUDGET / total);
+    rw = Math.max(2, Math.floor(rw * k));
+    rh = Math.max(2, Math.floor(rh * k));
+  }
+
+  if (rtScene) { rtScene.dispose(); rtA.dispose(); rtB.dispose(); }
+
+  rtScene = makeRT(rw, rh);
+  rtA     = makeRT(rw, rh);
+  rtB     = makeRT(rw, rh);
+
+  const prevTarget = renderer.getRenderTarget();
+  renderer.setRenderTarget(rtA); renderer.setClearColor(0x000000, 1); renderer.clear();
+  renderer.setRenderTarget(rtB); renderer.clear();
+  renderer.setRenderTarget(prevTarget);
+
+  curRW = rw;
+  curRH = rh;
+
+  bhMat.uniforms.uResolution.value.set(rw, rh);
+  displayMat.uniforms.uResolution.value.set(cw, ch);
+
+  asteroidCam.aspect = rw / rh;
+  asteroidCam.updateProjectionMatrix();
+
+  readTarget  = rtA;
+  writeTarget = rtB;
+}
+
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 120));
+
+/* =========================================================================
+   相机
+   ========================================================================= */
+const camPosition = new THREE.Vector3();
+const camTarget   = new THREE.Vector3(0, 0, 0);
+const camBasis    = new THREE.Matrix3();
+
+const vRight = new THREE.Vector3();
+const vUp    = new THREE.Vector3();
+const vFwd   = new THREE.Vector3();
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+
+let camTheta = 0.85;
+let camPhi   = 1.38;
+let camDist  = 15.0;
+
+function updateCamera() {
+  const sp = Math.sin(camPhi);
+  const cp = Math.cos(camPhi);
+
+  camPosition.set(
+    camDist * sp * Math.cos(camTheta),
+    camDist * cp,
+    camDist * sp * Math.sin(camTheta)
+  ).add(camTarget);
+
+  vFwd.copy(camTarget).sub(camPosition).normalize();
+  vRight.crossVectors(vFwd, WORLD_UP).normalize();
+  vUp.crossVectors(vRight, vFwd).normalize();
+
+  camBasis.fromArray([
+    vRight.x, vRight.y, vRight.z,
+    vUp.x,    vUp.y,    vUp.z,
+    vFwd.x,   vFwd.y,   vFwd.z
+  ]);
+}
+
+function panCamera(dxPix, dyPix) {
+  const k = camDist * 0.0016;
+  camTarget.addScaledVector(vRight, -dxPix * k);
+  camTarget.addScaledVector(vUp,     dyPix * k);
+  if (camTarget.length() > 30.0) camTarget.setLength(30.0);
+}
+
+/* =========================================================================
+   交互
+   ========================================================================= */
+const pointers = new Map();
+let lastInteract = -1e9;
+let pinchDist = 0;
+let lastMid = null;
+
+const markInteract = () => { lastInteract = performance.now(); };
+
+function refreshGesture() {
+  if (pointers.size === 2) {
+    const pts = [...pointers.values()];
+    pinchDist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    lastMid = {
+      x: (pts[0].x + pts[1].x) * 0.5,
+      y: (pts[0].y + pts[1].y) * 0.5
+    };
+  } else {
+    pinchDist = 0;
+    lastMid = null;
+  }
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, {
+    x: e.clientX,
+    y: e.clientY,
+    btn: e.button
+  });
+  refreshGesture();
+  markInteract();
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+
+  const dx = e.clientX - p.x;
+  const dy = e.clientY - p.y;
+  p.x = e.clientX;
+  p.y = e.clientY;
+
+  if (pointers.size === 1) {
+    if (p.btn === 2) {
+      panCamera(dx, dy);
+    } else {
+      camTheta -= dx * 0.0052;
+      camPhi   -= dy * 0.0052;
+      camPhi = Math.max(0.12, Math.min(Math.PI - 0.12, camPhi));
+    }
+  } else if (pointers.size === 2) {
+    const pts = [...pointers.values()];
+    const midX = (pts[0].x + pts[1].x) * 0.5;
+    const midY = (pts[0].y + pts[1].y) * 0.5;
+
+    if (lastMid) {
+      panCamera(midX - lastMid.x, midY - lastMid.y);
+    }
+    lastMid = { x: midX, y: midY };
+
+    const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    if (pinchDist > 0 && d > 0) {
+      camDist *= pinchDist / Math.max(d, 1);
+      camDist = Math.max(4.5, Math.min(60.0, camDist));
+    }
+    pinchDist = d;
+  }
+  markInteract();
+});
+
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  refreshGesture();
+  markInteract();
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('pointerleave', endPointer);
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  camDist *= Math.exp(e.deltaY * 0.0011);
+  camDist = Math.max(4.5, Math.min(60.0, camDist));
+  markInteract();
+}, { passive: false });
+
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+/* =========================================================================
+   UI
+   ========================================================================= */
+const resSlider = document.getElementById('res');
+const resOut    = document.getElementById('resOut');
+const expSlider = document.getElementById('exp');
+const expOut    = document.getElementById('expOut');
+const fireBtn   = document.getElementById('fire');
+
+resSlider.addEventListener('input', () => {
+  renderScale = parseFloat(resSlider.value);
+  resOut.textContent = Math.round(renderScale * 100) + '%';
+  resize();
+});
+
+expSlider.addEventListener('input', () => {
+  const v = parseFloat(expSlider.value);
+  displayMat.uniforms.uExposure.value = v;
+  expOut.textContent = v.toFixed(2);
+});
+
+fireBtn.addEventListener('click', () => {
+  spawnAsteroid();
+  markInteract();
+});
+
+window.addEventListener('keydown', (e) => {
+  const tag = document.activeElement && document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  if (e.key === 'f' || e.key === 'F') {
+    e.preventDefault();
+    spawnAsteroid();
+    markInteract();
+  }
+});
+
+/* =========================================================================
+   吸积盘爆发状态机
+   ========================================================================= */
+let spinPhase = 0;
+let surgeStart = -1;
+
+function triggerSurge() {
+  if (isWhite) return;
+  if (surgeStart < 0) surgeStart = simTime;
+}
+
+/* =========================================================================
+   主循环
+   ========================================================================= */
+const clock = new THREE.Clock();
+let simTime = 0;
+let blendWeight = 0.0;
+
+const _basisMat = new THREE.Matrix4();
+const _negFwd   = new THREE.Vector3();
+
+function updateAsteroidCamera() {
+  asteroidCam.position.copy(camPosition);
+  _negFwd.copy(vFwd).negate();
+  _basisMat.makeBasis(vRight, vUp, _negFwd);
+  asteroidCam.quaternion.setFromRotationMatrix(_basisMat);
+  asteroidCam.updateMatrixWorld(true);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min(clock.getDelta(), 0.05);
+  simTime += dt;
+
+  updateCamera();
+
+  let spinMul    = isWhite ? 6.0 : 3.0;
+  let diskBright = 1.0;
+
+  if (!isWhite && surgeStart >= 0) {
+    const t = simTime - surgeStart;
+
+    const rise = THREE.MathUtils.smoothstep(t, 0.0, 0.9);
+    const fall = THREE.MathUtils.smoothstep(t, 1.8, 3.0);
+    const alive = 1.0 - fall;
+
+    spinMul    = 3.0 + 3.0 * rise * alive;
+    diskBright = 1.0 + 0.9 * rise * alive;
+
+    if (t > 3.2) surgeStart = -1;
+  }
+
+  spinPhase += dt * spinMul;
+  bhMat.uniforms.uSpinPhase.value  = spinPhase;
+  bhMat.uniforms.uDiskBright.value = diskBright;
+
+  updateAsteroids(dt);
+
+  const now = performance.now();
+  const interacting = (now - lastInteract) < 150;
+  const targetW = (interacting || asteroids.length > 0) ? 0.0 : 0.72;
+  blendWeight += (targetW - blendWeight) * Math.min(1.0, dt * 9.0);
+
+  /* --- Pass 1: 光线步进（含白洞球体） --- */
+  bhMat.uniforms.uTime.value = simTime;
+  bhMat.uniforms.uCamPos.value.copy(camPosition);
+  bhMat.uniforms.uCamBasis.value.copy(camBasis);
+
+  const jitterActive = blendWeight > 0.02;
+  bhMat.uniforms.uJitter.value.set(
+    jitterActive ? (Math.random() - 0.5) : 0.0,
+    jitterActive ? (Math.random() - 0.5) : 0.0
+  );
+
+  quad.material = bhMat;
+  renderer.setRenderTarget(rtScene);
+  renderer.render(scene, orthoCam);
+
+  /* --- Pass 2: 动态缓存累积 --- */
+  blendMat.uniforms.tCurrent.value = rtScene.texture;
+  blendMat.uniforms.tPrev.value    = readTarget.texture;
+  blendMat.uniforms.uBlend.value   = blendWeight;
+
+  quad.material = blendMat;
+  renderer.setRenderTarget(writeTarget);
+  renderer.render(scene, orthoCam);
+
+  /* --- Pass 3: 小行星叠加（白洞球体已在 Pass 1 内渲染） --- */
+  if (asteroids.length > 0) {
+    updateAsteroidCamera();
+    renderer.autoClear = false;
+    renderer.setRenderTarget(writeTarget);
+    renderer.render(asteroidScene, asteroidCam);
+    renderer.autoClear = true;
+  }
+
+  /* --- Pass 4: 色调映射输出 --- */
+  displayMat.uniforms.tDiffuse.value = writeTarget.texture;
+  displayMat.uniforms.uTime.value    = simTime;
+
+  quad.material = displayMat;
+  renderer.setRenderTarget(null);
+  renderer.render(scene, orthoCam);
+
+  const tmp = readTarget;
+  readTarget = writeTarget;
+  writeTarget = tmp;
+}
+
+/* =========================================================================
+   启动
+   ========================================================================= */
+resize();
+updateCamera();
+applyMode();
+animate();
+
+requestAnimationFrame(() => {
+  const el = document.getElementById('loading');
+  el.classList.add('gone');
+  setTimeout(() => el.remove(), 900);
+});
+</script>
+</body>
+</html>
