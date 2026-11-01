@@ -1,0 +1,2150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>月球漫步 · 清扫 · WebGL2</title>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-user-select:none;user-select:none;}
+  #c{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair;}
+  .joy{position:fixed;width:130px;height:130px;border-radius:50%;
+    border:2px solid rgba(180,190,210,0.30);background:rgba(120,140,170,0.07);
+    pointer-events:none;opacity:0;transition:opacity .12s;transform:translate(-50%,-50%);z-index:10;}
+  .joy.on{opacity:1;}
+  .joy .knob{position:absolute;left:50%;top:50%;width:54px;height:54px;border-radius:50%;
+    background:rgba(190,205,230,0.26);border:1px solid rgba(220,230,255,0.40);
+    transform:translate(-50%,-50%);}
+  #jumpBtn{position:fixed;right:26px;bottom:96px;width:76px;height:76px;border-radius:50%;
+    background:rgba(160,180,215,0.13);border:2px solid rgba(190,205,230,0.35);
+    color:rgba(215,225,245,0.75);font-size:15px;letter-spacing:2px;
+    display:none;align-items:center;justify-content:center;z-index:12;
+    touch-action:none;cursor:pointer;}
+  #jumpBtn:active{background:rgba(160,180,215,0.26);}
+  #driveBtn{position:fixed;right:30px;bottom:196px;width:86px;height:86px;border-radius:50%;
+    background:rgba(180,205,160,0.16);border:2px solid rgba(200,220,175,0.45);
+    color:rgba(225,240,205,0.92);font-size:13px;letter-spacing:1px;
+    display:none;align-items:center;justify-content:center;z-index:12;
+    touch-action:none;cursor:pointer;text-align:center;line-height:1.35;padding:8px;box-sizing:border-box;}
+  #driveBtn.show{display:flex;}
+  #driveBtn:active{background:rgba(180,205,160,0.32);}
+  #cleanBtn{position:fixed;right:26px;bottom:290px;width:76px;height:76px;border-radius:50%;
+    background:rgba(205,180,160,0.16);border:2px solid rgba(225,200,175,0.45);
+    color:rgba(245,225,205,0.92);font-size:13px;letter-spacing:1px;
+    display:none;align-items:center;justify-content:center;z-index:12;
+    touch-action:none;cursor:pointer;text-align:center;line-height:1.35;padding:8px;box-sizing:border-box;}
+  #cleanBtn.show{display:flex;}
+  #cleanBtn:active{background:rgba(205,180,160,0.32);}
+  #fireBtn{position:fixed;right:30px;bottom:390px;width:86px;height:86px;border-radius:50%;
+    background:rgba(200,170,150,0.18);border:2px solid rgba(230,205,180,0.5);
+    color:rgba(250,230,210,0.92);font-size:13px;letter-spacing:1px;
+    display:none;align-items:center;justify-content:center;z-index:12;
+    touch-action:none;cursor:pointer;text-align:center;line-height:1.35;padding:8px;box-sizing:border-box;}
+  #fireBtn.show{display:flex;}
+  #fireBtn:active{background:rgba(200,170,150,0.34);}
+  #crosshair{position:fixed;left:50%;top:50%;width:24px;height:24px;
+    transform:translate(-50%,-50%);pointer-events:none;z-index:20;opacity:.75;}
+  #crosshair::before,#crosshair::after{content:"";position:absolute;background:rgba(230,240,255,.8);}
+  #crosshair::before{left:50%;top:0;width:1px;height:100%;transform:translateX(-50%);}
+  #crosshair::after{top:50%;left:0;height:1px;width:100%;transform:translateY(-50%);}
+  #toolBtn{position:fixed;right:16px;top:16px;width:46px;height:46px;border-radius:50%;
+    background:rgba(120,140,170,0.20);border:1px solid rgba(180,200,230,0.45);
+    color:rgba(220,230,250,0.9);font-size:20px;display:flex;align-items:center;justify-content:center;
+    z-index:30;cursor:pointer;touch-action:none;}
+  #toolBtn:active{background:rgba(120,140,170,0.35);}
+  #toolPanel{position:fixed;right:16px;top:70px;width:220px;max-height:70vh;overflow-y:auto;
+    background:rgba(12,18,28,0.92);border:1px solid rgba(100,130,170,0.45);border-radius:8px;
+    z-index:31;display:none;padding:8px;box-sizing:border-box;backdrop-filter:blur(6px);}
+  #toolPanel.show{display:block;}
+  .tool-item{padding:10px 12px;margin:4px 0;border-radius:6px;color:rgba(200,215,235,0.85);
+    font-size:13px;cursor:pointer;border:1px solid transparent;display:flex;justify-content:space-between;}
+  .tool-item:hover{background:rgba(60,90,130,0.35);}
+  .tool-item.active{background:rgba(80,140,200,0.35);border-color:rgba(140,190,255,0.6);color:#fff;}
+  .tool-item small{color:rgba(150,170,195,0.7);font-size:11px;}
+  #doneOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:100;
+    display:none;align-items:center;justify-content:center;flex-direction:column;color:#dbe8f8;}
+  #doneOverlay.show{display:flex;}
+  #doneOverlay h1{font-size:22px;font-weight:600;letter-spacing:2px;margin-bottom:28px;
+    text-shadow:0 2px 12px rgba(120,180,255,0.4);}
+  #doneOverlay button{padding:12px 36px;border-radius:30px;border:1px solid rgba(140,190,255,0.6);
+    background:rgba(60,110,180,0.4);color:#fff;font-size:15px;letter-spacing:2px;cursor:pointer;}
+  #doneOverlay button:hover{background:rgba(80,140,220,0.6);}
+  #hint{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);
+    color:rgba(200,210,230,0.50);font-size:12px;letter-spacing:.5px;pointer-events:none;
+    text-align:center;line-height:1.7;z-index:11;white-space:nowrap;}
+  #loading{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#8fa0bb;background:#000;font-size:13px;letter-spacing:3px;z-index:50;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="joy" id="joyL"><div class="knob" id="knobL"></div></div>
+<div id="crosshair"></div>
+<div id="jumpBtn">跳跃</div>
+<div id="driveBtn">驾驶 (F)</div>
+<div id="cleanBtn">清扫 (Q)</div>
+<div id="fireBtn">发射 (E)</div>
+<div id="toolBtn">☰</div>
+<div id="toolPanel"></div>
+<div id="doneOverlay">
+  <h1>你成功清扫了整个月球！</h1>
+  <button id="replayBtn">再玩一遍</button>
+</div>
+<div id="hint">WASD / 左摇杆 移动 &nbsp;·&nbsp; 拖拽 / 右半屏 转视角 &nbsp;·&nbsp; 空格 跳跃 &nbsp;·&nbsp; F 驾驶 &nbsp;·&nbsp; Q 清扫 &nbsp;·&nbsp; E 发射</div>
+<div id="loading">生成月球表面…</div>
+
+<script>
+"use strict";
+(function(){
+
+/* ============================================================
+   0. WebGL 初始化
+   ============================================================ */
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl2', {
+  antialias: false, alpha: false, depth: true, stencil: false,
+  powerPreference: 'high-performance', preserveDrawingBuffer: false
+});
+if (!gl) {
+  document.getElementById('loading').textContent = '需要 WebGL2 支持';
+  return;
+}
+
+/* ============================================================
+   1. 数学工具
+   ============================================================ */
+const PI = Math.PI;
+const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
+const V = {
+  sub: (a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],
+  add: (a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],
+  mul: (a,s)=>[a[0]*s,a[1]*s,a[2]*s],
+  dot: (a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],
+  cross: (a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]],
+  len: a=>Math.hypot(a[0],a[1],a[2]),
+  norm: a=>{const l=Math.hypot(a[0],a[1],a[2])||1e-8; return [a[0]/l,a[1]/l,a[2]/l];},
+};
+
+function mat4Mul(a,b){
+  const o = new Float32Array(16);
+  for (let c=0;c<4;c++){
+    const b0=b[c*4], b1=b[c*4+1], b2=b[c*4+2], b3=b[c*4+3];
+    o[c*4+0]=a[0]*b0+a[4]*b1+a[8]*b2+a[12]*b3;
+    o[c*4+1]=a[1]*b0+a[5]*b1+a[9]*b2+a[13]*b3;
+    o[c*4+2]=a[2]*b0+a[6]*b1+a[10]*b2+a[14]*b3;
+    o[c*4+3]=a[3]*b0+a[7]*b1+a[11]*b2+a[15]*b3;
+  }
+  return o;
+}
+function mat4Perspective(fovy, aspect, near, far){
+  const f = 1/Math.tan(fovy/2), nf = 1/(near-far);
+  const o = new Float32Array(16);
+  o[0]=f/aspect; o[5]=f; o[10]=(far+near)*nf; o[11]=-1; o[14]=2*far*near*nf;
+  return o;
+}
+function mat4LookAt(eye, center, up){
+  const z = V.norm(V.sub(eye, center));
+  const x = V.norm(V.cross(up, z));
+  const y = V.cross(z, x);
+  return new Float32Array([
+    x[0], y[0], z[0], 0,
+    x[1], y[1], z[1], 0,
+    x[2], y[2], z[2], 0,
+    -V.dot(x,eye), -V.dot(y,eye), -V.dot(z,eye), 1
+  ]);
+}
+function mat4Translate(x,y,z){
+  return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]);
+}
+function mat4RotateY(a){
+  const c = Math.cos(a), s = Math.sin(a);
+  return new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]);
+}
+function mat4RotateZ(a){
+  const c = Math.cos(a), s = Math.sin(a);
+  return new Float32Array([c,s,0,0, -s,c,0,0, 0,0,1,0, 0,0,0,1]);
+}
+function rotateAxis(v, axis, ang){
+  const c=Math.cos(ang), s=Math.sin(ang);
+  const kv = V.cross(axis, v), kd = V.dot(axis, v);
+  return [
+    v[0]*c + kv[0]*s + axis[0]*kd*(1-c),
+    v[1]*c + kv[1]*s + axis[1]*kd*(1-c),
+    v[2]*c + kv[2]*s + axis[2]*kd*(1-c)
+  ];
+}
+
+/* ============================================================
+   2. 着色器源码
+   ============================================================ */
+const SKY_VS = `#version 300 es
+layout(location=0) in vec2 aPos;
+out vec2 vUV;
+void main(){
+  vUV = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 1.0, 1.0);
+}`;
+
+const SKY_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+out vec4 fragColor;
+uniform vec3 uCamFwd, uCamRight, uCamUp;
+uniform float uTanX, uTanY;
+uniform vec3 uSunDir;
+uniform float uTime;
+
+float hash13(vec3 p){
+  p = fract(p * 0.1031);
+  p += dot(p, p.zyx + 31.32);
+  return fract((p.x + p.y) * p.z);
+}
+
+void main(){
+  vec2 p = vUV * 2.0 - 1.0;
+  vec3 dir = normalize(uCamFwd + p.x * uTanX * uCamRight + p.y * uTanY * uCamUp);
+
+  vec3 col = vec3(0.0);
+
+  for(int i = 0; i < 3; i++){
+    float scale = 90.0 * pow(2.6, float(i));
+    vec3 q = dir * scale;
+    vec3 id = floor(q);
+    vec3 f = fract(q) - 0.5;
+    float h = hash13(id + float(i) * 17.0);
+    if(h > 0.935){
+      float d2 = length(f);
+      float s = smoothstep(0.40, 0.0, d2);
+      float b = (h - 0.935) / 0.065;
+      float tw = 0.72 + 0.28 * sin(uTime * 1.7 + h * 91.0);
+      vec3 tint = mix(vec3(0.72,0.80,1.0), vec3(1.0,0.88,0.72), fract(h * 7.31));
+      col += tint * s * b * b * tw * (1.0 - float(i) * 0.24);
+    }
+  }
+
+  float sd = max(dot(dir, uSunDir), 0.0);
+  float glow = pow(sd, 1400.0) * 3.2 + pow(sd, 110.0) * 0.46 + pow(sd, 12.0) * 0.13;
+  col += vec3(1.0, 0.94, 0.79) * glow;
+
+  fragColor = vec4(col, 1.0);
+}`;
+
+const MOON_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+uniform mat4 uVP;
+out vec3 vPos;
+void main(){
+  vPos = aPos;
+  gl_Position = uVP * vec4(aPos, 1.0);
+}`;
+
+const MOON_FS = `#version 300 es
+precision highp float;
+in vec3 vPos;
+out vec4 fragColor;
+
+uniform vec3 uCamPos;
+uniform vec3 uSunDir;
+uniform sampler2D uNormalTex;
+uniform sampler2D uCleanTex;
+uniform float uViewDist;
+
+float hash13(vec3 p){
+  p = fract(p * 0.1031);
+  p += dot(p, p.zyx + 31.32);
+  return fract((p.x + p.y) * p.z);
+}
+
+float vnoise(vec3 p){
+  vec3 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float n000 = hash13(i + vec3(0,0,0));
+  float n100 = hash13(i + vec3(1,0,0));
+  float n010 = hash13(i + vec3(0,1,0));
+  float n110 = hash13(i + vec3(1,1,0));
+  float n001 = hash13(i + vec3(0,0,1));
+  float n101 = hash13(i + vec3(1,0,1));
+  float n011 = hash13(i + vec3(0,1,1));
+  float n111 = hash13(i + vec3(1,1,1));
+  return mix(mix(mix(n000,n100,f.x), mix(n010,n110,f.x), f.y),
+             mix(mix(n001,n101,f.x), mix(n011,n111,f.x), f.y), f.z);
+}
+
+vec3 triplanarNormal(vec3 p, vec3 n, float scale){
+  vec3 bw = pow(abs(n), vec3(6.0));
+  bw /= (bw.x + bw.y + bw.z + 1e-5);
+
+  vec3 tx = texture(uNormalTex, p.zy * scale).xyz * 2.0 - 1.0;
+  vec3 ty = texture(uNormalTex, p.xz * scale).xyz * 2.0 - 1.0;
+  vec3 tz = texture(uNormalTex, p.xy * scale).xyz * 2.0 - 1.0;
+
+  vec3 wx = vec3(tx.z, tx.y, tx.x);
+  vec3 wy = vec3(ty.x, ty.z, ty.y);
+  vec3 wz = vec3(tz.x, tz.y, tz.z);
+
+  return normalize(wx * bw.x + wy * bw.y + wz * bw.z + n * 0.85);
+}
+
+void main(){
+  vec3 p = vPos;
+  vec3 N = normalize(p);
+
+  float dist = length(uCamPos - p);
+
+  float detail = 1.0 - smoothstep(40.0, 130.0, dist);
+
+  vec3 nb = triplanarNormal(p, N, 0.115);
+  vec3 Np = normalize(mix(N, nb, 0.90 * detail));
+
+  float c1 = vnoise(p * 0.011);
+  float c2 = vnoise(p * 0.047);
+  vec3 base = mix(vec3(0.315,0.305,0.300), vec3(0.680,0.665,0.630), c1 * 0.72 + c2 * 0.28);
+
+  float u = atan(N.z, N.x) / 6.2831853 + 0.5;
+  float v = acos(clamp(N.y, -1.0, 1.0)) / 3.14159265;
+  float cleanMask = texture(uCleanTex, vec2(u, v)).r;
+
+  float ndl = dot(Np, uSunDir);
+  float diff = clamp(ndl * 0.58 + 0.42, 0.0, 1.0);
+  vec3 col = base * (0.26 + diff * 0.98);
+
+  col = mix(col, col * 1.45 + vec3(0.04), cleanMask * 0.85);
+
+  vec3 Vv = normalize(uCamPos - p);
+  vec3 H = normalize(Vv + uSunDir);
+  float spec = pow(max(dot(Np, H), 0.0), 26.0) * 0.13 * detail;
+  col += vec3(spec);
+
+  float fres = pow(1.0 - max(dot(N, Vv), 0.0), 3.0);
+  col += vec3(0.045) * fres * detail;
+
+  float fog = smoothstep(uViewDist * 0.30, uViewDist, dist);
+  col = mix(col, vec3(0.0), fog);
+
+  fragColor = vec4(col, 1.0);
+}`;
+
+const BODY_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+uniform mat4 uVP;
+uniform mat4 uModel;
+out vec3 vLocal;
+out vec3 vWorld;
+void main(){
+  vLocal = aPos;
+  vec4 wp = uModel * vec4(aPos, 1.0);
+  vWorld = wp.xyz;
+  gl_Position = uVP * wp;
+}`;
+
+const EARTH_FS = `#version 300 es
+precision highp float;
+in vec3 vLocal;
+in vec3 vWorld;
+out vec4 fragColor;
+uniform vec3 uCamPos;
+uniform vec3 uSunDir;
+
+float hash13(vec3 p){
+  p = fract(p * 0.1031);
+  p += dot(p, p.zyx + 31.32);
+  return fract((p.x + p.y) * p.z);
+}
+float vnoise(vec3 p){
+  vec3 i = floor(p), f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float n000 = hash13(i);
+  float n100 = hash13(i + vec3(1,0,0));
+  float n010 = hash13(i + vec3(0,1,0));
+  float n110 = hash13(i + vec3(1,1,0));
+  float n001 = hash13(i + vec3(0,0,1));
+  float n101 = hash13(i + vec3(1,0,1));
+  float n011 = hash13(i + vec3(0,1,1));
+  float n111 = hash13(i + vec3(1,1,1));
+  return mix(mix(mix(n000,n100,f.x), mix(n010,n110,f.x), f.y),
+             mix(mix(n001,n101,f.x), mix(n011,n111,f.x), f.y), f.z);
+}
+float fbm(vec3 p){
+  float a = 0.5, s = 0.0;
+  for(int i = 0; i < 5; i++){
+    s += a * vnoise(p);
+    p *= 2.03;
+    a *= 0.5;
+  }
+  return s;
+}
+
+void main(){
+  vec3 p = normalize(vLocal);
+  vec3 N = normalize(p);
+
+  float h = fbm(p * 2.1 + 11.0) + 0.42 * fbm(p * 5.7);
+  h *= 0.72;
+
+  float land = smoothstep(0.495, 0.535, h);
+
+  vec3 ocean = mix(vec3(0.012,0.055,0.170), vec3(0.030,0.230,0.480),
+                   smoothstep(0.18, 0.50, h));
+
+  float hh = smoothstep(0.52, 0.76, h);
+  vec3 landCol = mix(vec3(0.150,0.400,0.140), vec3(0.560,0.520,0.190),
+                     smoothstep(0.0, 0.62, hh));
+  landCol = mix(landCol, vec3(0.780,0.740,0.590), smoothstep(0.66, 1.0, hh));
+
+  vec3 col = mix(ocean, landCol, land);
+
+  float lat = abs(p.y);
+  float polar = smoothstep(0.66, 0.90, lat + fbm(p * 4.0) * 0.09);
+  col = mix(col, vec3(0.93,0.96,1.0), polar);
+
+  float cl = fbm(p * 3.4 + 47.0);
+  float cloud = smoothstep(0.50, 0.71, cl) * 0.90;
+  col = mix(col, vec3(0.96,0.97,1.0), cloud);
+
+  float ndl = dot(N, uSunDir);
+  float diff = clamp(ndl * 0.72 + 0.28, 0.0, 1.0);
+  col *= (0.16 + diff * 1.05);
+
+  vec3 Vv = normalize(uCamPos - vWorld);
+  float fres = pow(1.0 - max(dot(N, Vv), 0.0), 3.0);
+  col += vec3(0.14, 0.30, 0.72) * fres * 0.75;
+
+  fragColor = vec4(col, 1.0);
+}`;
+
+const LANDER_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNrm;
+layout(location=2) in vec3 aCol;
+uniform mat4 uVP;
+uniform mat4 uModel;
+out vec3 vNrm;
+out vec3 vCol;
+out vec3 vWorld;
+void main(){
+  vec4 wp = uModel * vec4(aPos, 1.0);
+  vWorld = wp.xyz;
+  vNrm = mat3(uModel) * aNrm;
+  vCol = aCol;
+  gl_Position = uVP * wp;
+}`;
+
+const LANDER_FS = `#version 300 es
+precision highp float;
+in vec3 vNrm;
+in vec3 vCol;
+in vec3 vWorld;
+out vec4 fragColor;
+uniform vec3 uCamPos;
+uniform vec3 uSunDir;
+uniform sampler2D uMetalTex;
+
+float triplanarMetal(vec3 p, vec3 n){
+  vec3 blend = pow(abs(n), vec3(6.0));
+  blend /= (blend.x + blend.y + blend.z + 1e-4);
+  float tx = texture(uMetalTex, p.yz * 1.15).r;
+  float ty = texture(uMetalTex, p.xz * 1.15).r;
+  float tz = texture(uMetalTex, p.xy * 1.15).r;
+  return tx * blend.x + ty * blend.y + tz * blend.z;
+}
+
+void main(){
+  vec3 N = normalize(vNrm);
+  vec3 Vv = normalize(uCamPos - vWorld);
+
+  float mtex = triplanarMetal(vWorld, N);
+  vec3 albedo = clamp(vCol * mix(0.82, 1.20, mtex), 0.0, 1.0);
+
+  float ndl = dot(N, uSunDir);
+  float diff = clamp(ndl * 0.62 + 0.40, 0.0, 1.0);
+
+  vec3 col = albedo * (0.26 + diff * 0.98);
+
+  float fres = pow(1.0 - max(dot(N, Vv), 0.0), 3.0);
+  col += vec3(0.15, 0.22, 0.40) * fres * 0.35;
+
+  vec3 H = normalize(Vv + uSunDir);
+  float spec = pow(max(dot(N, H), 0.0), 32.0) * 0.18;
+  col += vec3(spec);
+
+  fragColor = vec4(col, 1.0);
+}`;
+
+const TOOL_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNrm;
+layout(location=2) in vec3 aCol;
+uniform mat4 uVP;
+uniform mat4 uModel;
+out vec3 vNrm;
+out vec3 vCol;
+void main(){
+  vNrm = mat3(uModel) * aNrm;
+  vCol = aCol;
+  gl_Position = uVP * uModel * vec4(aPos, 1.0);
+}`;
+
+const TOOL_FS = `#version 300 es
+precision highp float;
+in vec3 vNrm;
+in vec3 vCol;
+out vec4 fragColor;
+uniform vec3 uCamPos;
+
+void main(){
+  vec3 N = normalize(vNrm);
+  vec3 L = normalize(vec3(0.3, 0.8, 0.5));
+  float diff = clamp(dot(N, L) * 0.6 + 0.4, 0.0, 1.0);
+  vec3 col = vCol * (0.3 + diff * 0.9);
+  fragColor = vec4(col, 1.0);
+}`;
+
+const POST_VS = `#version 300 es
+layout(location=0) in vec2 aPos;
+out vec2 vUV;
+void main(){
+  vUV = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
+const POST_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+out vec4 fragColor;
+uniform sampler2D uScene;
+uniform vec2 uRes;
+uniform float uTime;
+
+float hash21(vec2 p){
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+void main(){
+  vec2 uv = vUV;
+  vec2 d = (uv - 0.5) * 2.0;
+  vec3 col = texture(uScene, uv).rgb;
+  float n = hash21(uv * uRes * 0.65 + fract(uTime) * 137.0);
+  col += (n - 0.5) * 0.058;
+  col *= 1.0 - 0.22 * dot(d, d) * 0.5;
+  fragColor = vec4(col, 1.0);
+}`;
+
+/* ============================================================
+   3. 编译工具
+   ============================================================ */
+function compileShader(type, src){
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)){
+    console.error(gl.getShaderInfoLog(s));
+    throw new Error('Shader compile error');
+  }
+  return s;
+}
+function makeProgram(vsSrc, fsSrc){
+  const p = gl.createProgram();
+  gl.attachShader(p, compileShader(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)){
+    console.error(gl.getProgramInfoLog(p));
+    throw new Error('Program link error');
+  }
+  return p;
+}
+function uniLocs(p, names){
+  const o = {};
+  for (const n of names) o[n] = gl.getUniformLocation(p, n);
+  return o;
+}
+
+/* ============================================================
+   4. 基础资源
+   ============================================================ */
+function makeQuadVAO(){
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  gl.bindVertexArray(null);
+  return vao;
+}
+
+function makeSphere(segX, segY, radius){
+  const vcount = (segX + 1) * (segY + 1);
+  const pos = new Float32Array(vcount * 3);
+  let o = 0;
+  for (let y = 0; y <= segY; y++){
+    const v = y / segY;
+    const theta = v * Math.PI;
+    const st = Math.sin(theta), ct = Math.cos(theta);
+    for (let x = 0; x <= segX; x++){
+      const u = x / segX;
+      const phi = u * Math.PI * 2;
+      pos[o++] = radius * st * Math.cos(phi);
+      pos[o++] = radius * ct;
+      pos[o++] = radius * st * Math.sin(phi);
+    }
+  }
+  const idx = new Uint32Array(segX * segY * 6);
+  let k = 0;
+  for (let y = 0; y < segY; y++){
+    for (let x = 0; x < segX; x++){
+      const a = y * (segX + 1) + x;
+      const b = a + 1;
+      const c = a + segX + 1;
+      const d = c + 1;
+      idx[k++] = a; idx[k++] = c; idx[k++] = b;
+      idx[k++] = b; idx[k++] = c; idx[k++] = d;
+    }
+  }
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  const vb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+  gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  const ib = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+  return { vao, count: idx.length };
+}
+
+function generateNormalTexture(size){
+  const h = new Float32Array(size * size);
+
+  function hash2i(x, y){
+    let n = (x * 374761393 + y * 668265263) | 0;
+    n = (n ^ (n >>> 13)) | 0;
+    n = (n * 1274126177) | 0;
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967295;
+  }
+  function noise2(x, y){
+    const ix = Math.floor(x), iy = Math.floor(y);
+    const fx = x - ix, fy = y - iy;
+    const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+    const a = hash2i(ix, iy),     b = hash2i(ix + 1, iy);
+    const c = hash2i(ix, iy + 1), d = hash2i(ix + 1, iy + 1);
+    return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+  }
+
+  const LS = 512;
+  const lowH = new Float32Array(LS * LS);
+  for (let y = 0; y < LS; y++){
+    for (let x = 0; x < LS; x++){
+      const u = x / LS, v = y / LS;
+      let n = 0, amp = 0.5, freq = 6;
+      for (let i = 0; i < 6; i++){
+        let val = noise2(u * freq + i * 13.7, v * freq + i * 27.3);
+        val = 1 - Math.abs(val * 2 - 1);
+        n += val * amp;
+        freq *= 2.13;
+        amp *= 0.55;
+      }
+      lowH[y * LS + x] = n;
+    }
+  }
+  for (let y = 0; y < size; y++){
+    for (let x = 0; x < size; x++){
+      const fx = (x + 0.5) / size * LS - 0.5;
+      const fy = (y + 0.5) / size * LS - 0.5;
+      const ix = Math.floor(fx), iy = Math.floor(fy);
+      const tx = fx - ix, ty = fy - iy;
+      const x0 = ((ix % LS) + LS) % LS, x1 = (x0 + 1) % LS;
+      const y0 = ((iy % LS) + LS) % LS, y1 = (y0 + 1) % LS;
+      const a = lowH[y0 * LS + x0], b = lowH[y0 * LS + x1];
+      const c = lowH[y1 * LS + x0], d = lowH[y1 * LS + x1];
+      h[y * size + x] = a * (1 - tx) * (1 - ty) + b * tx * (1 - ty)
+                      + c * (1 - tx) * ty + d * tx * ty;
+    }
+  }
+
+  for (let y = 0; y < size; y++){
+    for (let x = 0; x < size; x++){
+      h[y * size + x] += (hash2i(x * 97 + 13, y * 89 + 7) - 0.5) * 0.16;
+      h[y * size + x] += (hash2i((x >> 1) * 41 + 3, (y >> 1) * 53 + 11) - 0.5) * 0.06;
+    }
+  }
+
+  let seed = 987654321;
+  function rnd(){ seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+
+  for (let i = 0; i < 320; i++){
+    const cx = rnd() * size, cy = rnd() * size;
+    const r = 3 + rnd() * 18;
+    const depth = 0.28 + rnd() * 0.58;
+    const x0 = Math.max(0, Math.floor(cx - r - 1)), x1 = Math.min(size - 1, Math.ceil(cx + r + 1));
+    const y0 = Math.max(0, Math.floor(cy - r - 1)), y1 = Math.min(size - 1, Math.ceil(cy + r + 1));
+    for (let y = y0; y <= y1; y++){
+      for (let x = x0; x <= x1; x++){
+        const dx = x - cx, dy = y - cy;
+        const d = Math.hypot(dx, dy);
+        if (d < r){
+          const f = 1 - d / r;
+          h[y * size + x] -= depth * f * f;
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < 72; i++){
+    const x0 = rnd() * size, y0 = rnd() * size;
+    const ang = rnd() * Math.PI * 2;
+    const len = 24 + rnd() * 160;
+    const w = 0.8 + rnd() * 1.5;
+    const depth = 0.16 + rnd() * 0.36;
+    const steps = Math.ceil(len * 1.6);
+    for (let s = 0; s < steps; s++){
+      const t = s / steps;
+      const cx = x0 + Math.cos(ang) * len * t;
+      const cy = y0 + Math.sin(ang) * len * t;
+      const r = Math.ceil(w);
+      for (let dy = -r; dy <= r; dy++){
+        for (let dx = -r; dx <= r; dx++){
+          const px = Math.floor(cx) + dx, py = Math.floor(cy) + dy;
+          if (px < 0 || px >= size || py < 0 || py >= size) continue;
+          const d = Math.hypot(dx, dy);
+          if (d < w){
+            const f = 1 - d / w;
+            h[py * size + px] -= depth * f * f;
+          }
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < 140; i++){
+    const cx = rnd() * size, cy = rnd() * size;
+    const r = 1.0 + rnd() * 3.2;
+    const height = 0.20 + rnd() * 0.34;
+    const x0 = Math.max(0, Math.floor(cx - r - 1)), x1 = Math.min(size - 1, Math.ceil(cx + r + 1));
+    const y0 = Math.max(0, Math.floor(cy - r - 1)), y1 = Math.min(size - 1, Math.ceil(cy + r + 1));
+    for (let y = y0; y <= y1; y++){
+      for (let x = x0; x <= x1; x++){
+        const d = Math.hypot(x - cx, y - cy);
+        if (d < r){
+          const f = 1 - d / r;
+          h[y * size + x] += height * f * f;
+        }
+      }
+    }
+  }
+
+  const data = new Uint8Array(size * size * 4);
+  const strength = 9.2;
+  for (let y = 0; y < size; y++){
+    for (let x = 0; x < size; x++){
+      const xm = (x - 1 + size) % size, xp = (x + 1) % size;
+      const ym = (y - 1 + size) % size, yp = (y + 1) % size;
+      const hl = h[y * size + xm], hr = h[y * size + xp];
+      const hd = h[ym * size + x], hu = h[yp * size + x];
+      let nx = (hl - hr) * strength;
+      let ny = (hd - hu) * strength;
+      let nz = 1.0;
+      const l = Math.hypot(nx, ny, nz);
+      nx /= l; ny /= l; nz /= l;
+      const i = (y * size + x) * 4;
+      data[i]     = Math.floor((nx * 0.5 + 0.5) * 255);
+      data[i + 1] = Math.floor((ny * 0.5 + 0.5) * 255);
+      data[i + 2] = Math.floor((nz * 0.5 + 0.5) * 255);
+      data[i + 3] = 255;
+    }
+  }
+
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  return tex;
+}
+
+function createMetalTextureCanvas(size){
+  const cv = document.createElement('canvas');
+  cv.width = size;
+  cv.height = size;
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(size, size);
+  const d = img.data;
+  const TAU = Math.PI * 2;
+
+  for (let y = 0; y < size; y++){
+    for (let x = 0; x < size; x++){
+      const o = (y * size + x) * 4;
+      let v = 0.5;
+      v += 0.110 * Math.sin(y * TAU * 9  / size + Math.sin(x * TAU * 3 / size) * 1.7);
+      v += 0.070 * Math.sin(y * TAU * 27 / size + x * TAU * 1.5 / size);
+      v += 0.045 * Math.sin(y * TAU * 63 / size);
+      v += 0.050 * Math.sin(x * TAU * 5 / size + y * TAU * 2 / size);
+      v += 0.030 * Math.sin(x * TAU * 11 / size - y * TAU * 4 / size);
+      v += (Math.random() - 0.5) * 0.055;
+      v = Math.max(0, Math.min(1, v));
+      const c = Math.round(v * 255);
+      d[o] = d[o + 1] = d[o + 2] = c;
+      d[o + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  for (let i = 0; i < 26; i++){
+    const cx = size * (0.1 + Math.random() * 0.8);
+    const cy = size * (0.1 + Math.random() * 0.8);
+    const r  = 8 + Math.random() * 44;
+    const g  = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    const a  = 0.03 + Math.random() * 0.09;
+    g.addColorStop(0, `rgba(30,30,30,${a})`);
+    g.addColorStop(1, 'rgba(30,30,30,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, TAU);
+    ctx.fill();
+  }
+
+  for (let i = 0; i < 18; i++){
+    const cx = size * (0.1 + Math.random() * 0.8);
+    const cy = size * (0.1 + Math.random() * 0.8);
+    const r  = 6 + Math.random() * 32;
+    const g  = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+    const a  = 0.03 + Math.random() * 0.07;
+    g.addColorStop(0, `rgba(235,235,235,${a})`);
+    g.addColorStop(1, 'rgba(235,235,235,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, TAU);
+    ctx.fill();
+  }
+
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 46; i++){
+    const x0 = Math.random() * size;
+    const y0 = Math.random() * size;
+    const len = 10 + Math.random() * 90;
+    const ang = (Math.random() < 0.75)
+      ? (Math.PI / 2 + (Math.random() - 0.5) * 0.12)
+      : (Math.random() * TAU);
+    const bright = 190 + Math.floor(Math.random() * 65);
+    const alpha = 0.04 + Math.random() * 0.08;
+    ctx.strokeStyle = `rgba(${bright},${bright},${bright},${alpha})`;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len);
+    ctx.stroke();
+  }
+
+  return cv;
+}
+
+/* ============================================================
+   5. 几何构建
+   ============================================================ */
+class Builder {
+  constructor(){ this.pos = []; this.nor = []; this.col = []; }
+  v(p, n, c){
+    this.pos.push(p[0], p[1], p[2]);
+    this.nor.push(n[0], n[1], n[2]);
+    this.col.push(c[0], c[1], c[2]);
+  }
+  tri(p0, p1, p2, n0, n1, n2, c){
+    this.v(p0, n0, c); this.v(p1, n1, c); this.v(p2, n2, c);
+  }
+  quad(p0, p1, p2, p3, n0, n1, n2, n3, c){
+    this.tri(p0, p1, p2, n0, n1, n2, c);
+    this.tri(p0, p2, p3, n0, n2, n3, c);
+  }
+}
+
+const BOX_FACES = [
+  { n:[ 1, 0, 0], q:[[ 1,-1, 1],[ 1,-1,-1],[ 1, 1,-1],[ 1, 1, 1]] },
+  { n:[-1, 0, 0], q:[[-1,-1,-1],[-1,-1, 1],[-1, 1, 1],[-1, 1,-1]] },
+  { n:[ 0, 1, 0], q:[[-1, 1, 1],[ 1, 1, 1],[ 1, 1,-1],[-1, 1,-1]] },
+  { n:[ 0,-1, 0], q:[[-1,-1,-1],[ 1,-1,-1],[ 1,-1, 1],[-1,-1, 1]] },
+  { n:[ 0, 0, 1], q:[[-1,-1, 1],[ 1,-1, 1],[ 1, 1, 1],[-1, 1, 1]] },
+  { n:[ 0, 0,-1], q:[[ 1,-1,-1],[-1,-1,-1],[-1, 1,-1],[ 1, 1,-1]] },
+];
+
+function addBox(b, center, half, col){
+  for (const f of BOX_FACES){
+    const n = f.n;
+    const pts = f.q.map(q => [q[0]*half[0] + center[0], q[1]*half[1] + center[1], q[2]*half[2] + center[2]]);
+    b.quad(pts[0], pts[1], pts[2], pts[3], n, n, n, n, col);
+  }
+}
+
+function addCyl(b, p0, p1, r0, r1, seg, col, cap0, cap1){
+  const av = V.sub(p1, p0);
+  const L = V.len(av) || 1e-6;
+  const ax = V.mul(av, 1 / L);
+  const ref = Math.abs(ax[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+  const u = V.norm(V.cross(ref, ax));
+  const w = V.cross(ax, u);
+
+  const ring = [];
+  for (let i = 0; i <= seg; i++){
+    const t = i / seg * PI * 2;
+    ring.push(V.add(V.mul(u, Math.cos(t)), V.mul(w, Math.sin(t))));
+  }
+
+  const slope = (r0 - r1) / L;
+  for (let i = 0; i < seg; i++){
+    const d0 = ring[i], d1 = ring[i + 1];
+    const p00 = V.add(p0, V.mul(d0, r0));
+    const p01 = V.add(p1, V.mul(d0, r1));
+    const p11 = V.add(p1, V.mul(d1, r1));
+    const p10 = V.add(p0, V.mul(d1, r0));
+    const n0 = V.norm(V.add(d0, V.mul(ax, slope)));
+    const n1 = V.norm(V.add(d1, V.mul(ax, slope)));
+    b.quad(p00, p01, p11, p10, n0, n0, n1, n1, col);
+  }
+
+  if (cap0 && r0 > 1e-5){
+    const nrm = V.mul(ax, -1);
+    for (let i = 0; i < seg; i++){
+      const A = V.add(p0, V.mul(ring[i], r0));
+      const B = V.add(p0, V.mul(ring[i + 1], r0));
+      b.tri(p0, A, B, nrm, nrm, nrm, col);
+    }
+  }
+  if (cap1 && r1 > 1e-5){
+    const nrm = ax;
+    for (let i = 0; i < seg; i++){
+      const A = V.add(p1, V.mul(ring[i], r1));
+      const B = V.add(p1, V.mul(ring[i + 1], r1));
+      b.tri(p1, B, A, nrm, nrm, nrm, col);
+    }
+  }
+}
+
+function addSphere(b, c, r, segU, segV, col){
+  const P = (u, v) => [
+    c[0] + r * Math.sin(v) * Math.cos(u),
+    c[1] + r * Math.cos(v),
+    c[2] + r * Math.sin(v) * Math.sin(u),
+  ];
+  const N = (u, v) => [Math.sin(v) * Math.cos(u), Math.cos(v), Math.sin(v) * Math.sin(u)];
+  for (let j = 0; j < segV; j++){
+    const v0 = j / segV * PI, v1 = (j + 1) / segV * PI;
+    for (let i = 0; i < segU; i++){
+      const u0 = i / segU * PI * 2, u1 = (i + 1) / segU * PI * 2;
+      b.quad(P(u0,v0), P(u1,v0), P(u1,v1), P(u0,v1),
+             N(u0,v0), N(u1,v0), N(u1,v1), N(u0,v1), col);
+    }
+  }
+}
+
+function addPrism(b, profile, y0, y1, col, caps){
+  const n = profile.length;
+  for (let i = 0; i < n; i++){
+    const a = profile[i], c2 = profile[(i + 1) % n];
+    const dx = c2[0] - a[0], dz = c2[1] - a[1];
+    const nl = Math.hypot(dx, dz) || 1;
+    const nx = dz / nl, nz = -dx / nl;
+    const nrm = [nx, 0, nz];
+    b.quad([a[0], y0, a[1]], [a[0], y1, a[1]], [c2[0], y1, c2[1]], [c2[0], y0, c2[1]],
+           nrm, nrm, nrm, nrm, col);
+  }
+  if (caps === false) return;
+  const Ctop = [0, y1, 0], Cbot = [0, y0, 0];
+  for (let i = 0; i < n; i++){
+    const a = profile[i], c2 = profile[(i + 1) % n];
+    b.tri(Ctop, [a[0], y1, a[1]], [c2[0], y1, c2[1]], [0,1,0],[0,1,0],[0,1,0], col);
+    b.tri(Cbot, [c2[0], y0, c2[1]], [a[0], y0, a[1]], [0,-1,0],[0,-1,0],[0,-1,0], col);
+  }
+}
+
+function addLoft(b, ring0, y0, ring1, y1, col){
+  const n = ring0.length;
+  for (let i = 0; i < n; i++){
+    const j = (i + 1) % n;
+    const A = [ring0[i][0], y0, ring0[i][1]];
+    const B = [ring0[j][0], y0, ring0[j][1]];
+    const C = [ring1[j][0], y1, ring1[j][1]];
+    const D = [ring1[i][0], y1, ring1[i][1]];
+    const e1 = V.sub(B, A), e2 = V.sub(D, A);
+    let nr = V.norm(V.cross(e2, e1));
+    const mid = [(A[0]+C[0])*0.5, (A[1]+C[1])*0.5, (A[2]+C[2])*0.5];
+    if (V.dot(nr, [mid[0], 0, mid[2]]) < 0) nr = V.mul(nr, -1);
+    b.quad(A, B, C, D, nr, nr, nr, nr, col);
+  }
+}
+
+function addCap(b, ring, y, up, col){
+  const C = [0, y, 0];
+  const n = up ? [0, 1, 0] : [0, -1, 0];
+  const N = ring.length;
+  for (let i = 0; i < N; i++){
+    const j = (i + 1) % N;
+    const A = [ring[i][0], y, ring[i][1]];
+    const B = [ring[j][0], y, ring[j][1]];
+    if (up) b.tri(C, A, B, n, n, n, col);
+    else    b.tri(C, B, A, n, n, n, col);
+  }
+}
+
+function addSidePanel(b, a, c, y0, y1, eps, col){
+  const dx = c[0] - a[0], dz = c[1] - a[1];
+  const l = Math.hypot(dx, dz) || 1;
+  const nx = dz / l, nz = -dx / l;
+  const p0 = [a[0] + nx*eps, y0, a[1] + nz*eps];
+  const p1 = [a[0] + nx*eps, y1, a[1] + nz*eps];
+  const p2 = [c[0] + nx*eps, y1, c[1] + nz*eps];
+  const p3 = [c[0] + nx*eps, y0, c[1] + nz*eps];
+  const nn = [nx, 0, nz];
+  b.quad(p0, p1, p2, p3, nn, nn, nn, nn, col);
+}
+
+function buildLanderBody(){
+  const b = new Builder();
+
+  const GOLD     = [0.98, 0.68, 0.14];
+  const GOLD_ALT = [0.90, 0.58, 0.10];
+  const COPPER   = [0.88, 0.46, 0.12];
+  const SILVER   = [0.86, 0.92, 1.00];
+  const GRAY     = [0.52, 0.60, 0.74];
+  const GRAY_L   = [0.72, 0.80, 0.92];
+  const DARKG    = [0.14, 0.18, 0.26];
+  const GLASS    = [0.01, 0.07, 0.16];
+
+  const R_DS = 2.0;
+  const Y0 = 0.42, Y1 = 2.52;
+  const oct = [];
+  for (let i = 0; i < 8; i++){
+    const a = PI/8 + i * PI/4;
+    oct.push([Math.cos(a) * R_DS, Math.sin(a) * R_DS]);
+  }
+
+  addPrism(b, oct, Y0, Y1, GOLD_ALT, true);
+
+  for (let i = 0; i < 8; i++){
+    const a = oct[i], c = oct[(i + 1) % 8];
+    const col = (i % 2 === 0) ? GOLD : COPPER;
+    addSidePanel(b, a, c, Y0 + 0.04, Y1 - 0.06, 0.022, col);
+  }
+  for (let i = 0; i < 8; i++){
+    const a = oct[i], c = oct[(i + 1) % 8];
+    addSidePanel(b, a, c, 1.28, 1.46, 0.036, SILVER);
+    addSidePanel(b, a, c, 1.88, 2.00, 0.036, GRAY_L);
+  }
+
+  addCyl(b, [0, 0.46, 0], [0, -0.34, 0], 0.30, 0.86, 26, DARKG, true, false);
+  addCyl(b, [0, 0.46, 0], [0, 0.16, 0], 0.52, 0.46, 22, GRAY, true, false);
+
+  for (const d of [[1,1],[1,-1],[-1,1],[-1,-1]]){
+    const dn = V.norm([d[0], 0, d[1]]);
+    const p = V.mul(dn, 1.62);
+    addCyl(b, [p[0], 0.44, p[2]], [p[0], 0.10, p[2]], 0.26, 0.30, 14, DARKG, true, true);
+  }
+
+  const R_AS = 1.78;
+  const octA = [];
+  for (let i = 0; i < 8; i++){
+    const a = PI/8 + i * PI/4;
+    octA.push([Math.cos(a) * R_AS, Math.sin(a) * R_AS]);
+  }
+  addPrism(b, octA, 2.52, 3.88, GRAY, false);
+
+  const octB = [];
+  for (let i = 0; i < 8; i++){
+    const a = PI/8 + i * PI/4;
+    octB.push([Math.cos(a) * 1.44, Math.sin(a) * 1.44]);
+  }
+  addLoft(b, octA, 3.88, octB, 4.34, GRAY_L);
+  addCap(b, octB, 4.34, true, GRAY_L);
+
+  for (let i = 0; i < 8; i++){
+    if (i % 2 === 1) continue;
+    const a = octA[i], c = octA[(i + 1) % 8];
+    addSidePanel(b, a, c, 2.72, 3.62, 0.024, GRAY_L);
+  }
+
+  for (const sx of [-1, 1]){
+    addBox(b, [sx * 0.34, 3.44, 1.660], [0.255, 0.295, 0.035], SILVER);
+    addBox(b, [sx * 0.34, 3.44, 1.640], [0.205, 0.245, 0.030], GLASS);
+  }
+  addBox(b, [0, 2.92, 1.700], [0.42, 0.34, 0.028], GRAY_L);
+  addBox(b, [0, 2.92, 1.685], [0.36, 0.28, 0.022], DARKG);
+
+  addCyl(b, [0, 4.34, 0], [0, 4.76, 0], 0.40, 0.38, 20, GRAY_L, false, false);
+  addCyl(b, [0, 4.70, 0], [0, 4.80, 0], 0.42, 0.42, 20, SILVER, true, true);
+
+  addCyl(b, [0.62, 4.30, 0.30], [1.02, 5.34, 0.46], 0.022, 0.022, 7, SILVER, true, true);
+  addSphere(b, [1.03, 5.38, 0.47], 0.10, 12, 8, SILVER);
+
+  addCyl(b, [-0.70, 4.30, -0.20], [-0.86, 4.92, -0.28], 0.028, 0.024, 7, GRAY_L, true, true);
+  addCyl(b, [-0.88, 4.94, -0.29], [-0.90, 5.06, -0.30], 0.16, 0.16, 14, SILVER, true, true);
+
+  for (const d of [[1,1],[1,-1],[-1,1],[-1,-1]]){
+    const dn = V.norm([d[0], 0, d[1]]);
+    const base = V.mul(dn, 1.70);
+    const y = 3.66;
+    addBox(b, [base[0], y, base[2]], [0.155, 0.170, 0.155], DARKG);
+    const out = V.mul(dn, 0.16);
+    for (let k = -1; k <= 1; k += 2){
+      const px = base[0] + out[0] + dn[2] * k * 0.10;
+      const pz = base[2] + out[2] - dn[0] * k * 0.10;
+      addCyl(b, [px, y + 0.05, pz], [px + dn[0]*0.22, y + 0.05, pz + dn[2]*0.22],
+             0.045, 0.095, 10, GRAY_L, true, true);
+    }
+    addCyl(b, [base[0] + out[0], y - 0.10, base[2] + out[2]],
+              [base[0] + out[0] + dn[0]*0.20, y - 0.16, base[2] + out[2] + dn[2]*0.20],
+           0.045, 0.095, 10, GRAY_L, true, true);
+  }
+
+  addPrism(b, octA.map(p => [p[0] * 0.99, p[1] * 0.99]), 2.46, 2.54, DARKG, true);
+
+  return b;
+}
+
+function buildLanderLeg(){
+  const b = new Builder();
+  const SILVER = [0.86, 0.92, 1.00];
+  const DARKG  = [0.14, 0.18, 0.26];
+  const GRAY   = [0.52, 0.60, 0.74];
+
+  addCyl(b, [0, 0, 0], [1.34, -2.08, 0], 0.105, 0.075, 12, SILVER, true, true);
+  addCyl(b, [1.34, -2.20, 0], [1.34, -2.06, 0], 0.36, 0.31, 18, DARKG, true, true);
+  addCyl(b, [0.20, -1.72, 0], [0.80, -0.98, 0], 0.048, 0.048, 9, SILVER, true, true);
+  addBox(b, [-0.02, -0.04, 0], [0.13, 0.16, 0.13], GRAY);
+
+  return b;
+}
+
+function buildEraser(){
+  const b = new Builder();
+  const WHITE = [0.92, 0.92, 0.94];
+  const PINK  = [0.88, 0.55, 0.55];
+  addBox(b, [0, 0, 0], [0.5, 0.22, 0.35], WHITE);
+  addBox(b, [0, 0, -0.36], [0.5, 0.22, 0.02], PINK);
+  return b;
+}
+
+function buildToothbrush(){
+  const b = new Builder();
+  const HANDLE = [0.25, 0.55, 0.85];
+  const BRISTLE= [0.92, 0.92, 0.96];
+  addBox(b, [0, 0, 0.2], [0.10, 0.06, 0.9], HANDLE);
+  addBox(b, [0, 0, -0.9], [0.11, 0.05, 0.28], HANDLE);
+  for (let i = 0; i < 6; i++){
+    for (let j = 0; j < 3; j++){
+      addBox(b, [-0.07 + j*0.07, 0.08, -0.70 + i*0.075], [0.025, 0.06, 0.025], BRISTLE);
+    }
+  }
+  return b;
+}
+
+function buildFloorBrush(){
+  const b = new Builder();
+  const WOOD = [0.60, 0.42, 0.22];
+  const BRISTLE = [0.85, 0.75, 0.55];
+  addBox(b, [0, 0, 0.6], [0.08, 0.06, 0.7], WOOD);
+  addBox(b, [0, 0, -0.15], [0.6, 0.06, 0.28], WOOD);
+  for (let i = 0; i < 12; i++){
+    for (let j = 0; j < 4; j++){
+      addBox(b, [-0.55 + i*0.1, -0.12, -0.12 + j*0.1], [0.035, 0.10, 0.035], BRISTLE);
+    }
+  }
+  return b;
+}
+
+function buildBroom(){
+  const b = new Builder();
+  const WOOD = [0.55, 0.38, 0.20];
+  const STRAW = [0.82, 0.68, 0.42];
+  addCyl(b, [0, 0, 0.8], [0, 0, -0.8], 0.05, 0.05, 8, WOOD, true, true);
+  addBox(b, [0, 0, -1.0], [0.55, 0.06, 0.22], WOOD);
+  for (let i = 0; i < 14; i++){
+    const x = -0.50 + i * 0.075;
+    addCyl(b, [x, -0.10, -1.05], [x * 1.15, -0.55, -1.25], 0.025, 0.015, 5, STRAW, true, true);
+  }
+  return b;
+}
+
+function buildDuster(){
+  const b = new Builder();
+  const HANDLE = [0.72, 0.35, 0.18];
+  const FEATHER = [0.95, 0.82, 0.95];
+  addCyl(b, [0, 0, 1.2], [0, 0, -1.0], 0.04, 0.04, 8, HANDLE, true, true);
+  addSphere(b, [0, 0.05, -1.15], 0.28, 12, 8, FEATHER);
+  for (let i = 0; i < 18; i++){
+    const a = i / 18 * PI * 2;
+    const r = 0.35 + Math.random() * 0.15;
+    const x = Math.cos(a) * r;
+    const y = 0.15 + Math.random() * 0.25;
+    const z = -1.15 + Math.sin(a) * r;
+    addCyl(b, [x*0.3, y*0.3, -1.1], [x, y, z], 0.02, 0.008, 5, FEATHER, true, true);
+  }
+  return b;
+}
+
+function uploadBuilder(builder){
+  const vcount = builder.pos.length / 3;
+  const interleaved = new Float32Array(vcount * 9);
+  for (let i = 0; i < vcount; i++){
+    const o = i * 9;
+    interleaved[o + 0] = builder.pos[i * 3 + 0];
+    interleaved[o + 1] = builder.pos[i * 3 + 1];
+    interleaved[o + 2] = builder.pos[i * 3 + 2];
+    interleaved[o + 3] = builder.nor[i * 3 + 0];
+    interleaved[o + 4] = builder.nor[i * 3 + 1];
+    interleaved[o + 5] = builder.nor[i * 3 + 2];
+    interleaved[o + 6] = builder.col[i * 3 + 0];
+    interleaved[o + 7] = builder.col[i * 3 + 1];
+    interleaved[o + 8] = builder.col[i * 3 + 2];
+  }
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  const vbo = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, interleaved, gl.STATIC_DRAW);
+  const STRIDE = 9 * 4;
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, STRIDE, 0);
+  gl.enableVertexAttribArray(1);
+  gl.vertexAttribPointer(1, 3, gl.FLOAT, false, STRIDE, 3 * 4);
+  gl.enableVertexAttribArray(2);
+  gl.vertexAttribPointer(2, 3, gl.FLOAT, false, STRIDE, 6 * 4);
+  gl.bindVertexArray(null);
+  return { vao, count: vcount };
+}
+
+/* ============================================================
+   6. 程序与网格
+   ============================================================ */
+const skyProg    = makeProgram(SKY_VS, SKY_FS);
+const moonProg   = makeProgram(MOON_VS, MOON_FS);
+const earthProg  = makeProgram(BODY_VS, EARTH_FS);
+const landerProg = makeProgram(LANDER_VS, LANDER_FS);
+const toolProg   = makeProgram(TOOL_VS, TOOL_FS);
+const postProg   = makeProgram(POST_VS, POST_FS);
+
+const skyU    = uniLocs(skyProg,    ['uCamFwd','uCamRight','uCamUp','uTanX','uTanY','uSunDir','uTime']);
+const moonU   = uniLocs(moonProg,   ['uVP','uCamPos','uSunDir','uNormalTex','uCleanTex','uViewDist']);
+const earthU  = uniLocs(earthProg,  ['uVP','uModel','uCamPos','uSunDir']);
+const landerU = uniLocs(landerProg, ['uVP','uModel','uCamPos','uSunDir','uMetalTex']);
+const toolU   = uniLocs(toolProg,   ['uVP','uModel','uCamPos']);
+const postU   = uniLocs(postProg,   ['uScene','uRes','uTime']);
+
+const quadVAO  = makeQuadVAO();
+const quadVAO2 = makeQuadVAO();
+
+const R_MOON = 500;
+const moonMesh = makeSphere(192, 96, R_MOON);
+const bodyMesh = makeSphere(64, 32, 1);
+
+const normalTex = generateNormalTexture(1024);
+
+const metalTexCanvas = createMetalTextureCanvas(512);
+const metalTex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, metalTex);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, metalTexCanvas);
+gl.generateMipmap(gl.TEXTURE_2D);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+const CLEAN_W = 2048, CLEAN_H = 1024;
+const cleanCanvas = document.createElement('canvas');
+cleanCanvas.width = CLEAN_W;
+cleanCanvas.height = CLEAN_H;
+const cleanCtx = cleanCanvas.getContext('2d');
+cleanCtx.fillStyle = '#000';
+cleanCtx.fillRect(0, 0, CLEAN_W, CLEAN_H);
+
+const cleanTex = gl.createTexture();
+function uploadCleanTex(){
+  gl.bindTexture(gl.TEXTURE_2D, cleanTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cleanCanvas);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+}
+uploadCleanTex();
+
+const landerBodyMesh = uploadBuilder(buildLanderBody());
+const landerLegMesh  = uploadBuilder(buildLanderLeg());
+
+/* 白色小球网格（用于发射物） */
+const whiteBallBuilder = new Builder();
+addSphere(whiteBallBuilder, [0, 0, 0], 1, 12, 8, [1, 1, 1]);
+const whiteBallMesh = uploadBuilder(whiteBallBuilder);
+
+const toolMeshes = {
+  eraser:   uploadBuilder(buildEraser()),
+  toothbrush: uploadBuilder(buildToothbrush()),
+  floorbrush: uploadBuilder(buildFloorBrush()),
+  broom:    uploadBuilder(buildBroom()),
+  duster:   uploadBuilder(buildDuster()),
+};
+
+/* ============================================================
+   7. 离屏帧缓冲
+   ============================================================ */
+let W = 0, H = 0;
+const sceneTex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.bindTexture(gl.TEXTURE_2D, null);
+
+const depthRB = gl.createRenderbuffer();
+const sceneFBO = gl.createFramebuffer();
+
+function resize(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+  const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+  if (w === W && h === H) return;
+  W = w; H = h;
+  canvas.width = w;
+  canvas.height = h;
+
+  gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, W, H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+
+  gl.bindRenderbuffer(gl.RENDERBUFFER, depthRB);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, W, H);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFBO);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, sceneTex, 0);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthRB);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+}
+
+/* ============================================================
+   8. 工具定义 & 状态
+   ============================================================ */
+const TOOL_DEFS = [
+  { id: 'eraser',    name: '橡皮',        radius: 0.2, cooldown: 0.5, mesh: toolMeshes.eraser },
+  { id: 'toothbrush',name: '牙刷',        radius: 0.5, cooldown: 0.2, mesh: toolMeshes.toothbrush },
+  { id: 'floorbrush',name: '地板刷',      radius: 1.0, cooldown: 0.1, mesh: toolMeshes.floorbrush },
+  { id: 'broom',     name: '扫把',        radius: 4.0, cooldown: 0.0, mesh: toolMeshes.broom },
+  { id: 'duster',    name: '长鸡毛掸子',  radius: 6.0, cooldown: 0.0, mesh: toolMeshes.duster },
+];
+
+let selectedTool = null;
+let toolCooldown = 0;
+let fireCooldown = 0;
+
+const balls = [];
+
+const COV_W = 256, COV_H = 128;
+const coverage = new Uint8Array(COV_W * COV_H);
+let coverageCount = 0;
+const COV_TOTAL = COV_W * COV_H;
+
+function resetCoverage(){
+  coverage.fill(0);
+  coverageCount = 0;
+}
+
+const toolPanel = document.getElementById('toolPanel');
+const toolBtn = document.getElementById('toolBtn');
+let panelOpen = false;
+
+function buildToolPanel(){
+  toolPanel.innerHTML = '';
+  for (const t of TOOL_DEFS){
+    const div = document.createElement('div');
+    div.className = 'tool-item' + (selectedTool && selectedTool.id === t.id ? ' active' : '');
+    div.innerHTML = `<span>${t.name}</span><small>r=${t.radius}${t.cooldown ? ' · '+t.cooldown+'s' : ' · 无冷却'}</small>`;
+    div.addEventListener('pointerdown', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      selectedTool = t;
+      buildToolPanel();
+      panelOpen = false;
+      toolPanel.classList.remove('show');
+    });
+    toolPanel.appendChild(div);
+  }
+}
+buildToolPanel();
+
+toolBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  panelOpen = !panelOpen;
+  toolPanel.classList.toggle('show', panelOpen);
+});
+
+/* ============================================================
+   9. 玩家 / 登月舱 / 驾驶状态
+   ============================================================ */
+const player = {
+  dir: V.norm([0.28, 0.62, 1.0]),
+  forward: [1, 0, 0],
+  pitch: 0,
+  height: 0,
+  vvel: 0,
+};
+{
+  let f = V.sub(player.forward, V.mul(player.dir, V.dot(player.forward, player.dir)));
+  player.forward = V.norm(f);
+}
+
+const SPEED_WALK  = 5.0;
+const SPEED_DRIVE = 10.0;
+const CAM_HEIGHT  = 1.6;
+const GRAVITY     = 1.6;
+const JUMP_VEL    = 5.0;
+const EYE_PITCH_MAX = 1.35;
+const DRIVE_RANGE = 15.0;
+
+const lander = {
+  dir: [0, 1, 0],
+  forward: [1, 0, 0],
+};
+{
+  const spawnWorld = V.mul(player.dir, R_MOON);
+  const off = V.add(spawnWorld, V.mul(player.forward, 10));
+  lander.dir = V.norm(off);
+  let lf = V.sub(V.mul(player.forward, -1), V.mul(lander.dir, V.dot(player.forward, lander.dir)));
+  lander.forward = V.norm(lf);
+}
+
+let isDriving = false;
+let walkPhase = 0;
+let walkAmount = 0;
+let jumpKick = 0;
+
+function landerMatrix(pos, forward, up, scale){
+  const X = V.norm(V.cross(up, forward));
+  const Y = up;
+  const Z = V.norm(V.cross(X, Y));
+  return new Float32Array([
+    X[0]*scale, X[1]*scale, X[2]*scale, 0,
+    Y[0]*scale, Y[1]*scale, Y[2]*scale, 0,
+    Z[0]*scale, Z[1]*scale, Z[2]*scale, 0,
+    pos[0], pos[1], pos[2], 1
+  ]);
+}
+
+/* ============================================================
+   10. 输入
+   ============================================================ */
+const keys = Object.create(null);
+const joyL = document.getElementById('joyL');
+const knobL = document.getElementById('knobL');
+const jumpBtn = document.getElementById('jumpBtn');
+const driveBtn = document.getElementById('driveBtn');
+const cleanBtn = document.getElementById('cleanBtn');
+const fireBtn = document.getElementById('fireBtn');
+let jumpTouch = false;
+
+if ('ontouchstart' in window || navigator.maxTouchPoints > 0){
+  jumpBtn.style.display = 'flex';
+  cleanBtn.classList.add('show');
+}
+jumpBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  jumpTouch = true;
+});
+jumpBtn.addEventListener('pointerup', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  jumpTouch = false;
+});
+jumpBtn.addEventListener('pointercancel', () => { jumpTouch = false; });
+jumpBtn.addEventListener('pointerleave', () => { jumpTouch = false; });
+
+function toggleDrive(){
+  if (isDriving){
+    isDriving = false;
+    player.height = 0;
+    player.vvel = 0;
+    driveBtn.textContent = '驾驶 (F)';
+  } else {
+    const landerWorld = V.mul(lander.dir, R_MOON);
+    const playerWorld = V.mul(player.dir, R_MOON);
+    if (V.len(V.sub(landerWorld, playerWorld)) > DRIVE_RANGE) return;
+    isDriving = true;
+    player.dir = lander.dir;
+    player.forward = lander.forward;
+    player.height = 0;
+    player.vvel = 0;
+    player.pitch = 0;
+    walkPhase = 0;
+    jumpKick = 0;
+    driveBtn.textContent = '退出 (F)';
+  }
+}
+driveBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  toggleDrive();
+});
+
+/* ---- 清扫：半圆朝向相对角色视角逆时针旋转 90° ---- */
+function doClean(){
+  if (!selectedTool || toolCooldown > 0 || isDriving) return;
+
+  const up = player.dir;
+  const camPos = V.mul(up, R_MOON + player.height + CAM_HEIGHT);
+  const camFwd = V.norm(V.add(
+    V.mul(player.forward, Math.cos(player.pitch)),
+    V.mul(up, Math.sin(player.pitch))
+  ));
+
+  const o = camPos;
+  const d = camFwd;
+  const b = V.dot(o, d);
+  const c = V.dot(o, o) - R_MOON * R_MOON;
+  const disc = b * b - c;
+  if (disc < 0) return;
+  const t = -b - Math.sqrt(disc);
+  if (t < 0) return;
+  const hit = V.add(o, V.mul(d, t));
+  const C = V.norm(hit);
+
+  let T = V.sub(player.forward, V.mul(C, V.dot(player.forward, C)));
+  if (V.len(T) < 1e-6) return;
+  T = V.norm(T);
+
+  /* 相对角色视角逆时针旋转 90°：T = C × T */
+  T = V.norm(V.cross(C, T));
+
+  const cu = Math.atan2(C[2], C[0]) / (2 * PI) + 0.5;
+  const cv = Math.acos(clamp(C[1], -1, 1)) / PI;
+
+  const angR = selectedTool.radius / R_MOON;
+  const sinTheta = Math.max(0.001, Math.sqrt(1 - C[1] * C[1]));
+  const du = angR / (2 * PI * sinTheta);
+  const dv = angR / PI;
+
+  const cx = cu * CLEAN_W;
+  const cy = cv * CLEAN_H;
+  const rx = Math.max(1, du * CLEAN_W);
+  const ry = Math.max(1, dv * CLEAN_H);
+
+  const upG = [0, 1, 0];
+  let east = V.cross(upG, C);
+  if (V.len(east) < 1e-4) east = [1, 0, 0];
+  east = V.norm(east);
+  const north = V.cross(C, east);
+
+  const tx = V.dot(T, east);
+  const ty = V.dot(T, north);
+  const angleT = Math.atan2(ty, tx);
+
+  cleanCtx.save();
+  cleanCtx.globalCompositeOperation = 'source-over';
+  cleanCtx.fillStyle = '#fff';
+  cleanCtx.beginPath();
+  cleanCtx.ellipse(cx, cy, rx, ry, 0, angleT, angleT + PI, false);
+  cleanCtx.closePath();
+  cleanCtx.fill();
+  cleanCtx.restore();
+
+  uploadCleanTex();
+
+  markCoverage(C, angR, T, false);
+
+  toolCooldown = selectedTool.cooldown;
+  if (toolCooldown < 0) toolCooldown = 0;
+}
+
+/* ---- 全圆清扫（白球落地） ---- */
+function cleanCircle(C, radius){
+  const cu = Math.atan2(C[2], C[0]) / (2 * PI) + 0.5;
+  const cv = Math.acos(clamp(C[1], -1, 1)) / PI;
+  const angR = radius / R_MOON;
+  const sinTheta = Math.max(0.001, Math.sqrt(1 - C[1] * C[1]));
+  const du = angR / (2 * PI * sinTheta);
+  const dv = angR / PI;
+
+  const cx = cu * CLEAN_W;
+  const cy = cv * CLEAN_H;
+  const rx = Math.max(1, du * CLEAN_W);
+  const ry = Math.max(1, dv * CLEAN_H);
+
+  cleanCtx.save();
+  cleanCtx.globalCompositeOperation = 'source-over';
+  cleanCtx.fillStyle = '#fff';
+  cleanCtx.beginPath();
+  cleanCtx.ellipse(cx, cy, rx, ry, 0, 0, 2 * PI, false);
+  cleanCtx.closePath();
+  cleanCtx.fill();
+  cleanCtx.restore();
+
+  uploadCleanTex();
+  markCoverage(C, angR, null, true);
+}
+
+function markCoverage(C, angR, T, fullCircle){
+  const cu = Math.atan2(C[2], C[0]) / (2 * PI) + 0.5;
+  const cv = Math.acos(clamp(C[1], -1, 1)) / PI;
+  const sinTheta = Math.max(0.001, Math.sqrt(1 - C[1] * C[1]));
+  const du = angR / (2 * PI * sinTheta);
+  const dv = angR / PI;
+
+  const x0 = Math.max(0, Math.floor((cu - du) * COV_W) - 1);
+  const x1 = Math.min(COV_W - 1, Math.ceil((cu + du) * COV_W) + 1);
+  const y0 = Math.max(0, Math.floor((cv - dv) * COV_H) - 1);
+  const y1 = Math.min(COV_H - 1, Math.ceil((cv + dv) * COV_H) + 1);
+
+  for (let y = y0; y <= y1; y++){
+    for (let x = x0; x <= x1; x++){
+      if (coverage[y * COV_W + x]) continue;
+      const u = (x + 0.5) / COV_W;
+      const v = (y + 0.5) / COV_H;
+      const phi = (u - 0.5) * 2 * PI;
+      const theta = v * PI;
+      const st = Math.sin(theta);
+      const P = [st * Math.cos(phi), Math.cos(theta), st * Math.sin(phi)];
+      const ang = Math.acos(clamp(V.dot(P, C), -1, 1));
+      if (ang > angR) continue;
+      if (!fullCircle){
+        let dP = V.sub(P, V.mul(C, V.dot(P, C)));
+        if (V.len(dP) < 1e-6) continue;
+        dP = V.norm(dP);
+        if (V.dot(dP, T) < 0) continue;
+      }
+      coverage[y * COV_W + x] = 1;
+      coverageCount++;
+    }
+  }
+
+  if (coverageCount >= COV_TOTAL){
+    showDone();
+  }
+}
+
+/* ---- 发射白球（仅驾驶时）：随机方向发射 5 个白球 ---- */
+function doFire(){
+  if (!isDriving || fireCooldown > 0) return;
+
+  const up = player.dir;
+  const landerWorld = V.mul(player.dir, R_MOON);
+  const back = V.mul(player.forward, -14);
+  const lift = V.mul(up, 6.0 + player.height);
+  let camPos = V.add(V.add(landerWorld, back), lift);
+  const camTarget = V.add(landerWorld, V.mul(up, 2.6 + player.height));
+  const pitchOff = Math.sin(player.pitch) * 12;
+  camPos = V.add(camPos, V.mul(up, pitchOff * 0.6));
+  const camFwd = V.norm(V.sub(camTarget, camPos));
+
+  /* 准星射线与月球求交，得到瞄准点 */
+  let target = null;
+  const o = camPos, d = camFwd;
+  const b = V.dot(o, d);
+  const c = V.dot(o, o) - R_MOON * R_MOON;
+  const disc = b * b - c;
+  if (disc >= 0){
+    const t = -b - Math.sqrt(disc);
+    if (t > 0) target = V.add(o, V.mul(d, t));
+  }
+  if (!target) target = V.add(o, V.mul(d, 1000));
+
+  const fireOrigin = V.add(landerWorld, V.mul(up, 2.0));
+  let baseDir = V.norm(V.sub(target, fireOrigin));
+
+  /* 构建垂直于 baseDir 的基 */
+  const ref = Math.abs(baseDir[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+  const u = V.norm(V.cross(ref, baseDir));
+  const v = V.cross(baseDir, u);
+
+  /* 随机方向发射 5 个白球 */
+  for (let i = 0; i < 5; i++){
+    const angleU = (Math.random() - 0.5) * 1.2; // ±0.6 rad
+    const angleV = (Math.random() - 0.5) * 1.2;
+    const dir = V.norm(V.add(baseDir, V.add(V.mul(u, angleU), V.mul(v, angleV))));
+    balls.push({
+      pos: fireOrigin.slice(),
+      vel: V.mul(dir, 180),
+      active: true
+    });
+  }
+
+  fireCooldown = 2.5;
+}
+
+cleanBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  doClean();
+});
+
+fireBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  doFire();
+});
+
+window.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (e.code === 'Space') e.preventDefault();
+  if (e.code === 'KeyF' && !e.repeat) toggleDrive();
+  if (e.code === 'KeyQ' && !e.repeat) doClean();
+  if (e.code === 'KeyE' && !e.repeat) doFire();
+});
+window.addEventListener('keyup', (e) => {
+  keys[e.code] = false;
+});
+
+const lookPointer = { id: -1, x: 0, y: 0 };
+const joyPointer  = { id: -1, ox: 0, oy: 0, dx: 0, dy: 0 };
+
+canvas.addEventListener('pointerdown', (e) => {
+  try { canvas.setPointerCapture(e.pointerId); } catch(err){}
+
+  if (e.pointerType === 'mouse'){
+    if (e.button !== 0) return;
+    if (lookPointer.id === -1){
+      lookPointer.id = e.pointerId;
+      lookPointer.x = e.clientX;
+      lookPointer.y = e.clientY;
+    }
+    return;
+  }
+
+  if (e.clientX < window.innerWidth * 0.5){
+    if (joyPointer.id === -1){
+      joyPointer.id = e.pointerId;
+      joyPointer.ox = e.clientX;
+      joyPointer.oy = e.clientY;
+      joyPointer.dx = 0;
+      joyPointer.dy = 0;
+      joyL.style.left = e.clientX + 'px';
+      joyL.style.top  = e.clientY + 'px';
+      joyL.classList.add('on');
+      knobL.style.transform = 'translate(-50%,-50%)';
+    }
+  } else {
+    if (lookPointer.id === -1){
+      lookPointer.id = e.pointerId;
+      lookPointer.x = e.clientX;
+      lookPointer.y = e.clientY;
+    }
+  }
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerId === lookPointer.id){
+    const dx = e.clientX - lookPointer.x;
+    const dy = e.clientY - lookPointer.y;
+    lookPointer.x = e.clientX;
+    lookPointer.y = e.clientY;
+
+    const sens = 0.0035;
+    const up = player.dir;
+    player.forward = V.norm(rotateAxis(player.forward, up, -dx * sens));
+    player.pitch = clamp(player.pitch - dy * sens, -EYE_PITCH_MAX, EYE_PITCH_MAX);
+    return;
+  }
+  if (e.pointerId === joyPointer.id){
+    let dx = e.clientX - joyPointer.ox;
+    let dy = e.clientY - joyPointer.oy;
+    const maxR = 56;
+    const len = Math.hypot(dx, dy);
+    if (len > maxR){
+      dx = dx / len * maxR;
+      dy = dy / len * maxR;
+    }
+    joyPointer.dx = dx / maxR;
+    joyPointer.dy = dy / maxR;
+    knobL.style.transform = `translate(calc(-50% + ${dx.toFixed(1)}px), calc(-50% + ${dy.toFixed(1)}px))`;
+  }
+});
+
+function endPointer(e){
+  if (e.pointerId === lookPointer.id){
+    lookPointer.id = -1;
+  }
+  if (e.pointerId === joyPointer.id){
+    joyPointer.id = -1;
+    joyPointer.dx = 0;
+    joyPointer.dy = 0;
+    joyL.classList.remove('on');
+  }
+}
+window.addEventListener('pointerup', endPointer);
+window.addEventListener('pointercancel', endPointer);
+
+/* ============================================================
+   11. 更新
+   ============================================================ */
+function update(dt, time){
+  if (toolCooldown > 0) toolCooldown -= dt;
+  if (fireCooldown > 0) fireCooldown -= dt;
+
+  for (let i = balls.length - 1; i >= 0; i--){
+    const ball = balls[i];
+    if (!ball.active){
+      balls.splice(i, 1);
+      continue;
+    }
+    ball.pos = V.add(ball.pos, V.mul(ball.vel, dt));
+    const r2 = V.dot(ball.pos, ball.pos);
+    if (r2 <= R_MOON * R_MOON){
+      const C = V.norm(ball.pos);
+      cleanCircle(C, 4.0);
+      balls.splice(i, 1);
+    }
+  }
+
+  let ix = 0, iz = 0;
+  if (keys['KeyW'] || keys['ArrowUp'])    iz += 1;
+  if (keys['KeyS'] || keys['ArrowDown'])  iz -= 1;
+  if (keys['KeyA'] || keys['ArrowLeft'])  ix -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
+
+  ix += joyPointer.dx;
+  iz -= joyPointer.dy;
+
+  const inLen = Math.hypot(ix, iz);
+  if (inLen > 1){
+    ix /= inLen;
+    iz /= inLen;
+  }
+  const isMoving = Math.hypot(ix, iz) > 0.02;
+
+  const up = player.dir;
+  const right = V.norm(V.cross(player.forward, up));
+  const speed = isDriving ? SPEED_DRIVE : SPEED_WALK;
+
+  if (isMoving){
+    const moveDir = V.norm(V.add(V.mul(right, ix), V.mul(player.forward, iz)));
+    const step = speed * dt;
+    const newWorld = V.add(V.mul(up, R_MOON), V.mul(moveDir, step));
+    const newDir = V.norm(newWorld);
+
+    let f = V.sub(player.forward, V.mul(newDir, V.dot(player.forward, newDir)));
+    const fl = V.len(f);
+    if (fl > 1e-6) player.forward = V.mul(f, 1 / fl);
+
+    player.dir = newDir;
+
+    if (isDriving){
+      lander.dir = player.dir;
+      lander.forward = player.forward;
+    }
+  }
+
+  if (!isDriving && (keys['Space'] || jumpTouch) && player.height <= 0.0001 && player.vvel <= 0){
+    player.vvel = JUMP_VEL;
+  }
+  if (player.height > 0 || player.vvel > 0){
+    player.vvel -= GRAVITY * dt;
+    player.height += player.vvel * dt;
+    if (player.height <= 0){
+      player.height = 0;
+      player.vvel = 0;
+    }
+  }
+
+  if (isDriving){
+    if (isMoving && player.height <= 0.001){
+      walkPhase += dt * 7.0;
+      walkAmount += (1 - walkAmount) * Math.min(1, dt * 10);
+    } else {
+      walkAmount += (0 - walkAmount) * Math.min(1, dt * 8);
+    }
+    jumpKick *= Math.exp(-dt * 4.5);
+  } else {
+    walkAmount += (0 - walkAmount) * Math.min(1, dt * 8);
+    jumpKick *= Math.exp(-dt * 4.5);
+  }
+
+  if (!isDriving){
+    const landerWorld = V.mul(lander.dir, R_MOON);
+    const playerWorld = V.mul(player.dir, R_MOON);
+    const near = V.len(V.sub(landerWorld, playerWorld)) < DRIVE_RANGE;
+    driveBtn.classList.toggle('show', near);
+    fireBtn.classList.remove('show');
+  } else {
+    driveBtn.classList.add('show');
+    fireBtn.classList.add('show');
+  }
+}
+
+/* ============================================================
+   12. 渲染
+   ============================================================ */
+function orbitPosition(angle, radius, axis){
+  const a = V.norm(axis);
+  const ref = Math.abs(a[1]) > 0.9 ? [1,0,0] : [0,1,0];
+  const u = V.norm(V.cross(a, ref));
+  const v = V.cross(a, u);
+  return V.add(V.mul(u, Math.cos(angle) * radius), V.mul(v, Math.sin(angle) * radius));
+}
+
+function modelMatrix(pos, scale, rotY){
+  const c = Math.cos(rotY), s = Math.sin(rotY);
+  const m = new Float32Array(16);
+  m[0]  =  c * scale;
+  m[2]  = -s * scale;
+  m[5]  =  scale;
+  m[8]  =  s * scale;
+  m[10] =  c * scale;
+  m[12] = pos[0];
+  m[13] = pos[1];
+  m[14] = pos[2];
+  m[15] = 1;
+  return m;
+}
+
+const LEG_DIRS = [
+  { dx:  0.70710678, dz:  0.70710678 },
+  { dx:  0.70710678, dz: -0.70710678 },
+  { dx: -0.70710678, dz:  0.70710678 },
+  { dx: -0.70710678, dz: -0.70710678 },
+];
+
+const toolViewProj = mat4Perspective(60 * PI / 180, 1, 0.1, 10);
+
+let lastTime = performance.now();
+let simTime = 0;
+
+function frame(now){
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  simTime += dt;
+
+  update(dt, simTime);
+
+  resize();
+  gl.viewport(0, 0, W, H);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFBO);
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  const up = player.dir;
+  let camPos, camFwd, camTarget;
+
+  if (isDriving){
+    const landerWorld = V.mul(player.dir, R_MOON);
+    const back = V.mul(player.forward, -14);
+    const lift = V.mul(up, 6.0 + player.height);
+    camPos = V.add(V.add(landerWorld, back), lift);
+    camTarget = V.add(landerWorld, V.mul(up, 2.6 + player.height));
+    const pitchOff = Math.sin(player.pitch) * 12;
+    camPos = V.add(camPos, V.mul(up, pitchOff * 0.6));
+    camFwd = V.norm(V.sub(camTarget, camPos));
+  } else {
+    camPos = V.mul(up, R_MOON + player.height + CAM_HEIGHT);
+    camFwd = V.norm(V.add(
+      V.mul(player.forward, Math.cos(player.pitch)),
+      V.mul(up, Math.sin(player.pitch))
+    ));
+    camTarget = V.add(camPos, camFwd);
+  }
+
+  const fov = 70 * PI / 180;
+  const aspect = W / H;
+  const proj = mat4Perspective(fov, aspect, 0.1, 60000);
+  const view = mat4LookAt(camPos, camTarget, up);
+  const VP = mat4Mul(proj, view);
+
+  const earthAngle = simTime * 0.085;
+  const earthPos = orbitPosition(earthAngle, 3000, [0.18, 1.0, 0.10]);
+  const earthModel = modelMatrix(earthPos, 160, simTime * 0.30);
+
+  const sunAngle = simTime * 0.021;
+  const sunPos = orbitPosition(sunAngle, 12000, [-0.30, 0.85, 0.42]);
+
+  const sunDirFromCam = V.norm(V.sub(sunPos, camPos));
+  const sunDirFromEarth = V.norm(V.sub(sunPos, earthPos));
+
+  /* 天空 */
+  gl.disable(gl.DEPTH_TEST);
+  gl.depthMask(false);
+
+  gl.useProgram(skyProg);
+  gl.bindVertexArray(quadVAO);
+  const camRight = V.norm(V.cross(camFwd, up));
+  const camUp = V.cross(camRight, camFwd);
+  const tanY = Math.tan(fov / 2);
+  gl.uniform3fv(skyU.uCamFwd, camFwd);
+  gl.uniform3fv(skyU.uCamRight, camRight);
+  gl.uniform3fv(skyU.uCamUp, camUp);
+  gl.uniform1f(skyU.uTanX, tanY * aspect);
+  gl.uniform1f(skyU.uTanY, tanY);
+  gl.uniform3fv(skyU.uSunDir, sunDirFromCam);
+  gl.uniform1f(skyU.uTime, simTime);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  gl.depthMask(true);
+  gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+
+  /* 月球 */
+  gl.useProgram(moonProg);
+  gl.bindVertexArray(moonMesh.vao);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, normalTex);
+  gl.uniform1i(moonU.uNormalTex, 0);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, cleanTex);
+  gl.uniform1i(moonU.uCleanTex, 1);
+  gl.uniformMatrix4fv(moonU.uVP, false, VP);
+  gl.uniform3fv(moonU.uCamPos, camPos);
+  gl.uniform3fv(moonU.uSunDir, sunDirFromCam);
+  gl.uniform1f(moonU.uViewDist, 110.0);
+  gl.drawElements(gl.TRIANGLES, moonMesh.count, gl.UNSIGNED_INT, 0);
+
+  /* 地球 */
+  gl.useProgram(earthProg);
+  gl.bindVertexArray(bodyMesh.vao);
+  gl.uniformMatrix4fv(earthU.uVP, false, VP);
+  gl.uniformMatrix4fv(earthU.uModel, false, earthModel);
+  gl.uniform3fv(earthU.uCamPos, camPos);
+  gl.uniform3fv(earthU.uSunDir, sunDirFromEarth);
+  gl.drawElements(gl.TRIANGLES, bodyMesh.count, gl.UNSIGNED_INT, 0);
+
+  /* 登月舱 */
+  gl.useProgram(landerProg);
+  gl.uniformMatrix4fv(landerU.uVP, false, VP);
+  gl.uniform3fv(landerU.uCamPos, camPos);
+  gl.uniform3fv(landerU.uSunDir, sunDirFromCam);
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, metalTex);
+  gl.uniform1i(landerU.uMetalTex, 0);
+
+  const landerWorld = V.mul(lander.dir, R_MOON);
+  const baseMat = landerMatrix(landerWorld, lander.forward, lander.dir, 1.0);
+
+  gl.uniformMatrix4fv(landerU.uModel, false, baseMat);
+  gl.bindVertexArray(landerBodyMesh.vao);
+  gl.drawArrays(gl.TRIANGLES, 0, landerBodyMesh.count);
+
+  gl.bindVertexArray(landerLegMesh.vao);
+  for (let i = 0; i < 4; i++){
+    const L = LEG_DIRS[i];
+    const rootLocal = [L.dx * 1.72, 2.30, L.dz * 1.72];
+    const angle = Math.atan2(-L.dz, L.dx);
+
+    const phase = (i === 0 || i === 3) ? walkPhase : walkPhase + Math.PI;
+    const swing = Math.sin(phase) * 0.30 * walkAmount + jumpKick * 0.55;
+
+    const legModel = mat4Mul(baseMat, mat4Mul(
+      mat4Translate(rootLocal[0], rootLocal[1], rootLocal[2]),
+      mat4Mul(mat4RotateY(angle), mat4RotateZ(swing))
+    ));
+    gl.uniformMatrix4fv(landerU.uModel, false, legModel);
+    gl.drawArrays(gl.TRIANGLES, 0, landerLegMesh.count);
+  }
+
+  /* 白球（发射物） */
+  if (balls.length > 0){
+    gl.useProgram(toolProg);
+    gl.uniformMatrix4fv(toolU.uVP, false, VP);
+    gl.uniform3fv(toolU.uCamPos, camPos);
+    gl.bindVertexArray(whiteBallMesh.vao);
+    for (const ball of balls){
+      if (!ball.active) continue;
+      const m = mat4Translate(ball.pos[0], ball.pos[1], ball.pos[2]);
+      m[0] = 0.8; m[5] = 0.8; m[10] = 0.8;
+      gl.uniformMatrix4fv(toolU.uModel, false, m);
+      gl.drawArrays(gl.TRIANGLES, 0, whiteBallMesh.count);
+    }
+  }
+
+  /* 工具视图模型 */
+  if (selectedTool){
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.useProgram(toolProg);
+    gl.disable(gl.DEPTH_TEST);
+    gl.depthMask(false);
+
+    gl.uniformMatrix4fv(toolU.uVP, false, toolViewProj);
+    gl.uniform3fv(toolU.uCamPos, [0, 0, 0]);
+
+    const baseModel = new Float32Array([
+      0.8, 0, 0, 0,
+      0, 0.8, 0, 0,
+      0, 0, 0.8, 0,
+      0.45, -0.38, -1.2, 1
+    ]);
+
+    gl.uniformMatrix4fv(toolU.uModel, false, baseModel);
+    gl.bindVertexArray(selectedTool.mesh.vao);
+    gl.drawArrays(gl.TRIANGLES, 0, selectedTool.mesh.count);
+
+    gl.depthMask(true);
+    gl.enable(gl.DEPTH_TEST);
+  }
+
+  /* 后处理 */
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, W, H);
+  gl.disable(gl.DEPTH_TEST);
+  gl.depthMask(false);
+
+  gl.useProgram(postProg);
+  gl.bindVertexArray(quadVAO2);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, sceneTex);
+  gl.uniform1i(postU.uScene, 0);
+  gl.uniform2f(postU.uRes, W, H);
+  gl.uniform1f(postU.uTime, simTime);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  gl.depthMask(true);
+  gl.enable(gl.DEPTH_TEST);
+  gl.bindVertexArray(null);
+
+  requestAnimationFrame(frame);
+}
+
+/* ============================================================
+   13. 完成界面
+   ============================================================ */
+const doneOverlay = document.getElementById('doneOverlay');
+const replayBtn = document.getElementById('replayBtn');
+
+function showDone(){
+  doneOverlay.classList.add('show');
+}
+
+replayBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  doneOverlay.classList.remove('show');
+  cleanCtx.fillStyle = '#000';
+  cleanCtx.fillRect(0, 0, CLEAN_W, CLEAN_H);
+  uploadCleanTex();
+  resetCoverage();
+  balls.length = 0;
+  player.dir = V.norm([0.28, 0.62, 1.0]);
+  player.forward = [1, 0, 0];
+  {
+    let f = V.sub(player.forward, V.mul(player.dir, V.dot(player.forward, player.dir)));
+    player.forward = V.norm(f);
+  }
+  player.height = 0;
+  player.vvel = 0;
+  player.pitch = 0;
+  isDriving = false;
+  selectedTool = null;
+  toolCooldown = 0;
+  fireCooldown = 0;
+  buildToolPanel();
+  driveBtn.textContent = '驾驶 (F)';
+  fireBtn.classList.remove('show');
+});
+
+/* ============================================================
+   14. 启动
+   ============================================================ */
+resize();
+document.getElementById('loading').style.display = 'none';
+requestAnimationFrame(frame);
+
+})();
+</script>
+</body>
+</html>
