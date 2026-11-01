@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>聊天室 · Liao-Tian-Shi-Two</title>
+<style>
+  :root{
+    --blue:#0b5ed7;
+    --blue-2:#1a73e8;
+    --blue-3:#4a90ff;
+    --blue-bg:#eef5ff;
+    --blue-bg-2:#dbe9ff;
+    --line:#c9dcff;
+    --text:#0f2b5b;
+    --muted:#6b87b5;
+  }
+  *{ box-sizing:border-box; border-radius:0 !important; }
+  html,body{ height:100%; }
+  body{
+    margin:0; height:100vh; overflow:hidden;
+    font-family:"Microsoft YaHei","PingFang SC","Helvetica Neue",Arial,sans-serif;
+    font-size:14px; color:var(--text);
+    background:linear-gradient(180deg,#f7fbff 0%,#e6f0ff 100%);
+  }
+  button{
+    font:inherit; cursor:pointer; padding:6px 12px;
+    border:1px solid var(--blue-2); background:#fff; color:var(--blue-2);
+  }
+  button:hover{ background:var(--blue-bg); }
+  button.primary{ background:var(--blue-2); color:#fff; }
+  button.primary:hover{ background:var(--blue); }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  input{ font:inherit; }
+  .hidden{ display:none !important; }
+  .spacer{ flex:1; }
+  .empty-sm{ padding:14px; color:var(--muted); font-size:12px; text-align:center; }
+
+  /* ---------- 登录页 ---------- */
+  #loginView{
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(160deg,#ffffff 0%,#e3efff 100%);
+  }
+  .login-card{
+    width:350px; background:#fff; border:2px solid var(--blue);
+    padding:28px 24px; box-shadow:8px 8px 0 #bcd7ff;
+  }
+  .login-card h1{
+    margin:0 0 6px; font-size:20px; letter-spacing:8px; text-align:center; color:var(--blue);
+  }
+  .login-card .sub{ text-align:center; font-size:12px; color:var(--muted); margin-bottom:22px; }
+  .login-card input{
+    width:100%; padding:10px 12px; border:1px solid #9fc2f5; margin-bottom:12px; outline:none;
+  }
+  .login-card input:focus{ border-color:var(--blue); background:#f5f9ff; }
+  .btn-row{ display:flex; gap:10px; }
+  .btn-row button{ flex:1; padding:10px; }
+  .login-msg{ margin-top:12px; font-size:12px; min-height:16px; color:var(--blue); }
+  .login-msg.err{ color:#c62828; }
+
+  /* ---------- 主界面 ---------- */
+  #appView{ display:flex; flex-direction:column; height:100vh; }
+  .topbar{
+    display:flex; align-items:center; gap:10px; height:52px; padding:0 14px;
+    background:var(--blue); color:#fff; border-bottom:3px solid #0847a6;
+  }
+  .brand{ font-weight:bold; letter-spacing:4px; }
+  .topbar .me{ font-size:13px; }
+  .topbar button{
+    background:transparent; color:#fff; border:1px solid rgba(255,255,255,.65); padding:5px 10px;
+  }
+  .topbar button:hover{ background:rgba(255,255,255,.18); }
+
+  .main{ flex:1; display:flex; min-height:0; }
+
+  .sidebar{
+    width:252px; background:#fff; border-right:2px solid var(--line);
+    display:flex; flex-direction:column; min-height:0;
+  }
+  .side-section{ display:flex; flex-direction:column; min-height:0; flex:1; }
+  .side-section + .side-section{ border-top:2px solid var(--line); }
+  .side-head{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 10px; background:var(--blue-bg); font-weight:bold; color:var(--blue);
+    border-bottom:1px solid var(--line); font-size:13px;
+  }
+  .side-head button{ padding:3px 8px; font-size:12px; }
+  .list{ overflow-y:auto; flex:1; min-height:0; }
+
+  .room-item{
+    display:flex; align-items:center; gap:6px; padding:8px 10px;
+    border-bottom:1px solid #eef3fb; cursor:pointer;
+  }
+  .room-item:hover{ background:#f2f8ff; }
+  .room-item.active{ background:var(--blue-bg-2); box-shadow:inset 4px 0 0 var(--blue); }
+  .room-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tag{ font-size:11px; padding:1px 5px; border:1px solid; }
+  .tag-pub{ color:#1976d2; border-color:#90caf9; background:#e3f2fd; }
+  .tag-priv{ color:#b26a00; border-color:#ffcc80; background:#fff4e5; }
+  .cnt{ font-size:11px; color:var(--muted); }
+
+  .user-item{
+    padding:7px 10px; border-bottom:1px solid #eef3fb; cursor:pointer; font-size:13px;
+  }
+  .user-item:hover{ background:#f2f8ff; }
+
+  .chat{ flex:1; display:flex; flex-direction:column; min-width:0; background:#fff; }
+  .chat-head{
+    display:flex; align-items:center; gap:8px; height:48px; padding:0 14px;
+    border-bottom:2px solid var(--line); background:#f7fbff; overflow:hidden;
+  }
+  #chatTitle{
+    font-weight:bold; color:var(--blue);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:32%;
+  }
+  .meta{
+    font-size:12px; color:var(--muted);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:30%;
+  }
+  .chat-actions{ display:flex; gap:6px; flex-shrink:0; }
+  .chat-actions button{ padding:4px 9px; font-size:12px; }
+
+  .messages{ flex:1; overflow-y:auto; padding:14px; background:#fafcff; }
+  .msg{ margin-bottom:12px; max-width:76%; }
+  .msg.mine{ margin-left:auto; }
+  .msg-head{ font-size:11px; color:var(--muted); margin-bottom:3px; }
+  .msg.mine .msg-head{ text-align:right; }
+  .msg-text{
+    background:#fff; border:1px solid var(--line); padding:8px 10px;
+    white-space:pre-wrap; word-break:break-word; line-height:1.5;
+  }
+  .msg.mine .msg-text{ background:var(--blue-bg-2); border-color:#9fc2f5; }
+  .msg-file{ margin-top:5px; border:1px dashed #9fc2f5; padding:6px; background:#fff; }
+  .msg-img{ max-width:100%; display:block; cursor:zoom-in; }
+  .msg-video{ max-width:100%; display:block; }
+  .msg-pre{
+    margin:0; max-height:260px; overflow:auto; font-size:12px;
+    white-space:pre-wrap; word-break:break-word;
+  }
+  .msg-file a{ color:var(--blue); }
+
+  .composer{
+    display:flex; gap:8px; align-items:center; padding:10px 14px;
+    border-top:2px solid var(--line); background:#f7fbff;
+  }
+  .filebtn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:38px; height:36px; border:1px solid var(--blue-2); color:var(--blue-2);
+    cursor:pointer; background:#fff; font-size:16px;
+  }
+  .filebtn:hover{ background:var(--blue-bg); }
+  #msgInput{
+    flex:1; padding:9px 12px; border:1px solid #9fc2f5; outline:none;
+  }
+  #msgInput:focus{ border-color:var(--blue); background:#fff; }
+
+  /* ---------- 弹窗 ---------- */
+  .overlay{
+    position:fixed; inset:0; background:rgba(11,94,215,.22);
+    display:flex; align-items:center; justify-content:center; z-index:100;
+  }
+  .modal{
+    width:540px; max-width:92vw; max-height:82vh; display:flex; flex-direction:column;
+    background:#fff; border:2px solid var(--blue); box-shadow:8px 8px 0 rgba(11,94,215,.25);
+  }
+  .modal-title{ padding:12px 14px; background:var(--blue); color:#fff; font-weight:bold; }
+  .modal-body{ padding:14px; overflow:auto; flex:1; min-height:0; }
+  .modal-foot{
+    padding:10px 14px; display:flex; justify-content:flex-end; gap:8px;
+    border-top:1px solid var(--line);
+  }
+  .inp{ width:100%; padding:9px 11px; border:1px solid #9fc2f5; outline:none; margin-bottom:12px; }
+  .inp:focus{ border-color:var(--blue); }
+  .radios label{ display:block; margin-bottom:8px; cursor:pointer; }
+  .preview{
+    max-height:300px; overflow:auto; white-space:pre-wrap; word-break:break-word;
+    background:#f5f9ff; border:1px solid var(--line); padding:10px; font-size:12px;
+  }
+
+  /* 收件箱：内容直接展开 + 可滚动 */
+  .inbox-item-full{
+    border:1px solid var(--line); margin-bottom:10px; background:#fafcff;
+  }
+  .inbox-title{
+    padding:6px 8px; background:var(--blue-bg); font-size:12px; font-family:monospace;
+    color:var(--blue); border-bottom:1px solid var(--line); word-break:break-all;
+  }
+  .inbox-content{
+    margin:0; padding:8px; white-space:pre-wrap; word-break:break-word;
+    font-size:12px; max-height:180px; overflow:auto;
+  }
+
+  /* 成员名单 */
+  .member-item{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 10px; border-bottom:1px solid #eef3fb; font-size:13px;
+  }
+  .member-item:hover{ background:#f2f8ff; }
+  .member-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .member-tags{ font-size:11px; color:var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- ============ 登录 ============ -->
+<div id="loginView">
+  <div class="login-card">
+    <h1>聊 天 室</h1>
+    <div class="sub">Liao-Tian-Shi-Two</div>
+    <input id="loginUser" placeholder="账号（支持中文）" autocomplete="off" />
+    <input id="loginPass" type="password" placeholder="密码" autocomplete="off" />
+    <div class="btn-row">
+      <button id="btnLogin" class="primary">登录</button>
+      <button id="btnRegister">注册</button>
+    </div>
+    <div id="loginMsg" class="login-msg"></div>
+  </div>
+</div>
+
+<!-- ============ 主界面 ============ -->
+<div id="appView" class="hidden">
+  <div class="topbar">
+    <div class="brand">聊 天 室</div>
+    <div class="spacer"></div>
+    <div class="me">👤 <span id="meName"></span></div>
+    <button id="btnInbox">收件箱 (<span id="inboxCount">0</span>)</button>
+    <button id="btnLogout">退出登录</button>
+  </div>
+
+  <div class="main">
+    <aside class="sidebar">
+      <div class="side-section">
+        <div class="side-head">
+          <span>聊天室</span>
+          <button id="btnCreateRoom">+ 新建</button>
+        </div>
+        <div id="roomList" class="list"></div>
+      </div>
+      <div class="side-section">
+        <div class="side-head">
+          <span>用户</span>
+          <button id="btnRefreshUsers">刷新</button>
+        </div>
+        <div id="userList" class="list"></div>
+      </div>
+    </aside>
+
+    <section class="chat">
+      <div class="chat-head">
+        <div id="chatTitle">请选择或创建一个聊天室</div>
+        <div class="spacer"></div>
+        <div id="chatMeta" class="meta"></div>
+        <div id="chatActions" class="chat-actions"></div>
+      </div>
+      <div id="messages" class="messages">
+        <div class="empty-sm">暂无消息</div>
+      </div>
+      <div class="composer">
+        <label class="filebtn" title="发送文件">📎<input type="file" id="fileInput" hidden /></label>
+        <input id="msgInput" placeholder="输入消息…（Enter 发送）" autocomplete="off" />
+        <button id="btnSend" class="primary">发送</button>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- 弹窗容器 -->
+<div id="modalRoot"></div>
+
+<script>
+/* =========================================================
+   配置
+   ========================================================= */
+const SUPABASE_URL = 'https://vuyryikastygxwfcvdqm.supabase.co';
+const SUPABASE_KEY = 'sb_secret_wPyaDiZj_9_wID9hxMd-Ew_zR-TAbQg';
+const BUCKET       = '2';
+const ROOT         = 'Liao-Tian-Shi-Two';
+const MAX_MESSAGES = 50;     // 单聊天室最多保留消息条数
+const POLL_MS      = 4000;   // 轮询间隔
+
+const $ = id => document.getElementById(id);
+
+/* =========================================================
+   基础工具
+   ========================================================= */
+function b64enc(str){
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/=+$/g, '');
+}
+function b64dec(b64){
+  const pad = b64.length % 4 ? '='.repeat(4 - (b64.length % 4)) : '';
+  const bin = atob(b64 + pad);
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+function encodePath(p){
+  return p.split('/').map(encodeURIComponent).join('/');
+}
+function fmtSize(n){
+  if (!n && n !== 0) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+function rand(){
+  return Math.random().toString(36).slice(2, 8);
+}
+function tsKey(ts){
+  return String(ts).padStart(15, '0');
+}
+
+/* =========================================================
+   Storage REST 封装
+   ========================================================= */
+async function apiUpload(path, blob, contentType){
+  const url = `${SUPABASE_URL}/storage/v1/object/${BUCKET}/${encodePath(path)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'x-upsert': 'true',
+      'Content-Type': contentType || 'application/octet-stream'
+    },
+    body: blob
+  });
+  if (!res.ok){
+    const t = await res.text().catch(() => '');
+    throw new Error('上传失败：' + (t || res.status));
+  }
+  return true;
+}
+async function apiDownload(path){
+  const url = `${SUPABASE_URL}/storage/v1/object/${BUCKET}/${encodePath(path)}`;
+  const res = await fetch(url, {
+    headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+  });
+  if (!res.ok) return null;
+  return await res.blob();
+}
+async function apiList(prefix){
+  const url = `${SUPABASE_URL}/storage/v1/object/list/${BUCKET}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      prefix: prefix,
+      limit: 1000,
+      offset: 0,
+      sortBy: { column: 'name', order: 'asc' }
+    })
+  });
+  if (!res.ok) return [];
+  const data = await res.json().catch(() => []);
+  return (data || []).filter(x =>
+    x && x.name && x.name !== '.keep' && x.name !== '.emptyFolderPlaceholder'
+  );
+}
+async function apiRemove(paths){
+  if (!paths || !paths.length) return;
+  for (let i = 0; i < paths.length; i += 100){
+    const chunk = paths.slice(i, i + 100);
+    const url = `${SUPABASE_URL}/storage/v1/object/${BUCKET}`;
+    try {
+      await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ prefixes: chunk })
+      });
+    } catch (e) { /* 忽略 */ }
+  }
+}
+
+async function upText(path, text){
+  return apiUpload(path, new Blob([text], { type: 'text/plain;charset=utf-8' }), 'text/plain;charset=utf-8');
+}
+async function upJson(path, obj){
+  return upText(path, JSON.stringify(obj));
+}
+async function downText(path){
+  const blob = await apiDownload(path);
+  if (!blob) return null;
+  return await blob.text();
+}
+async function downJson(path){
+  const t = await downText(path);
+  if (!t) return null;
+  try { return JSON.parse(t); } catch (e) { return null; }
+}
+
+/* =========================================================
+   路径规划
+   ========================================================= */
+const pUserProfile = n => `${ROOT}/users/${b64enc(n)}/profile.json`;
+const pUserInbox   = n => `${ROOT}/users/${b64enc(n)}/inbox`;
+
+const pRoomDir  = id => `${ROOT}/rooms/${id}`;
+const pRoomMeta = id => `${ROOT}/rooms/${id}/meta.json`;
+const pRoomMsgs = id => `${ROOT}/rooms/${id}/messages`;
+const pRoomFiles= id => `${ROOT}/rooms/${id}/files`;
+
+/* =========================================================
+   全局状态
+   ========================================================= */
+let currentUser = null;
+let currentRoom = null;
+let rooms = [];
+let pollTimer = null;
+let lastMsgKey = '';
+const fileUrlCache = new Map();   // path -> objectURL
+
+/* =========================================================
+   登录 / 注册
+   ========================================================= */
+function setLoginMsg(text, isErr){
+  const el = $('loginMsg');
+  el.textContent = text || '';
+  el.className = 'login-msg' + (isErr ? ' err' : '');
+}
+
+async function doRegister(){
+  const name = $('loginUser').value.trim();
+  const pw   = $('loginPass').value;
+  if (!name || !pw) return setLoginMsg('请输入账号和密码', true);
+  setLoginMsg('注册中…');
+  try{
+    const exist = await downText(pUserProfile(name));
+    if (exist) return setLoginMsg('该账号已存在', true);
+    await upJson(pUserProfile(name), {
+      username: name,
+      password: pw,          // 明文存储（按要求）
+      createdAt: Date.now()
+    });
+    await upText(`${pUserInbox(name)}/.keep`, '');
+    setLoginMsg('注册成功，请点击「登录」');
+  }catch(e){
+    setLoginMsg(e.message || '注册失败', true);
+  }
+}
+
+async function doLogin(){
+  const name = $('loginUser').value.trim();
+  const pw   = $('loginPass').value;
+  if (!name || !pw) return setLoginMsg('请输入账号和密码', true);
+  setLoginMsg('登录中…');
+  try{
+    const profile = await downJson(pUserProfile(name));
+    if (!profile) return setLoginMsg('账号不存在，请先注册', true);
+    if (profile.password !== pw) return setLoginMsg('密码错误', true);
+
+    currentUser = name;
+    setLoginMsg('');
+    enterApp();
+  }catch(e){
+    setLoginMsg(e.message || '登录失败', true);
+  }
+}
+
+function enterApp(){
+  $('loginView').classList.add('hidden');
+  $('appView').classList.remove('hidden');
+  $('meName').textContent = currentUser;
+
+  refreshUsers();
+  refreshRooms();
+  refreshInbox();          // 登录 / 刷新页面后立即同步收件箱
+
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    try{
+      if (currentRoom) await refreshMessages(false);
+      await refreshInbox();  // 轮询期间持续刷新收件箱
+    }catch(e){ /* 忽略轮询错误 */ }
+  }, POLL_MS);
+}
+
+function logout(){
+  clearInterval(pollTimer);
+  pollTimer = null;
+  currentUser = null;
+  currentRoom = null;
+  rooms = [];
+  lastMsgKey = '';
+  fileUrlCache.clear();
+  $('appView').classList.add('hidden');
+  $('loginView').classList.remove('hidden');
+  $('loginPass').value = '';
+  $('messages').innerHTML = '<div class="empty-sm">暂无消息</div>';
+  $('chatTitle').textContent = '请选择或创建一个聊天室';
+  $('chatMeta').textContent = '';
+  $('chatActions').innerHTML = '';
+}
+
+/* =========================================================
+   用户列表
+   ========================================================= */
+async function refreshUsers(){
+  const items = await apiList(`${ROOT}/users`);
+  const names = [];
+  for (const it of items){
+    try{
+      const n = b64dec(it.name);
+      if (n) names.push(n);
+    }catch(e){ /* 忽略非法目录名 */ }
+  }
+  names.sort((a, b) => a.localeCompare(b, 'zh-CN'));
+
+  const el = $('userList');
+  el.innerHTML = '';
+  if (!names.length){
+    el.innerHTML = '<div class="empty-sm">暂无用户</div>';
+    return;
+  }
+  for (const u of names){
+    const d = document.createElement('div');
+    d.className = 'user-item';
+    d.textContent = u + (u === currentUser ? '（我）' : '');
+    if (u !== currentUser) d.onclick = () => showUserActions(u);
+    el.appendChild(d);
+  }
+}
+
+/* =========================================================
+   收件箱
+   ========================================================= */
+async function listInboxFiles(){
+  const items = await apiList(pUserInbox(currentUser));
+  return items.filter(i => i.name.endsWith('.txt')).map(i => i.name).sort();
+}
+
+async function refreshInbox(){
+  if (!currentUser) return [];
+  try{
+    const files = await listInboxFiles();
+    $('inboxCount').textContent = files.length;
+    return files;
+  }catch(e){ return []; }
+}
+
+async function sendInbox(to, from, type, text){
+  const ts = Date.now();
+  const name = `${tsKey(ts)}_${rand()}.txt`;
+  const content =
+`类型：${type}
+来自：${from}
+时间：${new Date(ts).toLocaleString('zh-CN')}
+
+${text}
+`;
+  await upText(`${pUserInbox(to)}/${name}`, content);
+}
+
+/* 收件箱：内容直接展开显示，弹窗内可滚动，打开期间自动刷新 */
+async function showInbox(){
+  const body = document.createElement('div');
+  body.innerHTML = '<div class="empty-sm">加载中…</div>';
+
+  let timer = null;
+  let viewKey = null;      // null 表示强制首次渲染
+
+  async function render(){
+    if (!currentUser) return;
+    const files = await listInboxFiles();
+    $('inboxCount').textContent = files.length;
+
+    const key = files.join('|');
+    if (key === viewKey) return;   // 内容未变化则不重建，避免闪烁
+    viewKey = key;
+
+    body.innerHTML = '';
+    if (!files.length){
+      body.innerHTML = '<div class="empty-sm">收件箱为空</div>';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    for (const f of files){
+      const item = document.createElement('div');
+      item.className = 'inbox-item-full';
+
+      const title = document.createElement('div');
+      title.className = 'inbox-title';
+      title.textContent = f;
+
+      const content = document.createElement('pre');
+      content.className = 'inbox-content';
+      content.textContent = '加载中…';
+
+      item.appendChild(title);
+      item.appendChild(content);
+      frag.appendChild(item);
+
+      (async () => {
+        const t = await downText(`${pUserInbox(currentUser)}/${f}`);
+        content.textContent = t || '(空)';
+      })();
+    }
+    body.appendChild(frag);
+  }
+
+  let modal;
+  modal = showModal('收件箱', body, [
+    {
+      label: '一键清空',
+      onClick: async () => {
+        const files = await listInboxFiles();
+        if (!files.length){ alert('收件箱已经为空'); return; }
+        if (!confirm('确定清空全部收件箱内容？该操作不可恢复。')) return;
+        await apiRemove(files.map(f => `${pUserInbox(currentUser)}/${f}`));
+        await refreshInbox();
+        viewKey = null;
+        await render();
+      }
+    },
+    { label: '关闭', cls: 'primary', onClick: () => modal.close() }
+  ], () => {
+    if (timer){ clearInterval(timer); timer = null; }
+  });
+
+  await render();
+  timer = setInterval(render, POLL_MS);
+}
+
+/* =========================================================
+   聊天室
+   ========================================================= */
+async function refreshRooms(){
+  const items = await apiList(`${ROOT}/rooms`);
+  const list = [];
+  for (const it of items){
+    const meta = await downJson(pRoomMeta(it.name));
+    if (meta && meta.id) list.push(meta);
+  }
+  list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  rooms = list;
+  renderRoomList();
+
+  if (currentRoom){
+    const still = rooms.find(r => r.id === currentRoom.id);
+    if (!still){
+      currentRoom = null;
+      lastMsgKey = '';
+      $('messages').innerHTML = '<div class="empty-sm">该聊天室已被删除</div>';
+      $('chatTitle').textContent = '请选择或创建一个聊天室';
+      $('chatMeta').textContent = '';
+      $('chatActions').innerHTML = '';
+    } else {
+      currentRoom = still;
+      renderChatHead();
+    }
+  }
+}
+
+function visibleRooms(){
+  return rooms.filter(r =>
+    r.type === 'public' ||
+    r.owner === currentUser ||
+    (Array.isArray(r.members) && r.members.includes(currentUser))
+  );
+}
+
+function renderRoomList(){
+  const el = $('roomList');
+  el.innerHTML = '';
+  const list = visibleRooms();
+  if (!list.length){
+    el.innerHTML = '<div class="empty-sm">暂无聊天室</div>';
+    return;
+  }
+  for (const r of list){
+    const d = document.createElement('div');
+    d.className = 'room-item' + (currentRoom && currentRoom.id === r.id ? ' active' : '');
+
+    const nm = document.createElement('span');
+    nm.className = 'room-name';
+    nm.textContent = r.name;
+
+    const tag = document.createElement('span');
+    tag.className = 'tag ' + (r.type === 'public' ? 'tag-pub' : 'tag-priv');
+    tag.textContent = r.type === 'public' ? '公开' : '私密';
+
+    const cnt = document.createElement('span');
+    cnt.className = 'cnt';
+    cnt.textContent = (r.members ? r.members.length : 0) + '人';
+
+    d.appendChild(nm);
+    d.appendChild(tag);
+    d.appendChild(cnt);
+    d.onclick = () => openRoom(r);
+    el.appendChild(d);
+  }
+}
+
+function renderChatHead(){
+  const actions = $('chatActions');
+  actions.innerHTML = '';
+
+  if (!currentRoom){
+    $('chatTitle').textContent = '请选择或创建一个聊天室';
+    $('chatMeta').textContent = '';
+    return;
+  }
+  const memberCount = currentRoom.members ? currentRoom.members.length : 0;
+  $('chatTitle').textContent = currentRoom.name;
+  $('chatMeta').textContent =
+    (currentRoom.type === 'public' ? '公开' : '私密') +
+    ' · 创建者：' + currentRoom.owner +
+    ' · 成员：' + memberCount + ' 人';
+
+  // 查看聊天室成员名单
+  const btnMembers = document.createElement('button');
+  btnMembers.textContent = '成员 (' + memberCount + ')';
+  btnMembers.onclick = showRoomMembers;
+  actions.appendChild(btnMembers);
+
+  const btnInvite = document.createElement('button');
+  btnInvite.textContent = '邀请用户';
+  btnInvite.onclick = showInvitePicker;
+  actions.appendChild(btnInvite);
+
+  const btnLeave = document.createElement('button');
+  btnLeave.textContent = '退出聊天室';
+  btnLeave.onclick = leaveRoom;
+  actions.appendChild(btnLeave);
+
+  if (currentRoom.owner === currentUser){
+    const btnDel = document.createElement('button');
+    btnDel.textContent = '删除聊天室';
+    btnDel.onclick = deleteRoom;
+    actions.appendChild(btnDel);
+  }
+}
+
+/* 成员名单弹窗 */
+function showRoomMembers(){
+  if (!currentRoom) return;
+
+  const body = document.createElement('div');
+  const members = Array.isArray(currentRoom.members) ? currentRoom.members.slice() : [];
+  members.sort((a, b) => a.localeCompare(b, 'zh-CN'));
+
+  if (!members.length){
+    body.innerHTML = '<div class="empty-sm">暂无成员</div>';
+  } else {
+    for (const m of members){
+      const row = document.createElement('div');
+      row.className = 'member-item';
+
+      const nm = document.createElement('span');
+      nm.className = 'member-name';
+      nm.textContent = m;
+
+      const tags = document.createElement('span');
+      tags.className = 'member-tags';
+      const parts = [];
+      if (m === currentRoom.owner) parts.push('创建者');
+      if (m === currentUser) parts.push('我');
+      tags.textContent = parts.join(' · ');
+
+      row.appendChild(nm);
+      row.appendChild(tags);
+      body.appendChild(row);
+    }
+  }
+
+  const { close } = showModal(
+    '聊天室成员 · ' + currentRoom.name + '（' + members.length + ' 人）',
+    body,
+    [{ label: '关闭', cls: 'primary', onClick: () => close() }]
+  );
+}
+
+async function openRoom(room){
+  currentRoom = room;
+  lastMsgKey = '';
+  fileUrlCache.clear();
+  $('messages').innerHTML = '<div class="empty-sm">加载中…</div>';
+  renderRoomList();
+  renderChatHead();
+
+  if (room.type === 'public' && !room.members.includes(currentUser)){
+    await joinRoom(room);
+  }
+  await refreshMessages(true);
+}
+
+async function joinRoom(room){
+  if (room.members.includes(currentUser)) return;
+  room.members.push(currentUser);
+  await upJson(pRoomMeta(room.id), room);
+  renderChatHead();
+  renderRoomList();
+}
+
+async function leaveRoom(){
+  if (!currentRoom) return;
+  if (!confirm('确定退出聊天室「' + currentRoom.name + '」？')) return;
+  currentRoom.members = currentRoom.members.filter(m => m !== currentUser);
+  await upJson(pRoomMeta(currentRoom.id), currentRoom);
+  currentRoom = null;
+  lastMsgKey = '';
+  $('messages').innerHTML = '<div class="empty-sm">已退出，请选择其他聊天室</div>';
+  $('chatActions').innerHTML = '';
+  $('chatTitle').textContent = '请选择或创建一个聊天室';
+  $('chatMeta').textContent = '';
+  await refreshRooms();
+}
+
+async function deleteRoom(){
+  if (!currentRoom) return;
+  if (currentRoom.owner !== currentUser) return alert('只有创建者可以删除');
+  if (!confirm('确定删除聊天室「' + currentRoom.name + '」？所有消息与文件将被清除。')) return;
+
+  const rid = currentRoom.id;
+  const msgItems  = await apiList(pRoomMsgs(rid));
+  const fileItems = await apiList(pRoomFiles(rid));
+  const paths = [
+    ...msgItems.map(i => `${pRoomMsgs(rid)}/${i.name}`),
+    ...fileItems.map(i => `${pRoomFiles(rid)}/${i.name}`),
+    pRoomMeta(rid)
+  ];
+  await apiRemove(paths);
+
+  currentRoom = null;
+  lastMsgKey = '';
+  $('messages').innerHTML = '<div class="empty-sm">聊天室已删除</div>';
+  $('chatTitle').textContent = '请选择或创建一个聊天室';
+  $('chatMeta').textContent = '';
+  $('chatActions').innerHTML = '';
+  await refreshRooms();
+}
+
+function showCreateRoom(){
+  const body = document.createElement('div');
+  body.innerHTML =
+    '<input id="newRoomName" class="inp" placeholder="聊天室名称（支持中文）" />' +
+    '<div class="radios">' +
+      '<label><input type="radio" name="rType" value="public" checked /> 公共（所有人可见，自由进出）</label>' +
+      '<label><input type="radio" name="rType" value="private" /> 私密（仅受邀可见）</label>' +
+    '</div>';
+
+  const { close } = showModal('新建聊天室', body, [
+    { label: '取消', onClick: () => close() },
+    {
+      label: '创建', cls: 'primary',
+      onClick: async () => {
+        const name = body.querySelector('#newRoomName').value.trim();
+        if (!name) return alert('请输入聊天室名称');
+        const type = body.querySelector('input[name=rType]:checked').value;
+        close();
+        try{
+          await createRoom(name, type);
+        }catch(e){
+          alert('创建失败：' + e.message);
+        }
+      }
+    }
+  ]);
+  setTimeout(() => body.querySelector('#newRoomName').focus(), 60);
+}
+
+async function createRoom(name, type){
+  const id = 'r' + Date.now().toString(36) + rand();
+  const meta = {
+    id: id,
+    name: name,
+    type: type,
+    owner: currentUser,
+    createdAt: Date.now(),
+    members: [currentUser]
+  };
+  await upJson(pRoomMeta(id), meta);
+  await upText(`${pRoomMsgs(id)}/.keep`, '');
+  await upText(`${pRoomFiles(id)}/.keep`, '');
+  await refreshRooms();
+  const created = rooms.find(r => r.id === id);
+  if (created) await openRoom(created);
+}
+
+/* =========================================================
+   消息
+   ========================================================= */
+async function refreshMessages(force){
+  if (!currentRoom) return;
+  const rid = currentRoom.id;
+
+  const items = await apiList(pRoomMsgs(rid));
+  const names = items.filter(i => i.name.endsWith('.json')).map(i => i.name).sort();
+
+  const key = names.join('|');
+  if (!force && key === lastMsgKey) return;
+  lastMsgKey = key;
+
+  const msgs = [];
+  for (const n of names){
+    const m = await downJson(`${pRoomMsgs(rid)}/${n}`);
+    if (m) msgs.push({ ...m, fname: n });
+  }
+
+  // 超过 50 条清除最早历史记录（释放桶存储）
+  if (msgs.length > MAX_MESSAGES){
+    const excessCount = msgs.length - MAX_MESSAGES;
+    const excess = msgs.slice(0, excessCount);
+    const delPaths = excess.map(m => `${pRoomMsgs(rid)}/${m.fname}`);
+    excess.forEach(m => {
+      if (m.file && m.file.path) delPaths.push(m.file.path);
+    });
+    await apiRemove(delPaths);
+    excess.forEach(m => {
+      if (m.file && m.file.path) fileUrlCache.delete(m.file.path);
+    });
+    msgs.splice(0, excessCount);
+    lastMsgKey = msgs.map(m => m.fname).join('|');
+  }
+
+  renderMessages(msgs);
+}
+
+async function getFileUrl(path){
+  if (fileUrlCache.has(path)) return fileUrlCache.get(path);
+  const blob = await apiDownload(path);
+  if (!blob) return null;
+  const url = URL.createObjectURL(blob);
+  fileUrlCache.set(path, url);
+  return url;
+}
+
+function renderMessages(msgs){
+  const el = $('messages');
+  el.innerHTML = '';
+  if (!msgs.length){
+    el.innerHTML = '<div class="empty-sm">暂无消息，来说点什么吧</div>';
+    return;
+  }
+  for (const m of msgs){
+    const div = document.createElement('div');
+    div.className = 'msg' + (m.from === currentUser ? ' mine' : '');
+
+    const head = document.createElement('div');
+    head.className = 'msg-head';
+    head.textContent = m.from + ' · ' + new Date(m.ts).toLocaleString('zh-CN');
+    div.appendChild(head);
+
+    if (m.text){
+      const p = document.createElement('div');
+      p.className = 'msg-text';
+      p.textContent = m.text;
+      div.appendChild(p);
+    }
+
+    if (m.file){
+      const box = document.createElement('div');
+      box.className = 'msg-file';
+      box.textContent = '文件加载中…';
+      div.appendChild(box);
+      fillFileBox(box, m.file);
+    }
+
+    el.appendChild(div);
+  }
+  el.scrollTop = el.scrollHeight;
+}
+
+async function fillFileBox(box, file){
+  try{
+    const url = await getFileUrl(file.path);
+    if (!url){
+      box.textContent = '文件加载失败（可能已被清理）';
+      return;
+    }
+    box.innerHTML = '';
+    const mime = file.mime || '';
+
+    if (mime.startsWith('image/')){
+      const img = document.createElement('img');
+      img.className = 'msg-img';
+      img.src = url;
+      img.onclick = () => window.open(url, '_blank');
+      box.appendChild(img);
+    } else if (mime.startsWith('audio/')){
+      const au = document.createElement('audio');
+      au.controls = true;
+      au.src = url;
+      box.appendChild(au);
+    } else if (mime.startsWith('video/')){
+      const vd = document.createElement('video');
+      vd.className = 'msg-video';
+      vd.controls = true;
+      vd.src = url;
+      box.appendChild(vd);
+    } else if (
+      mime.startsWith('text/') ||
+      /\.(txt|md|json|csv|log|js|ts|css|html|htm|xml|yml|yaml|ini)$/i.test(file.name || '')
+    ){
+      const blob = await apiDownload(file.path);
+      const text = blob ? await blob.text() : '';
+      const pre = document.createElement('pre');
+      pre.className = 'msg-pre';
+      pre.textContent = text.length > 20000 ? text.slice(0, 20000) + '\n…（已截断）' : text;
+      box.appendChild(pre);
+    } else {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name || 'file';
+      a.textContent = '📄 ' + (file.name || '文件') + '  (' + fmtSize(file.size) + ')';
+      box.appendChild(a);
+    }
+  }catch(e){
+    box.textContent = '文件加载失败';
+  }
+}
+
+async function sendMessage(){
+  if (!currentRoom) return alert('请先进入一个聊天室');
+
+  const input = $('msgInput');
+  const text = input.value.trim();
+  const fileInput = $('fileInput');
+  const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+
+  if (!text && !file) return;
+
+  const rid = currentRoom.id;
+  const ts = Date.now();
+  const randStr = rand();
+
+  try{
+    let fileInfo = null;
+
+    if (file){
+      const safeName = b64enc(file.name || 'file').slice(0, 80);
+      const path = `${pRoomFiles(rid)}/${tsKey(ts)}_${randStr}_${safeName}`;
+      await apiUpload(path, file, file.type || 'application/octet-stream');
+      fileInfo = {
+        path: path,
+        name: file.name || 'file',
+        mime: file.type || '',
+        size: file.size || 0
+      };
+    }
+
+    const fname = `${tsKey(ts)}_${randStr}.json`;
+    const msg = {
+      id: fname.replace('.json', ''),
+      from: currentUser,
+      text: text,
+      ts: ts,
+      file: fileInfo,
+      fname: fname
+    };
+    await upJson(`${pRoomMsgs(rid)}/${fname}`, msg);
+
+    input.value = '';
+    fileInput.value = '';
+    await refreshMessages(true);
+  }catch(e){
+    alert('发送失败：' + e.message);
+  }
+}
+
+/* =========================================================
+   邀请 / 私信
+   ========================================================= */
+function showUserActions(user){
+  const { close } = showModal('用户：' + user, makePreview('请选择要执行的操作'), [
+    {
+      label: '发送私信',
+      onClick: () => {
+        close();
+        showSendDm(user);
+      }
+    },
+    {
+      label: '邀请进入当前聊天室',
+      onClick: async () => {
+        close();
+        await inviteToRoom(user);
+      }
+    },
+    { label: '取消', onClick: () => close() }
+  ]);
+}
+
+function showSendDm(user){
+  const body = document.createElement('div');
+  body.innerHTML = '<textarea id="dmText" class="inp" rows="5" placeholder="输入要发送给 ' +
+    user.replace(/"/g, '&quot;') + ' 的内容"></textarea>';
+
+  const { close } = showModal('发送私信给 ' + user, body, [
+    { label: '取消', onClick: () => close() },
+    {
+      label: '发送', cls: 'primary',
+      onClick: async () => {
+        const text = body.querySelector('#dmText').value.trim();
+        if (!text) return alert('内容不能为空');
+        close();
+        try{
+          await sendInbox(user, currentUser, '私信', text);
+          alert('已发送，内容已保存为对方收件箱中的 txt 文件');
+        }catch(e){
+          alert('发送失败：' + e.message);
+        }
+      }
+    }
+  ]);
+  setTimeout(() => body.querySelector('#dmText').focus(), 60);
+}
+
+async function inviteToRoom(user){
+  if (!currentRoom) return alert('请先进入一个聊天室');
+
+  const room = currentRoom;
+  try{
+    if (!room.members.includes(user)){
+      room.members.push(user);
+      await upJson(pRoomMeta(room.id), room);
+    }
+    await sendInbox(
+      user,
+      currentUser,
+      '聊天室邀请',
+      `邀请你进入${room.type === 'public' ? '公共' : '私密'}聊天室「${room.name}」，` +
+      `进入方法：在左侧聊天室列表中点击该聊天室名称即可。`
+    );
+    renderChatHead();
+    renderRoomList();
+    await refreshRooms();
+    alert('已邀请 ' + user + '，对方收件箱中已生成通知文件');
+  }catch(e){
+    alert('邀请失败：' + e.message);
+  }
+}
+
+async function showInvitePicker(){
+  if (!currentRoom) return alert('请先进入一个聊天室');
+  const items = await apiList(`${ROOT}/users`);
+  const names = [];
+  for (const it of items){
+    try{
+      const n = b64dec(it.name);
+      if (n && n !== currentUser) names.push(n);
+    }catch(e){}
+  }
+
+  const body = document.createElement('div');
+  if (!names.length){
+    body.innerHTML = '<div class="empty-sm">暂无其他用户</div>';
+  } else {
+    names.sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    names.forEach(n => {
+      const row = document.createElement('div');
+      row.className = 'member-item';
+
+      const nm = document.createElement('span');
+      nm.className = 'member-name';
+      nm.textContent = n;
+
+      const btn = document.createElement('span');
+      btn.className = 'inbox-view';
+      btn.textContent = '邀请';
+      btn.style.cursor = 'pointer';
+      btn.style.color = 'var(--blue)';
+      btn.style.textDecoration = 'underline';
+      btn.onclick = async () => {
+        await inviteToRoom(n);
+      };
+
+      row.appendChild(nm);
+      row.appendChild(btn);
+      body.appendChild(row);
+    });
+  }
+
+  const { close } = showModal('邀请用户进入「' + currentRoom.name + '」', body, [
+    { label: '关闭', cls: 'primary', onClick: () => close() }
+  ]);
+}
+
+/* =========================================================
+   通用弹窗
+   ========================================================= */
+function makePreview(text){
+  const pre = document.createElement('div');
+  pre.className = 'preview';
+  pre.textContent = text;
+  return pre;
+}
+
+function showModal(title, contentNode, buttons, onClose){
+  const root = $('modalRoot');
+  root.innerHTML = '';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+
+  const box = document.createElement('div');
+  box.className = 'modal';
+
+  const h = document.createElement('div');
+  h.className = 'modal-title';
+  h.textContent = title;
+
+  const b = document.createElement('div');
+  b.className = 'modal-body';
+  if (typeof contentNode === 'string') b.innerHTML = contentNode;
+  else b.appendChild(contentNode);
+
+  const f = document.createElement('div');
+  f.className = 'modal-foot';
+
+  function close(){
+    root.innerHTML = '';
+    if (typeof onClose === 'function') {
+      try { onClose(); } catch(e){ /* 忽略 */ }
+    }
+  }
+
+  (buttons || []).forEach(btn => {
+    const el = document.createElement('button');
+    el.textContent = btn.label;
+    if (btn.cls) el.className = btn.cls;
+    el.onclick = () => {
+      if (btn.onClick) btn.onClick();
+      else close();
+    };
+    f.appendChild(el);
+  });
+
+  box.appendChild(h);
+  box.appendChild(b);
+  box.appendChild(f);
+  overlay.appendChild(box);
+  root.appendChild(overlay);
+
+  overlay.onclick = e => { if (e.target === overlay) close(); };
+
+  return { box, close };
+}
+
+/* =========================================================
+   事件绑定
+   ========================================================= */
+$('btnLogin').onclick = doLogin;
+$('btnRegister').onclick = doRegister;
+$('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+$('loginUser').addEventListener('keydown', e => { if (e.key === 'Enter') $('loginPass').focus(); });
+
+$('btnLogout').onclick = () => {
+  if (confirm('确定退出登录？')) logout();
+};
+$('btnInbox').onclick = showInbox;
+$('btnCreateRoom').onclick = showCreateRoom;
+$('btnRefreshUsers').onclick = refreshUsers;
+
+$('btnSend').onclick = sendMessage;
+$('msgInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    sendMessage();
+  }
+});
+$('fileInput').addEventListener('change', () => {
+  const f = $('fileInput').files[0];
+  if (f) $('msgInput').placeholder = '已选择文件：' + f.name + '（点击发送）';
+  else $('msgInput').placeholder = '输入消息…（Enter 发送）';
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !$('loginView').classList.contains('hidden')){
+    if (document.activeElement === $('loginUser')) $('loginPass').focus();
+  }
+});
+
+/* 页面重新可见时同步收件箱（浏览器标签切换回来） */
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && currentUser){
+    refreshInbox();
+  }
+});
+</script>
+</body>
+</html>
