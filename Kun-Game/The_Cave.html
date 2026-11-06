@@ -1,0 +1,2226 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<title>The Cave · WebGL2</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#000;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  #glcanvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair;}
+
+  /* ---------- 主菜单 ---------- */
+  #menu{
+    position:fixed;inset:0;z-index:30;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 40%, rgba(0,0,0,.25), rgba(0,0,0,.72));
+    transition:opacity .5s;
+  }
+  #menu.hidden{opacity:0;pointer-events:none;}
+  #title{
+    font-size:clamp(42px,9vw,96px);
+    font-weight:200;letter-spacing:.18em;
+    color:#fff;
+    text-shadow:0 0 10px #fff,0 0 28px #9fd8ff,0 0 60px #4a9eff;
+    margin-bottom:8px;
+    user-select:none;
+  }
+  #subtitle{
+    color:#8fb0d8;font-size:12px;letter-spacing:.42em;margin-bottom:42px;
+    text-transform:uppercase;user-select:none;opacity:.8;
+  }
+  #menuBtns{display:flex;flex-direction:column;gap:14px;align-items:center;}
+  .menu-btn{
+    min-width:210px;padding:14px 28px;border-radius:12px;cursor:pointer;
+    border:1px solid rgba(160,220,255,.35);
+    background:rgba(10,20,30,.55);
+    color:#e8f4ff;font-size:15px;letter-spacing:.16em;
+    backdrop-filter:blur(6px);
+    transition:.18s;text-transform:uppercase;
+  }
+  .menu-btn:hover{background:rgba(40,80,130,.65);border-color:rgba(160,220,255,.85);
+    box-shadow:0 0 22px rgba(80,160,255,.45);}
+
+  /* ---------- 设置面板（主菜单内） ---------- */
+  #settings{
+    position:fixed;right:0;top:0;height:100%;width:min(330px,88vw);
+    background:rgba(6,12,18,.90);border-left:1px solid rgba(120,200,255,.22);
+    backdrop-filter:blur(14px);
+    z-index:35;display:flex;flex-direction:column;gap:12px;
+    padding:22px 18px;overflow-y:auto;
+    color:#cfe6ff;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;
+    transform:translateX(100%);transition:transform .32s ease;
+    box-shadow:-10px 0 40px rgba(0,0,0,.6);
+  }
+  #settings.open{transform:translateX(0);}
+  #settings h2{font-size:13px;letter-spacing:.22em;color:#9fd8ff;
+    text-transform:uppercase;margin-bottom:4px;font-weight:600;}
+  #settings label{display:flex;align-items:center;gap:8px;white-space:nowrap;}
+  #settings input[type=range]{
+    -webkit-appearance:none;appearance:none;width:130px;height:3px;
+    background:rgba(120,200,255,.25);border-radius:2px;outline:none;cursor:pointer;
+  }
+  #settings input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:11px;height:11px;border-radius:50%;
+    background:#9fd8ff;box-shadow:0 0 6px rgba(120,200,255,.7);
+  }
+  #settings input[type=range]::-moz-range-thumb{
+    width:11px;height:11px;border:none;border-radius:50%;
+    background:#9fd8ff;box-shadow:0 0 6px rgba(120,200,255,.7);
+  }
+  #settings .v{width:34px;text-align:right;color:#e8f4ff;}
+  #settings .switch{display:flex;align-items:center;justify-content:space-between;
+    padding:4px 0;border-bottom:1px solid rgba(120,200,255,.08);}
+  #settings .switch span{color:#a8c8e8;}
+  #settings .switch input[type=checkbox]{
+    width:36px;height:18px;-webkit-appearance:none;appearance:none;
+    background:rgba(120,200,255,.18);border-radius:10px;position:relative;
+    cursor:pointer;transition:.2s;outline:none;
+  }
+  #settings .switch input[type=checkbox]::after{
+    content:'';position:absolute;left:2px;top:2px;width:14px;height:14px;
+    border-radius:50%;background:#7a9ab8;transition:.2s;
+  }
+  #settings .switch input[type=checkbox]:checked{background:rgba(80,160,255,.55);}
+  #settings .switch input[type=checkbox]:checked::after{left:20px;background:#e8f4ff;
+    box-shadow:0 0 8px #9fd8ff;}
+  #settings .row-btn{
+    margin-top:8px;background:rgba(80,160,255,.18);
+    border:1px solid rgba(120,200,255,.4);color:#e8f4ff;
+    padding:9px 10px;border-radius:8px;font:11px ui-monospace,monospace;
+    cursor:pointer;letter-spacing:.1em;transition:.15s;
+  }
+  #settings .row-btn:hover{background:rgba(80,160,255,.35);}
+  #closeSettings{
+    position:absolute;right:14px;top:12px;width:28px;height:28px;
+    border-radius:50%;border:1px solid rgba(120,200,255,.3);
+    background:rgba(120,200,255,.1);color:#cfe6ff;font-size:16px;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+
+  /* ---------- 游戏内 UI ---------- */
+  #hud{
+    position:fixed;left:12px;top:10px;color:#7fd7a8;
+    font:11px/1.6 ui-monospace,Menlo,Consolas,monospace;
+    pointer-events:none;text-shadow:0 0 6px #000,0 0 2px #000;opacity:.85;
+    user-select:none;z-index:12;
+  }
+  #hud b{color:#d8ffe8;font-weight:600;}
+  #backBtn{
+    position:fixed;right:14px;top:12px;z-index:14;
+    padding:8px 16px;border-radius:9px;cursor:pointer;
+    border:1px solid rgba(127,215,168,.4);
+    background:rgba(10,22,16,.72);color:#d8ffe8;
+    font:11px ui-monospace,monospace;letter-spacing:.12em;
+    backdrop-filter:blur(6px);transition:.15s;
+  }
+  #backBtn:hover{background:rgba(127,215,168,.28);}
+  #stick{
+    position:fixed;left:26px;bottom:26px;width:126px;height:126px;border-radius:50%;
+    border:2px solid rgba(127,215,168,.28);background:rgba(127,215,168,.06);
+    touch-action:none;z-index:10;display:none;
+  }
+  #knob{
+    position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;
+    border-radius:50%;background:rgba(127,215,168,.30);
+    border:2px solid rgba(127,215,168,.6);
+    box-shadow:0 0 18px rgba(127,215,168,.35);
+  }
+  @media (pointer:coarse){#stick{display:block;}}
+
+  /* ---------- 弹窗 / 结果覆盖层 ---------- */
+  #popup{
+    position:fixed;right:12px;top:180px;z-index:15;
+    display:flex;align-items:center;gap:9px;
+    padding:9px 11px;border-radius:10px;
+    background:rgba(10,22,16,.90);
+    border:1px solid rgba(127,215,168,.38);
+    color:#d8ffe8;font:12px/1.4 ui-monospace,monospace;
+    box-shadow:0 4px 24px rgba(0,0,0,.65);
+    opacity:0;transform:translateX(24px);
+    pointer-events:none;transition:opacity .38s,transform .38s;
+    max-width:calc(100vw - 40px);
+  }
+  #popup.show{opacity:1;transform:translateX(0);pointer-events:auto;}
+  #popup .emoji{font-size:20px;line-height:1;filter:drop-shadow(0 0 6px rgba(127,215,168,.6));}
+  #popup button{
+    width:20px;height:20px;border-radius:50%;
+    background:rgba(127,215,168,.15);border:1px solid rgba(127,215,168,.4);
+    color:#9fe6bd;font-size:12px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;padding:0;
+  }
+
+  #overlay{
+    position:fixed;inset:0;z-index:40;display:none;
+    flex-direction:column;align-items:center;justify-content:center;
+    background:rgba(0,0,0,.82);backdrop-filter:blur(6px);
+    color:#e8f4ff;text-align:center;padding:24px;
+  }
+  #overlay.show{display:flex;}
+  #overlay h1{font-size:clamp(30px,7vw,64px);font-weight:200;letter-spacing:.12em;
+    margin-bottom:18px;text-shadow:0 0 18px rgba(160,220,255,.6);}
+  #overlay p{color:#9fb8d0;font-size:14px;letter-spacing:.1em;margin-bottom:30px;}
+  #overlay .menu-btn{min-width:180px;}
+
+  #loading{
+    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#9fd8ff;font:13px/1.6 ui-monospace,monospace;letter-spacing:2px;
+    background:#000;z-index:50;transition:opacity .5s;
+  }
+  #loading.done{opacity:0;pointer-events:none;}
+
+  @media (max-width:520px){
+    #settings input[type=range]{width:100px;}
+    #settings{width:min(300px,92vw);}
+  }
+</style>
+</head>
+<body>
+<canvas id="glcanvas"></canvas>
+
+<!-- 主菜单 -->
+<div id="menu">
+  <div id="title">The Cave</div>
+  <div id="subtitle">Infinite · Procedural · Depths</div>
+  <div id="menuBtns">
+    <button class="menu-btn" id="startBtn">开始游戏</button>
+    <button class="menu-btn" id="settingsBtn">设置</button>
+  </div>
+</div>
+
+<!-- 设置面板 -->
+<div id="settings">
+  <button id="closeSettings">×</button>
+  <h2>设置</h2>
+  <label>伽马 <input id="gamma" type="range" min="0.5" max="2.5" step="0.01" value="1.00"><span class="v" id="gammaVal">1.00</span></label>
+  <label>RGB 强度 <input id="rgb" type="range" min="0" max="3" step="0.01" value="1.00"><span class="v" id="rgbVal">1.00</span></label>
+  <label>桶形畸变 <input id="barrel" type="range" min="0" max="0.80" step="0.005" value="0.00"><span class="v" id="barrelVal">0.00</span></label>
+  <div class="switch"><span>环境光遮蔽 (AO)</span><input type="checkbox" id="aoToggle" checked></div>
+  <div class="switch"><span>菲涅尔 (潮湿反光)</span><input type="checkbox" id="fresToggle" checked></div>
+  <div class="switch"><span>相机噪点</span><input type="checkbox" id="noiseToggle" checked></div>
+  <button class="row-btn" id="regenBtn">重新生成洞穴</button>
+</div>
+
+<!-- 游戏内 HUD -->
+<div id="hud" style="display:none;">
+  <div><b>WASD</b> 移动 · <b>空格</b> 跳 · <b>左键拖拽</b> 视角</div>
+  <div>种子 <span id="seedTxt">-</span> · 区块 <span id="chunkTxt">0</span> · FPS <span id="fpsTxt">0</span></div>
+  <div id="posTxt">-</div>
+</div>
+<button id="backBtn" style="display:none;">← 主界面</button>
+
+<div id="popup">
+  <span class="emoji">🎧</span>
+  <span class="txt">音效已开启</span>
+  <button id="popupClose">×</button>
+</div>
+
+<div id="stick"><div id="knob"></div></div>
+
+<!-- 结果覆盖层 -->
+<div id="overlay">
+  <h1 id="overlayTitle">-</h1>
+  <p id="overlayDesc">-</p>
+  <button class="menu-btn" id="overlayBtn">返回主界面</button>
+</div>
+
+<div id="loading">正在开凿洞穴…</div>
+
+<script>
+"use strict";
+(function () {
+
+/* ============================================================
+   0. 基础设置
+   ============================================================ */
+const canvas = document.getElementById('glcanvas');
+const gl = canvas.getContext('webgl2', {
+  antialias: false, alpha: false, depth: true,
+  powerPreference: 'high-performance', preserveDrawingBuffer: false
+});
+if (!gl) {
+  document.getElementById('loading').textContent = '你的浏览器不支持 WebGL2';
+  return;
+}
+
+let SEED = (Math.random() * 1e9) | 0;
+document.getElementById('seedTxt').textContent = SEED;
+
+/* 游戏状态 */
+let gameState = 'menu';   // menu | playing | win | lose
+let menuTime = 0;
+
+/* ============================================================
+   1. 哈希 / 噪声（CPU 端）
+   ============================================================ */
+function hash2i(i, j, s) {
+  let h = Math.imul(i | 0, 374761393) ^ Math.imul(j | 0, 668265263)
+        ^ Math.imul(s | 0, 1442695041) ^ (SEED | 0);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+function h2m(i, j, period, seed) {
+  i = ((i % period) + period) % period;
+  j = ((j % period) + period) % period;
+  let h = Math.imul(i, 374761393) ^ Math.imul(j, 668265263) ^ Math.imul(seed, 1274126177);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+function tileNoise(x, y, period, seed) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = h2m(xi, yi, period, seed),     b = h2m(xi + 1, yi, period, seed);
+  const c = h2m(xi, yi + 1, period, seed), d = h2m(xi + 1, yi + 1, period, seed);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+function fbmTile(u, v, baseFreq, oct, seed) {
+  let sum = 0, amp = 1, norm = 0, f = baseFreq;
+  for (let o = 0; o < oct; o++) {
+    sum += amp * tileNoise(u * f, v * f, f, seed + o * 37);
+    norm += amp; amp *= 0.5; f *= 2;
+  }
+  return sum / norm;
+}
+
+/* ============================================================
+   2. 洞穴表格系统
+   ============================================================ */
+const GRID = 52;
+const nodeCache = new Map();
+
+function getNode(i, j) {
+  const key = i + ':' + j;
+  let n = nodeCache.get(key);
+  if (n) return n;
+  const r1 = hash2i(i, j, 1), r2 = hash2i(i, j, 2),
+        r3 = hash2i(i, j, 3), r4 = hash2i(i, j, 4),
+        r5 = hash2i(i, j, 5), r6 = hash2i(i, j, 77);
+  const base = 6.0 + 4.0 * r4;
+  const big  = r5 < 0.20;
+  const rx = big ? base * 1.65 : base;
+  const rz = big ? base * 1.65 : base;
+  const ry = big ? base * 1.95 : base * 0.88;
+  n = {
+    x: (i + 0.5 + (r1 - 0.5) * 0.75) * GRID,
+    y: (r3 - 0.5) * 30,
+    z: (j + 0.5 + (r2 - 0.5) * 0.75) * GRID,
+    rx, ry, rz,
+    maxR: Math.max(rx, ry, rz),
+    minR: Math.min(rx, ry, rz),
+    big,
+    white: r6 < 0.00003          // 0.003% 纯白腔室
+  };
+  nodeCache.set(key, n);
+  return n;
+}
+function chanRadiusA(i, j) { return 4.2 + 2.8 * hash2i(i, j, 9); }
+function chanRadiusB(i, j) { return 4.2 + 2.8 * hash2i(i, j, 11); }
+
+function segDist(px, py, pz, a, b) {
+  const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
+  const apx = px - a.x, apy = py - a.y, apz = pz - a.z;
+  const ab2 = abx * abx + aby * aby + abz * abz;
+  let t = ab2 > 1e-9 ? (apx * abx + apy * aby + apz * abz) / ab2 : 0;
+  if (t < 0) t = 0; else if (t > 1) t = 1;
+  const dx = apx - abx * t, dy = apy - aby * t, dz = apz - abz * t;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+function fieldWorld(x, y, z) {
+  const ci = Math.floor(x / GRID), cj = Math.floor(z / GRID);
+  let best = 1e9;
+  for (let di = -1; di <= 1; di++) {
+    for (let dj = -1; dj <= 1; dj++) {
+      const i = ci + di, j = cj + dj;
+      const a = getNode(i, j);
+
+      const dx = x - a.x, dy = y - a.y, dz = z - a.z;
+      const rLim = a.maxR + 2.5;
+      if (dx * dx + dy * dy + dz * dz < rLim * rLim) {
+        const ex = dx / a.rx, ey = dy / a.ry, ez = dz / a.rz;
+        const d = (Math.sqrt(ex * ex + ey * ey + ez * ez) - 1.0) * a.minR;
+        if (d < best) best = d;
+      }
+      const b = getNode(i + 1, j);
+      let d2 = segDist(x, y, z, a, b) - chanRadiusA(i, j);
+      if (d2 < best) best = d2;
+      const c = getNode(i, j + 1);
+      d2 = segDist(x, y, z, a, c) - chanRadiusB(i, j);
+      if (d2 < best) best = d2;
+    }
+  }
+  return best;
+}
+
+/* ============================================================
+   3. 区块系统（Surface Nets + 幽灵格 + 顶点缓存 + 白色属性）
+   ============================================================ */
+const CHUNK_SIZE   = 32;
+const CHUNK_HEIGHT = 88;
+const RES_XZ       = 18;
+const RES_Y        = 26;
+const CELL         = CHUNK_SIZE / RES_XZ;
+const CELL_Y       = CHUNK_HEIGHT / RES_Y;
+const Y0           = -CHUNK_HEIGHT * 0.5;
+
+const IS_COARSE = !!(window.matchMedia && window.matchMedia('(pointer:coarse)').matches);
+const RENDER_DIST = IS_COARSE ? 2 : 3;
+
+const EDGE = new Int32Array([
+  0,1, 1,2, 2,3, 3,0, 4,5, 5,6, 6,7, 7,4, 0,4, 1,5, 2,6, 3,7
+]);
+const CX = [0,1,1,0, 0,1,1,0];
+const CY = [0,0,1,1, 0,0,1,1];
+const CZ = [0,0,0,0, 1,1,1,1];
+
+function collectPrims(x0, x1, z0, z1) {
+  const prims = [];
+  const m = 30;
+  const i0 = Math.floor((x0 - m) / GRID) - 1;
+  const i1 = Math.floor((x1 + m) / GRID) + 1;
+  const j0 = Math.floor((z0 - m) / GRID) - 1;
+  const j1 = Math.floor((z1 + m) / GRID) + 1;
+
+  for (let i = i0; i <= i1; i++) {
+    for (let j = j0; j <= j1; j++) {
+      const a = getNode(i, j);
+      const brE = a.maxR * 1.15 + 0.5;
+      prims.push({ t: 0, x: a.x, y: a.y, z: a.z,
+                   rx: a.rx, ry: a.ry, rz: a.rz, minR: a.minR, br2: brE * brE,
+                   white: a.white });
+
+      const b = getNode(i + 1, j);
+      const rc = chanRadiusA(i, j);
+      const hl = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) * 0.5;
+      const brC = hl + rc + 1.2;
+      prims.push({ t: 1, ax: a.x, ay: a.y, az: a.z, bx: b.x, by: b.y, bz: b.z,
+                   r: rc, mx: (a.x + b.x) * 0.5, my: (a.y + b.y) * 0.5, mz: (a.z + b.z) * 0.5,
+                   br2: brC * brC, white: false });
+
+      const c = getNode(i, j + 1);
+      const rc2 = chanRadiusB(i, j);
+      const hl2 = Math.hypot(c.x - a.x, c.y - a.y, c.z - a.z) * 0.5;
+      const brC2 = hl2 + rc2 + 1.2;
+      prims.push({ t: 1, ax: a.x, ay: a.y, az: a.z, bx: c.x, by: c.y, bz: c.z,
+                   r: rc2, mx: (a.x + c.x) * 0.5, my: (a.y + c.y) * 0.5, mz: (a.z + c.z) * 0.5,
+                   br2: brC2 * brC2, white: false });
+    }
+  }
+  return prims;
+}
+
+function fieldPrim(px, py, pz, prims) {
+  let best = 1e9;
+  for (let n = 0, L = prims.length; n < L; n++) {
+    const p = prims[n];
+    let d;
+    if (p.t === 0) {
+      const dx = px - p.x, dy = py - p.y, dz = pz - p.z;
+      if (dx * dx + dy * dy + dz * dz > p.br2) continue;
+      const ex = dx / p.rx, ey = dy / p.ry, ez = dz / p.rz;
+      d = (Math.sqrt(ex * ex + ey * ey + ez * ez) - 1.0) * p.minR;
+    } else {
+      const ex = px - p.mx, ey = py - p.my, ez = pz - p.mz;
+      if (ex * ex + ey * ey + ez * ez > p.br2) continue;
+      const abx = p.bx - p.ax, aby = p.by - p.ay, abz = p.bz - p.az;
+      const apx = px - p.ax, apy = py - p.ay, apz = pz - p.az;
+      const ab2 = abx * abx + aby * aby + abz * abz;
+      let t = ab2 > 1e-9 ? (apx * abx + apy * aby + apz * abz) / ab2 : 0;
+      if (t < 0) t = 0; else if (t > 1) t = 1;
+      const dx = apx - abx * t, dy = apy - aby * t, dz = apz - abz * t;
+      d = Math.sqrt(dx * dx + dy * dy + dz * dz) - p.r;
+    }
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+function computeVertexAO(px, py, pz, nx, ny, nz, prims) {
+  let tx, ty, tz;
+  if (Math.abs(ny) < 0.999) { tx = -nz; ty = 0; tz = nx; }
+  else { tx = 1; ty = 0; tz = 0; }
+  let tl = Math.hypot(tx, ty, tz) || 1;
+  tx /= tl; ty /= tl; tz /= tl;
+  const bx = ny * tz - nz * ty;
+  const by = nz * tx - nx * tz;
+  const bz = nx * ty - ny * tx;
+
+  let occ = 0, wsum = 0;
+  const nd = [0.7, 1.6, 3.0];
+  for (let i = 0; i < 3; i++) {
+    const d = nd[i];
+    const f = fieldPrim(px + nx * d, py + ny * d, pz + nz * d, prims);
+    wsum += 1.0;
+    if (f > 0) occ += (1.0 - d / 5.0);
+  }
+  const sd = 1.5;
+  const sdirs = [[tx, ty, tz], [-tx, -ty, -tz], [bx, by, bz], [-bx, -by, -bz]];
+  for (let i = 0; i < 4; i++) {
+    const wx = sdirs[i][0], wy = sdirs[i][1], wz = sdirs[i][2];
+    const f = fieldPrim(
+      px + wx * sd + nx * 0.3,
+      py + wy * sd + ny * 0.3,
+      pz + wz * sd + nz * 0.3, prims);
+    wsum += 0.5;
+    if (f > 0) occ += 0.5 * 0.6;
+  }
+  let ao = 1.0 - (occ / Math.max(wsum, 1e-3)) * 1.55;
+  if (ao < 0.12) ao = 0.12;
+  if (ao > 1.0)  ao = 1.0;
+  return ao;
+}
+
+function buildChunk(cx, cz) {
+  const x0 = cx * CHUNK_SIZE;
+  const z0 = cz * CHUNK_SIZE;
+  const prims = collectPrims(x0, x0 + CHUNK_SIZE, z0, z0 + CHUNK_SIZE);
+
+  const NX = RES_XZ + 3, NY = RES_Y + 3, NZ = RES_XZ + 3;
+  const NXY = NX * NY;
+  const F = new Float32Array(NX * NY * NZ);
+
+  for (let k = -1; k <= RES_XZ + 1; k++) {
+    const z = z0 + k * CELL;
+    const kbase = (k + 1) * NXY;
+    for (let j = -1; j <= RES_Y + 1; j++) {
+      const y = Y0 + j * CELL_Y;
+      const jbase = kbase + (j + 1) * NX + 1;
+      for (let i = -1; i <= RES_XZ + 1; i++) {
+        F[jbase + i] = fieldPrim(x0 + i * CELL, y, z, prims);
+      }
+    }
+  }
+
+  const NGX = RES_XZ + 2, NGY = RES_Y + 2, NGZ = RES_XZ + 2;
+  const NGXY = NGX * NGY;
+  const cellVert = new Int32Array(NGX * NGY * NGZ).fill(-1);
+  const positions = [];
+
+  const vOff = new Int32Array(8);
+  for (let c = 0; c < 8; c++) vOff[c] = CX[c] + CY[c] * NX + CZ[c] * NXY;
+
+  const v8 = new Float32Array(8);
+  const ox = cx * RES_XZ;
+  const oz = cz * RES_XZ;
+
+  for (let k = -1; k <= RES_XZ; k++) {
+    for (let j = -1; j <= RES_Y; j++) {
+      for (let i = -1; i <= RES_XZ; i++) {
+        const baseIdx = (i + 1) + (j + 1) * NX + (k + 1) * NXY;
+        let mask = 0;
+        for (let c = 0; c < 8; c++) {
+          const val = F[baseIdx + vOff[c]];
+          v8[c] = val;
+          if (val < 0) mask |= (1 << c);
+        }
+        if (mask === 0 || mask === 255) continue;
+
+        let sx = 0, sy = 0, sz = 0, cnt = 0;
+        for (let e = 0; e < 12; e++) {
+          const ea = EDGE[e * 2], eb = EDGE[e * 2 + 1];
+          const va = v8[ea], vb = v8[eb];
+          if ((va < 0) === (vb < 0)) continue;
+          const t = va / (va - vb);
+          const ax = (ox + i + CX[ea] + (CX[eb] - CX[ea]) * t) * CELL;
+          const ay = Y0 + (j + CY[ea] + (CY[eb] - CY[ea]) * t) * CELL_Y;
+          const az = (oz + k + CZ[ea] + (CZ[eb] - CZ[ea]) * t) * CELL;
+          sx += ax; sy += ay; sz += az; cnt++;
+        }
+        if (cnt === 0) continue;
+        const vi = positions.length / 3;
+        positions.push(sx / cnt, sy / cnt, sz / cnt);
+        cellVert[(i + 1) + (j + 1) * NGX + (k + 1) * NGXY] = vi;
+      }
+    }
+  }
+
+  if (positions.length === 0) {
+    return { cx, cz, empty: true, count: 0 };
+  }
+
+  const cvi = (i, j, k) => {
+    if (i < -1 || j < -1 || k < -1 || i > RES_XZ || j > RES_Y || k > RES_XZ) return -1;
+    return cellVert[(i + 1) + (j + 1) * NGX + (k + 1) * NGXY];
+  };
+
+  const indices = [];
+  for (let k = -1; k <= RES_XZ - 1; k++) {
+    for (let j = -1; j <= RES_Y - 1; j++) {
+      for (let i = -1; i <= RES_XZ - 1; i++) {
+        const bIdx = (i + 1) + (j + 1) * NX + (k + 1) * NXY;
+        const v0 = F[bIdx];
+        const vxp = F[bIdx + 1];
+        const vyp = F[bIdx + NX];
+        const vzp = F[bIdx + NXY];
+
+        if ((v0 < 0) !== (vxp < 0)) {
+          const a = cvi(i, j - 1, k - 1), b = cvi(i, j, k - 1),
+                c = cvi(i, j, k),         d = cvi(i, j - 1, k);
+          if (a >= 0 && b >= 0 && c >= 0 && d >= 0)
+            indices.push(a, b, c, a, c, d);
+        }
+        if ((v0 < 0) !== (vyp < 0)) {
+          const a = cvi(i - 1, j, k - 1), b = cvi(i, j, k - 1),
+                c = cvi(i, j, k),         d = cvi(i - 1, j, k);
+          if (a >= 0 && b >= 0 && c >= 0 && d >= 0)
+            indices.push(a, b, c, a, c, d);
+        }
+        if ((v0 < 0) !== (vzp < 0)) {
+          const a = cvi(i - 1, j - 1, k), b = cvi(i, j - 1, k),
+                c = cvi(i, j, k),         d = cvi(i - 1, j, k);
+          if (a >= 0 && b >= 0 && c >= 0 && d >= 0)
+            indices.push(a, b, c, a, c, d);
+        }
+      }
+    }
+  }
+
+  const posArr = new Float32Array(positions);
+  const nrmArr = new Float32Array(posArr.length);
+
+  for (let t = 0; t < indices.length; t += 3) {
+    const ia = indices[t] * 3, ib = indices[t + 1] * 3, ic = indices[t + 2] * 3;
+    const ax = posArr[ia], ay = posArr[ia + 1], az = posArr[ia + 2];
+    const bx = posArr[ib], by = posArr[ib + 1], bz = posArr[ib + 2];
+    const cx2 = posArr[ic], cy2 = posArr[ic + 1], cz2 = posArr[ic + 2];
+
+    const e1x = bx - ax, e1y = by - ay, e1z = bz - az;
+    const e2x = cx2 - ax, e2y = cy2 - ay, e2z = cz2 - az;
+    let nx = e1y * e2z - e1z * e2y;
+    let ny = e1z * e2x - e1x * e2z;
+    let nz = e1x * e2y - e1y * e2x;
+
+    const mx = (ax + bx + cx2) / 3, my = (ay + by + cy2) / 3, mz = (az + bz + cz2) / 3;
+    let gi = Math.round((mx - x0) / CELL);
+    let gj = Math.round((my - Y0) / CELL_Y);
+    let gk = Math.round((mz - z0) / CELL);
+    gi = gi < 0 ? 0 : (gi > RES_XZ ? RES_XZ : gi);
+    gj = gj < 0 ? 0 : (gj > RES_Y ? RES_Y : gj);
+    gk = gk < 0 ? 0 : (gk > RES_XZ ? RES_XZ : gk);
+
+    const gBase = (gi + 1) + (gj + 1) * NX + (gk + 1) * NXY;
+    const gx = F[gBase + 1] - F[gBase - 1];
+    const gy = F[gBase + NX] - F[gBase - NX];
+    const gz = F[gBase + NXY] - F[gBase - NXY];
+
+    if (nx * gx + ny * gy + nz * gz > 0) { nx = -nx; ny = -ny; nz = -nz; }
+
+    nrmArr[ia] += nx; nrmArr[ia + 1] += ny; nrmArr[ia + 2] += nz;
+    nrmArr[ib] += nx; nrmArr[ib + 1] += ny; nrmArr[ib + 2] += nz;
+    nrmArr[ic] += nx; nrmArr[ic + 1] += ny; nrmArr[ic + 2] += nz;
+  }
+
+  for (let i = 0; i < nrmArr.length; i += 3) {
+    let nx = nrmArr[i], ny = nrmArr[i + 1], nz = nrmArr[i + 2];
+    const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+    nrmArr[i] = nx / len; nrmArr[i + 1] = ny / len; nrmArr[i + 2] = nz / len;
+  }
+
+  const vertCount = posArr.length / 3;
+  const aoArr = new Float32Array(vertCount);
+  for (let i = 0; i < vertCount; i++) {
+    aoArr[i] = computeVertexAO(
+      posArr[i * 3], posArr[i * 3 + 1], posArr[i * 3 + 2],
+      nrmArr[i * 3], nrmArr[i * 3 + 1], nrmArr[i * 3 + 2],
+      prims);
+  }
+
+  /* 顶点白色属性：找最近的腔室节点，若该节点 white 则标记 1 */
+  const whiteArr = new Float32Array(vertCount);
+  for (let v = 0; v < vertCount; v++) {
+    const px = posArr[v * 3], py = posArr[v * 3 + 1], pz = posArr[v * 3 + 2];
+    const ci = Math.floor(px / GRID), cj = Math.floor(pz / GRID);
+    let bestD = 1e9, bestWhite = false;
+    for (let di = -1; di <= 1; di++) {
+      for (let dj = -1; dj <= 1; dj++) {
+        const n = getNode(ci + di, cj + dj);
+        const dx = px - n.x, dy = py - n.y, dz = pz - n.z;
+        const ex = dx / n.rx, ey = dy / n.ry, ez = dz / n.rz;
+        const d = Math.sqrt(ex * ex + ey * ey + ez * ez);
+        if (d < bestD) { bestD = d; bestWhite = n.white; }
+      }
+    }
+    whiteArr[v] = bestWhite ? 1.0 : 0.0;
+  }
+
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+
+  const vbo = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, posArr, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+
+  const nbo = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, nbo);
+  gl.bufferData(gl.ARRAY_BUFFER, nrmArr, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(1);
+  gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
+
+  const abo = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, abo);
+  gl.bufferData(gl.ARRAY_BUFFER, aoArr, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(2);
+  gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 0, 0);
+
+  const wbo = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, wbo);
+  gl.bufferData(gl.ARRAY_BUFFER, whiteArr, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(3);
+  gl.vertexAttribPointer(3, 1, gl.FLOAT, false, 0, 0);
+
+  const ibo = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+  const idxArr = new Uint32Array(indices);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.STATIC_DRAW);
+
+  gl.bindVertexArray(null);
+
+  return { cx, cz, vao, vbo, nbo, abo, wbo, ibo, count: idxArr.length, empty: false };
+}
+
+function disposeChunk(ch) {
+  if (ch.empty) return;
+  gl.deleteVertexArray(ch.vao);
+  gl.deleteBuffer(ch.vbo);
+  gl.deleteBuffer(ch.nbo);
+  gl.deleteBuffer(ch.abo);
+  gl.deleteBuffer(ch.wbo);
+  gl.deleteBuffer(ch.ibo);
+}
+
+/* ============================================================
+   4. 着色器（洞穴）
+   ============================================================ */
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s), src);
+    throw new Error('shader compile error');
+  }
+  return s;
+}
+function program(vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(p));
+    throw new Error('link error');
+  }
+  return p;
+}
+
+const SCENE_VS = `#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNrm;
+layout(location=2) in float aAO;
+layout(location=3) in float aWhite;
+uniform mat4 uProj;
+uniform mat4 uView;
+out vec3 vPos;
+out vec3 vNrm;
+out float vDepth;
+out float vAO;
+out float vWhite;
+void main(){
+  vPos = aPos;
+  vNrm = aNrm;
+  vAO = aAO;
+  vWhite = aWhite;
+  vec4 vp = uView * vec4(aPos, 1.0);
+  vDepth = -vp.z;
+  gl_Position = uProj * vp;
+}`;
+
+const SCENE_FS = `#version 300 es
+precision highp float;
+in vec3 vPos;
+in vec3 vNrm;
+in float vDepth;
+in float vAO;
+in float vWhite;
+uniform vec3 uCam;
+uniform sampler2D uNMap;
+uniform float uAOOn;
+uniform float uFresOn;
+out vec4 outColor;
+
+float hash31(vec3 p){
+  p = fract(p * 0.3183099 + vec3(0.71, 0.13, 0.37));
+  p *= 17.0;
+  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+float vnoise3(vec3 x){
+  vec3 i = floor(x), f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  float n000 = hash31(i + vec3(0.0,0.0,0.0));
+  float n100 = hash31(i + vec3(1.0,0.0,0.0));
+  float n010 = hash31(i + vec3(0.0,1.0,0.0));
+  float n110 = hash31(i + vec3(1.0,1.0,0.0));
+  float n001 = hash31(i + vec3(0.0,0.0,1.0));
+  float n101 = hash31(i + vec3(1.0,0.0,1.0));
+  float n011 = hash31(i + vec3(0.0,1.0,1.0));
+  float n111 = hash31(i + vec3(1.0,1.0,1.0));
+  return mix(
+    mix(mix(n000, n100, f.x), mix(n010, n110, f.x), f.y),
+    mix(mix(n001, n101, f.x), mix(n011, n111, f.x), f.y), f.z);
+}
+
+void main(){
+  vec3 N = normalize(vNrm);
+  vec3 V = normalize(uCam - vPos);
+
+  vec3 blend = abs(N);
+  blend = pow(blend, vec3(6.0));
+  blend /= max(blend.x + blend.y + blend.z, 1e-4);
+
+  float sc = 0.30;
+  vec3 tX = texture(uNMap, vPos.yz * sc).xyz * 2.0 - 1.0;
+  vec3 tY = texture(uNMap, vPos.zx * sc).xyz * 2.0 - 1.0;
+  vec3 tZ = texture(uNMap, vPos.xy * sc).xyz * 2.0 - 1.0;
+
+  vec3 bump = blend.x * vec3(0.0, tX.y, tX.x)
+            + blend.y * vec3(tY.x, 0.0, tY.y)
+            + blend.z * vec3(tZ.x, tZ.y, 0.0);
+
+  bump -= N * dot(bump, N);
+  N = normalize(N + bump * 1.15);
+
+  float n1 = vnoise3(vPos * 0.22);
+  float n2 = vnoise3(vPos * 1.10);
+  float n3 = vnoise3(vPos * 3.60);
+
+  vec3 cA = vec3(0.34, 0.30, 0.26);
+  vec3 cB = vec3(0.15, 0.145, 0.15);
+  vec3 albedo = mix(cA, cB, clamp(n1 * 0.65 + n2 * 0.35, 0.0, 1.0));
+  albedo *= 0.72 + 0.55 * n3;
+
+  float hemi = 0.5 + 0.5 * N.y;
+  float head = max(dot(N, V), 0.0);
+  head = pow(head, 1.7);
+  float lit = 0.20 * hemi + 0.90 * head;
+
+  vec3 col = albedo * lit;
+
+  col *= mix(1.0, vAO, 0.88 * uAOOn);
+
+  float fres = pow(1.0 - max(dot(N, V), 0.0), 5.0);
+  vec3 reflCol = vec3(0.34, 0.42, 0.50);
+  col = mix(col, reflCol * (0.35 + 0.65 * lit), fres * 0.50 * uFresOn);
+
+  vec3 H = normalize(V + vec3(0.0, 1.0, 0.0));
+  float spec = pow(max(dot(N, H), 0.0), 56.0) * 0.30 * uFresOn;
+  col += vec3(0.58, 0.66, 0.78) * spec;
+
+  /* 纯白腔室：自发光白 */
+  if (vWhite > 0.5) {
+    col = mix(col, vec3(1.0), 0.92);
+    col += vec3(0.85);
+  }
+
+  float fog = 1.0 - exp(-vDepth * 0.050);
+  col = mix(col, vec3(0.0), clamp(fog, 0.0, 1.0));
+
+  outColor = vec4(col, 1.0);
+}`;
+
+/* 蜘蛛着色器 */
+const SPIDER_VS = `#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNrm;
+uniform mat4 uProj;
+uniform mat4 uView;
+uniform mat4 uModel;
+out vec3 vNrm;
+out vec3 vWorld;
+out float vDepth;
+void main(){
+  vec4 wp = uModel * vec4(aPos, 1.0);
+  vWorld = wp.xyz;
+  vNrm = mat3(uModel) * aNrm;
+  vec4 vp = uView * wp;
+  vDepth = -vp.z;
+  gl_Position = uProj * vp;
+}`;
+
+const SPIDER_FS = `#version 300 es
+precision highp float;
+in vec3 vNrm;
+in vec3 vWorld;
+in float vDepth;
+uniform vec3 uColor;
+uniform vec3 uCamPos;
+out vec4 fragColor;
+void main(){
+  vec3 N = normalize(vNrm);
+  vec3 V = normalize(uCamPos - vWorld);
+
+  vec3 L1 = normalize(vec3( 0.55, 0.90, 0.45));
+  vec3 L2 = normalize(vec3(-0.65, 0.35, -0.75));
+
+  float d1 = max(dot(N, L1), 0.0);
+  float d2 = max(dot(N, L2), 0.0);
+
+  vec3  H    = normalize(L1 + V);
+  float spec = pow(max(dot(N, H), 0.0), 64.0);
+  float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+
+  vec3 col = uColor * (0.16 + 0.95 * d1 + 0.26 * d2);
+  col += vec3(1.0)              * spec * 0.42;
+  col += vec3(0.35, 0.55, 0.95) * fres * 0.20;
+
+  float fog = 1.0 - exp(-vDepth * 0.045);
+  col = mix(col, vec3(0.0), clamp(fog, 0.0, 1.0));
+
+  fragColor = vec4(col, 1.0);
+}`;
+
+const QUAD_VS = `#version 300 es
+precision highp float;
+layout(location=0) in vec2 aPos;
+out vec2 vUV;
+void main(){
+  vUV = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
+const BLUR_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uCur;
+uniform sampler2D uPrev;
+uniform float uBlend;
+out vec4 outColor;
+void main(){
+  vec3 c = texture(uCur, vUV).rgb;
+  vec3 p = texture(uPrev, vUV).rgb;
+  outColor = vec4(mix(c, p, uBlend), 1.0);
+}`;
+
+const DISPLAY_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uTex;
+uniform float uGamma;
+uniform float uRGB;
+uniform float uBarrel;
+uniform float uNoiseOn;
+uniform float uTime;
+out vec4 outColor;
+
+float hash12(vec2 p){
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+void main(){
+  vec2 d = vUV - 0.5;
+  float r2 = dot(d, d);
+
+  vec2 uv = 0.5 + d * (1.0 + uBarrel * r2);
+
+  float amt = (0.0022 + 0.0030 * r2 * 2.0) * uRGB;
+  float rr = texture(uTex, uv + d * amt).r;
+  float gg = texture(uTex, uv).g;
+  float bb = texture(uTex, uv - d * amt).b;
+
+  vec3 col = vec3(rr, gg, bb);
+
+  col.b = mix(col.b, texture(uTex, uv - d * amt * 1.9).b, 0.35 * clamp(uRGB, 0.0, 1.0));
+
+  float vig = 1.0 - 0.62 * pow(r2 * 2.0, 1.5);
+  col *= clamp(vig, 0.0, 1.0);
+
+  col = pow(max(col, vec3(0.0)), vec3(1.0 / max(uGamma, 0.05)));
+
+  /* 相机动态噪点 */
+  if (uNoiseOn > 0.5) {
+    float n = hash12(gl_FragCoord.xy + vec2(uTime * 731.0, uTime * 397.0));
+    col += (n - 0.5) * 0.085;
+  }
+
+  outColor = vec4(col, 1.0);
+}`;
+
+const progScene   = program(SCENE_VS, SCENE_FS);
+const progSpider  = program(SPIDER_VS, SPIDER_FS);
+const progBlur    = program(QUAD_VS, BLUR_FS);
+const progDisplay = program(QUAD_VS, DISPLAY_FS);
+
+const uScene = {
+  proj: gl.getUniformLocation(progScene, 'uProj'),
+  view: gl.getUniformLocation(progScene, 'uView'),
+  cam:  gl.getUniformLocation(progScene, 'uCam'),
+  nmap: gl.getUniformLocation(progScene, 'uNMap'),
+  ao:   gl.getUniformLocation(progScene, 'uAOOn'),
+  fres: gl.getUniformLocation(progScene, 'uFresOn')
+};
+const uSpider = {
+  proj:  gl.getUniformLocation(progSpider, 'uProj'),
+  view:  gl.getUniformLocation(progSpider, 'uView'),
+  model: gl.getUniformLocation(progSpider, 'uModel'),
+  color: gl.getUniformLocation(progSpider, 'uColor'),
+  cam:   gl.getUniformLocation(progSpider, 'uCamPos')
+};
+const uBlur = {
+  cur:   gl.getUniformLocation(progBlur, 'uCur'),
+  prev:  gl.getUniformLocation(progBlur, 'uPrev'),
+  blend: gl.getUniformLocation(progBlur, 'uBlend')
+};
+const uDisp = {
+  tex:   gl.getUniformLocation(progDisplay, 'uTex'),
+  gamma: gl.getUniformLocation(progDisplay, 'uGamma'),
+  rgb:   gl.getUniformLocation(progDisplay, 'uRGB'),
+  barrel:gl.getUniformLocation(progDisplay, 'uBarrel'),
+  noise: gl.getUniformLocation(progDisplay, 'uNoiseOn'),
+  time:  gl.getUniformLocation(progDisplay, 'uTime')
+};
+
+/* ============================================================
+   5. 程序化岩石法线贴图
+   ============================================================ */
+const NMAP_SIZE = 256;
+function buildRockNormalMap() {
+  const S = NMAP_SIZE;
+  const hgt = new Float32Array(S * S);
+  for (let y = 0; y < S; y++) {
+    const v = y / S;
+    for (let x = 0; x < S; x++) {
+      const u = x / S;
+      const a = fbmTile(u, v, 6, 5, 7717);
+      const b = fbmTile(u, v, 22, 4, 3391);
+      let h = a * 0.68 + b * 0.32;
+      const ridge = 1.0 - Math.abs(fbmTile(u, v, 11, 3, 5501) * 2.0 - 1.0);
+      h = h * 0.78 + ridge * ridge * 0.22;
+      hgt[y * S + x] = h;
+    }
+  }
+  const data = new Uint8Array(S * S * 4);
+  const strength = 14.0;
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const hl = hgt[y * S + ((x - 1 + S) % S)];
+      const hr = hgt[y * S + ((x + 1) % S)];
+      const hd = hgt[((y - 1 + S) % S) * S + x];
+      const hu = hgt[((y + 1) % S) * S + x];
+      let nx = (hl - hr) * strength;
+      let ny = (hd - hu) * strength;
+      let nz = 1.0;
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+      nx /= len; ny /= len; nz /= len;
+      const o = (y * S + x) * 4;
+      data[o]     = (nx * 0.5 + 0.5) * 255;
+      data[o + 1] = (ny * 0.5 + 0.5) * 255;
+      data[o + 2] = (nz * 0.5 + 0.5) * 255;
+      data[o + 3] = 255;
+    }
+  }
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, S, S, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+  const aniso = gl.getExtension('EXT_texture_filter_anisotropic');
+  if (aniso) {
+    const maxA = gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+    gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, maxA));
+  }
+  return tex;
+}
+const normalMapTex = buildRockNormalMap();
+
+/* ============================================================
+   6. 全屏四边形 & FBO
+   ============================================================ */
+const quadVAO = gl.createVertexArray();
+gl.bindVertexArray(quadVAO);
+const quadVBO = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quadVBO);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1,-1,  1,-1, -1, 1,
+  -1, 1,  1,-1,  1, 1
+]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+gl.bindVertexArray(null);
+
+function createFBO(w, h) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  const fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+
+  const rb = gl.createRenderbuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { tex, fb, rb, w, h };
+}
+function destroyFBO(f) {
+  if (!f) return;
+  gl.deleteTexture(f.tex);
+  gl.deleteFramebuffer(f.fb);
+  gl.deleteRenderbuffer(f.rb);
+}
+
+let fboScene = null, fboPing = null, fboPong = null;
+let VW = 1, VH = 1;
+
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.6);
+  let w = Math.max(2, Math.floor(window.innerWidth * dpr));
+  let h = Math.max(2, Math.floor(window.innerHeight * dpr));
+  const maxPix = 1600 * 900;
+  if (w * h > maxPix) {
+    const s = Math.sqrt(maxPix / (w * h));
+    w = Math.max(2, Math.floor(w * s));
+    h = Math.max(2, Math.floor(h * s));
+  }
+  if (w === VW && h === VH) return;
+  VW = w; VH = h;
+  canvas.width = w;
+  canvas.height = h;
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+
+  destroyFBO(fboScene); destroyFBO(fboPing); destroyFBO(fboPong);
+  fboScene = createFBO(VW, VH);
+  fboPing  = createFBO(VW, VH);
+  fboPong  = createFBO(VW, VH);
+  clearHistoryBuffers();
+}
+function clearHistoryBuffers() {
+  for (const f of [fboPing, fboPong]) {
+    if (!f) continue;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, f.fb);
+    gl.clearColor(0, 0, 0, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ============================================================
+   7. 矩阵工具（洞穴相机）
+   ============================================================ */
+function perspective(out, fovy, aspect, near, far) {
+  const f = 1.0 / Math.tan(fovy * 0.5);
+  out[0] = f / aspect; out[1] = 0; out[2] = 0; out[3] = 0;
+  out[4] = 0; out[5] = f; out[6] = 0; out[7] = 0;
+  out[8] = 0; out[9] = 0; out[10] = (far + near) / (near - far); out[11] = -1;
+  out[12] = 0; out[13] = 0; out[14] = 2 * far * near / (near - far); out[15] = 0;
+}
+const projMat = new Float32Array(16);
+const viewMat = new Float32Array(16);
+
+/* ============================================================
+   8. 玩家 / 物理
+   ============================================================ */
+const PLAYER_R   = 0.62;
+const EYE_OFFSET = 0.70;
+const WALK_SPEED = 7.2;
+const GRAVITY    = 26.0;
+const COS80      = Math.cos(80.0 * Math.PI / 180.0);
+const MOUSE_SENS = 0.0026 * 1.30;
+
+const player = { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, onGround: false };
+
+function spawnPlayer() {
+  const n = getNode(0, 0);
+  player.x = n.x;
+  player.y = n.y;
+  player.z = n.z;
+  player.vx = player.vy = player.vz = 0;
+  player.onGround = false;
+}
+spawnPlayer();
+
+let yaw = 0, pitch = 0;
+
+/* 玩家历史位置（用于蜘蛛生成） */
+const playerHistory = [];
+const HISTORY_KEEP = 12; // 秒
+
+/* ---- 键盘 ---- */
+const keys = Object.create(null);
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Space') e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+/* ---- 鼠标 / 触摸：左键拖拽转视角 ---- */
+let dragging = false, lastX = 0, lastY = 0, dragId = -1;
+canvas.addEventListener('pointerdown', e => {
+  if (e.button !== undefined && e.button !== 0) return;
+  dragging = true;
+  dragId = e.pointerId;
+  lastX = e.clientX; lastY = e.clientY;
+  canvas.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+canvas.addEventListener('pointermove', e => {
+  if (!dragging || e.pointerId !== dragId) return;
+  const dx = e.clientX - lastX;
+  const dy = e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  yaw   -= dx * MOUSE_SENS;
+  pitch -= dy * MOUSE_SENS;
+  const lim = 1.45;
+  if (pitch >  lim) pitch =  lim;
+  if (pitch < -lim) pitch = -lim;
+  e.preventDefault();
+});
+function endDrag(e) {
+  if (e.pointerId === dragId) { dragging = false; dragId = -1; }
+}
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ---- 虚拟摇杆 ---- */
+const stickEl = document.getElementById('stick');
+const knobEl  = document.getElementById('knob');
+let stickId = -1, stickDX = 0, stickDY = 0;
+
+function updateStick(e) {
+  const r = stickEl.getBoundingClientRect();
+  const cx = r.left + r.width * 0.5;
+  const cy = r.top  + r.height * 0.5;
+  let dx = e.clientX - cx;
+  let dy = e.clientY - cy;
+  const maxR = r.width * 0.36;
+  const len = Math.hypot(dx, dy);
+  if (len > maxR) { dx = dx / len * maxR; dy = dy / len * maxR; }
+  knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
+  stickDX = dx / maxR;
+  stickDY = dy / maxR;
+}
+stickEl.addEventListener('pointerdown', e => {
+  stickId = e.pointerId;
+  stickEl.setPointerCapture(e.pointerId);
+  updateStick(e);
+  e.preventDefault();
+});
+stickEl.addEventListener('pointermove', e => {
+  if (e.pointerId !== stickId) return;
+  updateStick(e);
+  e.preventDefault();
+});
+function endStick(e) {
+  if (e.pointerId !== stickId) return;
+  stickId = -1; stickDX = 0; stickDY = 0;
+  knobEl.style.transform = 'translate(0px,0px)';
+}
+stickEl.addEventListener('pointerup', endStick);
+stickEl.addEventListener('pointercancel', endStick);
+
+/* ---- 物理更新 ---- */
+function updatePhysics(dt) {
+  let ix = 0, iz = 0;
+  if (keys['KeyW'] || keys['ArrowUp'])    iz += 1;
+  if (keys['KeyS'] || keys['ArrowDown'])  iz -= 1;
+  if (keys['KeyA'] || keys['ArrowLeft'])  ix -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
+  ix += stickDX;
+  iz += -stickDY;
+
+  const mag = Math.hypot(ix, iz);
+  if (mag > 1) { ix /= mag; iz /= mag; }
+
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+  const rx =  Math.cos(yaw), rz = -Math.sin(yaw);
+  const wantVX = (fx * iz + rx * ix) * WALK_SPEED;
+  const wantVZ = (fz * iz + rz * ix) * WALK_SPEED;
+
+  const accel = player.onGround ? 16.0 : 5.0;
+  const k = Math.min(1, dt * accel);
+  player.vx += (wantVX - player.vx) * k;
+  player.vz += (wantVZ - player.vz) * k;
+
+  player.vy -= GRAVITY * dt;
+  if (player.vy < -55) player.vy = -55;
+
+  if (keys['Space'] && player.onGround) {
+    player.vy = 8.5;
+    player.onGround = false;
+    keys['Space'] = false;
+  }
+
+  let nx = player.x + player.vx * dt;
+  let ny = player.y + player.vy * dt;
+  let nz = player.z + player.vz * dt;
+
+  const f = fieldWorld(nx, ny, nz);
+  player.onGround = false;
+
+  if (f > -PLAYER_R) {
+    const eps = 0.25;
+    let gx = fieldWorld(nx + eps, ny, nz) - fieldWorld(nx - eps, ny, nz);
+    let gy = fieldWorld(nx, ny + eps, nz) - fieldWorld(nx, ny - eps, nz);
+    let gz = fieldWorld(nx, ny, nz + eps) - fieldWorld(nx, ny, nz - eps);
+    const gl2 = Math.hypot(gx, gy, gz);
+    if (gl2 < 1e-6) { gx = 0; gy = 1; gz = 0; }
+    else { gx /= gl2; gy /= gl2; gz /= gl2; }
+
+    const push = f + PLAYER_R;
+    nx -= gx * push;
+    ny -= gy * push;
+    nz -= gz * push;
+
+    const vn = player.vx * gx + player.vy * gy + player.vz * gz;
+    if (vn > 0) {
+      player.vx -= vn * gx;
+      player.vy -= vn * gy;
+      player.vz -= vn * gz;
+    }
+
+    if (gy <= -COS80) {
+      player.onGround = true;
+      if (player.vy < 0) player.vy = 0;
+    } else {
+      const gh = Math.hypot(gx, gz);
+      if (gh > 1e-4) {
+        const hx = gx / gh, hz = gz / gh;
+        const vd = player.vx * hx + player.vz * hz;
+        if (vd > 0) {
+          player.vx -= vd * hx;
+          player.vz -= vd * hz;
+        }
+      }
+    }
+  } else {
+    if (player.vy <= 0 && fieldWorld(nx, ny - PLAYER_R - 0.15, nz) > -PLAYER_R - 0.15) {
+      player.onGround = true;
+    }
+  }
+
+  player.x = nx;
+  player.y = ny;
+  player.z = nz;
+
+  if (player.y < -120 || !isFinite(player.x)) {
+    spawnPlayer();
+  }
+}
+
+/* ============================================================
+   9. 区块流式加载
+   ============================================================ */
+const chunks = new Map();
+
+function updateChunks(budgetMs) {
+  const pcx = Math.floor(player.x / CHUNK_SIZE);
+  const pcz = Math.floor(player.z / CHUNK_SIZE);
+
+  const needed = [];
+  for (let dz = -RENDER_DIST; dz <= RENDER_DIST; dz++) {
+    for (let dx = -RENDER_DIST; dx <= RENDER_DIST; dx++) {
+      const d2 = dx * dx + dz * dz;
+      if (d2 > RENDER_DIST * RENDER_DIST + 1) continue;
+      needed.push([pcx + dx, pcz + dz, d2]);
+    }
+  }
+  needed.sort((a, b) => a[2] - b[2]);
+
+  const t0 = performance.now();
+  for (let i = 0; i < needed.length; i++) {
+    const cx = needed[i][0], cz = needed[i][1];
+    const key = cx + ',' + cz;
+    if (chunks.has(key)) continue;
+    if (performance.now() - t0 > budgetMs) break;
+    const ch = buildChunk(cx, cz);
+    chunks.set(key, ch);
+  }
+
+  const unloadR = (RENDER_DIST + 1.5) * (RENDER_DIST + 1.5);
+  for (const [key, ch] of chunks) {
+    const dx = ch.cx - pcx, dz = ch.cz - pcz;
+    if (dx * dx + dz * dz > unloadR) {
+      disposeChunk(ch);
+      chunks.delete(key);
+    }
+  }
+
+  if (nodeCache.size > 30000) nodeCache.clear();
+}
+
+/* ============================================================
+   10. 画面调节 & 设置
+   ============================================================ */
+const gammaEl    = document.getElementById('gamma');
+const rgbEl      = document.getElementById('rgb');
+const barrelEl   = document.getElementById('barrel');
+const gammaValEl = document.getElementById('gammaVal');
+const rgbValEl   = document.getElementById('rgbVal');
+const barrelValEl= document.getElementById('barrelVal');
+const aoToggle   = document.getElementById('aoToggle');
+const fresToggle = document.getElementById('fresToggle');
+const noiseToggle= document.getElementById('noiseToggle');
+
+let uGammaVal = 1.0, uRGBVal = 1.0, uBarrelVal = 0.0;
+let uAOOn = 1.0, uFresOn = 1.0, uNoiseOn = 1.0;
+
+function syncSliders() {
+  uGammaVal  = parseFloat(gammaEl.value);
+  uRGBVal    = parseFloat(rgbEl.value);
+  uBarrelVal = parseFloat(barrelEl.value);
+  gammaValEl.textContent  = uGammaVal.toFixed(2);
+  rgbValEl.textContent    = uRGBVal.toFixed(2);
+  barrelValEl.textContent = uBarrelVal.toFixed(2);
+  uAOOn    = aoToggle.checked ? 1.0 : 0.0;
+  uFresOn  = fresToggle.checked ? 1.0 : 0.0;
+  uNoiseOn = noiseToggle.checked ? 1.0 : 0.0;
+}
+gammaEl.addEventListener('input', syncSliders);
+rgbEl.addEventListener('input', syncSliders);
+barrelEl.addEventListener('input', syncSliders);
+aoToggle.addEventListener('change', syncSliders);
+fresToggle.addEventListener('change', syncSliders);
+noiseToggle.addEventListener('change', syncSliders);
+syncSliders();
+
+function clearAllChunks() {
+  for (const ch of chunks.values()) disposeChunk(ch);
+  chunks.clear();
+  nodeCache.clear();
+}
+
+function regenerateCave() {
+  clearAllChunks();
+  SEED = (Math.random() * 1e9) | 0;
+  document.getElementById('seedTxt').textContent = SEED;
+  spawnPlayer();
+  clearHistoryBuffers();
+  clearSpiders();
+  spawnTimer = 0;
+  playerHistory.length = 0;
+  updateChunks(2200);
+}
+document.getElementById('regenBtn').addEventListener('click', regenerateCave);
+
+/* 设置面板开关 */
+const settingsEl = document.getElementById('settings');
+document.getElementById('settingsBtn').addEventListener('click', () => {
+  settingsEl.classList.add('open');
+});
+document.getElementById('closeSettings').addEventListener('click', () => {
+  settingsEl.classList.remove('open');
+});
+
+/* ============================================================
+   11. 音频 / 弹窗
+   ============================================================ */
+const AUDIO_URL = 'https://txmov2.a.kwimgs.com/upic/2026/01/20/21/BMjAyNjAxMjAyMTQ4MjdfMzgwODUwNDg0OF8xODU1MzU0NzQ5NzdfMF8z_b_B4da8ec5676ca77d39583a47c1db1f2b5.mp4?clientCacheKey=3xdpeakb8qxkdy4_b.mp4&tt=b&di=89f966a&bp=10004';
+const audioVolumes = [0.40, 0.60, 1.00];
+const audios = audioVolumes.map(v => {
+  const a = document.createElement('audio');
+  a.src = AUDIO_URL;
+  a.volume = v;
+  a.loop = true;
+  a.preload = 'auto';
+  a.crossOrigin = 'anonymous';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  return a;
+});
+let audioStarted = false;
+function startAudio() {
+  if (audioStarted) return;
+  audioStarted = true;
+  for (const a of audios) {
+    try { const p = a.play(); if (p && p.catch) p.catch(() => {}); } catch (_) {}
+  }
+}
+
+const popupEl = document.getElementById('popup');
+let popupScheduled = false;
+let popupDismissed = false;
+function showPopup() {
+  if (popupDismissed) return;
+  const r = settingsEl.getBoundingClientRect();
+  popupEl.style.top = (r.bottom + 12) + 'px';
+  popupEl.classList.add('show');
+}
+function schedulePopup() {
+  if (popupScheduled || popupDismissed) return;
+  popupScheduled = true;
+  setTimeout(() => { if (!popupDismissed) showPopup(); }, 3000);
+}
+document.getElementById('popupClose').addEventListener('click', () => {
+  popupDismissed = true;
+  popupEl.classList.remove('show');
+});
+function onFirstInteraction() {
+  startAudio();
+  schedulePopup();
+}
+window.addEventListener('pointerdown', onFirstInteraction);
+window.addEventListener('keydown', onFirstInteraction);
+
+/* ============================================================
+   12. 蜘蛛模型（从参照文件移植）
+   ============================================================ */
+const V3 = {
+  sub : (a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],
+  add : (a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],
+  cross:(a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]],
+  dot : (a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],
+  len : a=>Math.hypot(a[0],a[1],a[2])
+};
+
+const M4 = {
+  identity(){ return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]); },
+  mul(a,b){
+    const o = new Float32Array(16);
+    for(let c=0;c<4;c++){
+      for(let r=0;r<4;r++){
+        let s=0;
+        for(let k=0;k<4;k++) s += a[k*4+r]*b[c*4+k];
+        o[c*4+r]=s;
+      }
+    }
+    return o;
+  },
+  translation(x,y,z){ return new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]); },
+  scaling(x,y,z){ return new Float32Array([x,0,0,0, 0,y,0,0, 0,0,z,0, 0,0,0,1]); },
+  perspective(fovy, aspect, near, far){
+    const f = 1/Math.tan(fovy/2), nf = 1/(near-far);
+    return new Float32Array([
+      f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0
+    ]);
+  },
+  lookAt(eye, center, up){
+    const z = (()=>{const d=V3.sub(eye,center);const l=V3.len(d)||1;return [d[0]/l,d[1]/l,d[2]/l];})();
+    const x = (()=>{const c=V3.cross(up,z);const l=V3.len(c)||1;return [c[0]/l,c[1]/l,c[2]/l];})();
+    const y = V3.cross(z,x);
+    return new Float32Array([
+      x[0], y[0], z[0], 0,
+      x[1], y[1], z[1], 0,
+      x[2], y[2], z[2], 0,
+      -V3.dot(x,eye), -V3.dot(y,eye), -V3.dot(z,eye), 1
+    ]);
+  },
+  axisAngle(k, ang){
+    const c = Math.cos(ang), s = Math.sin(ang), t = 1-c;
+    const [x,y,z] = k;
+    const m0 = t*x*x + c,   m1 = t*x*y - s*z, m2 = t*x*z + s*y;
+    const m3 = t*x*y + s*z, m4 = t*y*y + c,   m5 = t*y*z - s*x;
+    const m6 = t*x*z - s*y, m7 = t*y*z + s*x, m8 = t*z*z + c;
+    return new Float32Array([
+      m0, m3, m6, 0,
+      m1, m4, m7, 0,
+      m2, m5, m8, 0,
+      0,0,0,1
+    ]);
+  },
+  fromYTo(b){
+    const c = b[1];
+    const v = [b[2], 0, -b[0]];
+    const s = Math.hypot(v[0],v[1],v[2]);
+    if(s < 1e-8){
+      if(c > 0) return M4.identity();
+      return M4.axisAngle([1,0,0], Math.PI);
+    }
+    const k = [v[0]/s, v[1]/s, v[2]/s];
+    return M4.axisAngle(k, Math.atan2(s, c));
+  }
+};
+
+function rotateAxis(v, k, a){
+  const c = Math.cos(a), s = Math.sin(a);
+  const kxv = [
+    k[1]*v[2]-k[2]*v[1],
+    k[2]*v[0]-k[0]*v[2],
+    k[0]*v[1]-k[1]*v[0]
+  ];
+  const kdv = k[0]*v[0]+k[1]*v[1]+k[2]*v[2];
+  return [
+    v[0]*c + kxv[0]*s + k[0]*kdv*(1-c),
+    v[1]*c + kxv[1]*s + k[1]*kdv*(1-c),
+    v[2]*c + kxv[2]*s + k[2]*kdv*(1-c)
+  ];
+}
+function rotYvec(v, a){
+  const c = Math.cos(a), s = Math.sin(a);
+  return [v[0]*c + v[2]*s, v[1], -v[0]*s + v[2]*c];
+}
+
+/* 蜘蛛网格 */
+function makeSpiderMesh(data){
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+
+  const pb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, pb);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data.pos), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+
+  const nb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, nb);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data.nrm), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(1);
+  gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0);
+
+  const ib = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(data.idx), gl.STATIC_DRAW);
+
+  gl.bindVertexArray(null);
+  return { vao, count: data.idx.length };
+}
+
+function createSphere(seg = 32, ring = 24){
+  const pos = [], nrm = [], idx = [];
+  for(let y=0; y<=ring; y++){
+    const phi = (y/ring) * Math.PI;
+    const sp = Math.sin(phi), cp = Math.cos(phi);
+    for(let x=0; x<=seg; x++){
+      const th = (x/seg) * Math.PI * 2;
+      const nx = sp*Math.cos(th), ny = cp, nz = sp*Math.sin(th);
+      pos.push(nx,ny,nz);
+      nrm.push(nx,ny,nz);
+    }
+  }
+  for(let y=0; y<ring; y++){
+    for(let x=0; x<seg; x++){
+      const a = y*(seg+1)+x, b = a+1, c = a+seg+1, d = c+1;
+      idx.push(a,b,c, b,d,c);
+    }
+  }
+  return makeSpiderMesh({pos,nrm,idx});
+}
+
+function createCylinder(seg = 16){
+  const pos = [], nrm = [], idx = [];
+  for(let y=0; y<=1; y++){
+    for(let x=0; x<=seg; x++){
+      const t = (x/seg)*Math.PI*2;
+      const cx = Math.cos(t), cz = Math.sin(t);
+      pos.push(cx, y, cz);
+      nrm.push(cx, 0, cz);
+    }
+  }
+  for(let x=0; x<seg; x++){
+    const a = x, b = x+1, c = a+seg+1, d = b+seg+1;
+    idx.push(a,c,b, b,c,d);
+  }
+  return makeSpiderMesh({pos,nrm,idx});
+}
+
+const spiderSphereMesh = createSphere(24, 18);
+const spiderCylMesh    = createCylinder(14);
+
+function segMatrix(p0, p1, r){
+  const d = V3.sub(p1, p0);
+  const len = V3.len(d);
+  if(len < 1e-6) return M4.identity();
+  const dir = [d[0]/len, d[1]/len, d[2]/len];
+  const R = M4.fromYTo(dir);
+  const T = M4.translation(p0[0], p0[1], p0[2]);
+  return M4.mul(T, M4.mul(R, M4.scaling(r, len, r)));
+}
+
+/* 蜘蛛参数 */
+const HIP_R = 0.55;
+const HIP_Y = 1.50;
+const L1 = 1.30, A1 =  42*Math.PI/180;
+const L2 = 2.40, A2 = -82*Math.PI/180;
+const KNEE_U = L1*Math.cos(A1);
+const KNEE_Y = L1*Math.sin(A1);
+const FOOT_U = KNEE_U + L2*Math.cos(A2);
+const FOOT_Y = KNEE_Y + L2*Math.sin(A2);
+
+const LEGS = [
+  { az: Math.PI*0.25, phase: 0.00 },
+  { az: Math.PI*0.75, phase: 0.50 },
+  { az: Math.PI*1.25, phase: 0.00 },
+  { az: Math.PI*1.75, phase: 0.50 }
+];
+
+const COL_BODY = [0.94, 0.95, 0.97];
+const COL_LEG  = [0.07, 0.07, 0.09];
+const COL_EYE  = [0.06, 0.02, 0.04];
+const GAIT_FREQ = 1.15;
+const SPIDER_SCALE = 0.55;
+
+/* 绘制蜘蛛 */
+function drawSpider(spider) {
+  const s = SPIDER_SCALE;
+  const up = spider.up;
+  const forward = spider.forward;
+
+  // 构造朝向矩阵：Y=up, Z=forward, X=Y×Z
+  let fx = forward[0], fy = forward[1], fz = forward[2];
+  // 投影到垂直于 up 的平面
+  const du = fx*up[0] + fy*up[1] + fz*up[2];
+  fx -= up[0]*du; fy -= up[1]*du; fz -= up[2]*du;
+  let fl = Math.hypot(fx, fy, fz);
+  if (fl < 1e-6) { fx = 0; fy = 0; fz = 1; fl = 1; }
+  fx /= fl; fy /= fl; fz /= fl;
+
+  let xx = up[1]*fz - up[2]*fy;
+  let xy = up[2]*fx - up[0]*fz;
+  let xz = up[0]*fy - up[1]*fx;
+  const xl = Math.hypot(xx, xy, xz) || 1;
+  xx /= xl; xy /= xl; xz /= xl;
+
+  // 模型矩阵列向量
+  const model = new Float32Array([
+    xx*s, xy*s, xz*s, 0,
+    up[0]*s, up[1]*s, up[2]*s, 0,
+    fx*s, fy*s, fz*s, 0,
+    spider.x, spider.y, spider.z, 1
+  ]);
+
+  // 动画时间
+  const at = spider.animTime;
+  const dyn = spider.dynBlend;
+  const bob = 0.05 * Math.sin(at * 7.0) * dyn;
+
+  gl.useProgram(progSpider);
+  gl.uniformMatrix4fv(uSpider.model, false, model);
+  gl.uniformMatrix4fv(uSpider.proj, false, projMat);
+  gl.uniformMatrix4fv(uSpider.view, false, viewMat);
+  gl.uniform3f(uSpider.cam, camEye[0], camEye[1], camEye[2]);
+
+  function drawPart(mesh, localMat, color) {
+    const m = M4.mul(model, localMat);
+    gl.uniformMatrix4fv(uSpider.model, false, m);
+    gl.uniform3f(uSpider.color, color[0], color[1], color[2]);
+    gl.bindVertexArray(mesh.vao);
+    gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_SHORT, 0);
+  }
+
+  // 腹部
+  drawPart(spiderSphereMesh,
+    M4.mul(M4.translation(0, 1.72 + bob, -0.50), M4.scaling(0.78, 0.72, 0.92)),
+    COL_BODY);
+  // 头胸部
+  drawPart(spiderSphereMesh,
+    M4.mul(M4.translation(0, 1.62 + bob, 0.62), M4.scaling(0.62, 0.55, 0.62)),
+    COL_BODY);
+  // 眼睛
+  for(const sx of [-1, 1]){
+    drawPart(spiderSphereMesh,
+      M4.mul(M4.translation(sx*0.22, 1.80 + bob, 1.14), M4.scaling(0.100,0.100,0.100)),
+      COL_EYE);
+    drawPart(spiderSphereMesh,
+      M4.mul(M4.translation(sx*0.34, 1.70 + bob, 1.02), M4.scaling(0.065,0.065,0.065)),
+      COL_EYE);
+  }
+
+  // 腿
+  for(const leg of LEGS){
+    const az = leg.az;
+    const ux = Math.cos(az), uz = Math.sin(az);
+    const tAxis = [-Math.sin(az), 0, Math.cos(az)];
+
+    const p   = (((at * GAIT_FREQ + leg.phase) % 1) + 1) % 1;
+    const ang = p * Math.PI * 2;
+
+    const theta = 0.34 * Math.cos(ang) * dyn;
+    const lift  = 0.62 * Math.max(0, -Math.sin(ang)) * dyn;
+
+    const kneeL = [ux*KNEE_U, KNEE_Y, uz*KNEE_U];
+    const footL = [ux*FOOT_U, FOOT_Y, uz*FOOT_U];
+
+    const kneeR = rotYvec(rotateAxis(kneeL, tAxis, lift), theta);
+    const footR = rotYvec(rotateAxis(footL, tAxis, lift), theta);
+
+    const hipW  = [ux*HIP_R, HIP_Y + bob, uz*HIP_R];
+    const kneeW = [hipW[0]+kneeR[0], hipW[1]+kneeR[1], hipW[2]+kneeR[2]];
+    const footW = [hipW[0]+footR[0], hipW[1]+footR[1], hipW[2]+footR[2]];
+
+    drawPart(spiderCylMesh, segMatrix(hipW, kneeW, 0.130), COL_LEG);
+    drawPart(spiderCylMesh, segMatrix(kneeW, footW, 0.075), COL_LEG);
+
+    drawPart(spiderSphereMesh,
+      M4.mul(M4.translation(hipW[0], hipW[1], hipW[2]), M4.scaling(0.15,0.15,0.15)),
+      COL_LEG);
+    drawPart(spiderSphereMesh,
+      M4.mul(M4.translation(kneeW[0], kneeW[1], kneeW[2]), M4.scaling(0.115,0.115,0.115)),
+      COL_LEG);
+    drawPart(spiderSphereMesh,
+      M4.mul(M4.translation(footW[0], footW[1], footW[2]), M4.scaling(0.095,0.095,0.095)),
+      COL_LEG);
+  }
+}
+
+/* ============================================================
+   13. 蜘蛛逻辑
+   ============================================================ */
+const spiders = [];
+let spawnTimer = 0;          // 游戏内计时
+let spiderIdCounter = 0;
+
+/* 找地面：从 (x, y+scanUp, z) 向下扫描，返回 {y, normal} 或 null */
+function findGround(x, z, startY) {
+  const step = 0.25;
+  let y = startY + 6.0;
+  const maxDown = 20.0;
+  let prevF = fieldWorld(x, y, z);
+  for (let d = 0; d < maxDown; d += step) {
+    const yy = y - d;
+    const f = fieldWorld(x, yy, z);
+    if (prevF < 0 && f >= 0) {
+      // 交点附近
+      const t = prevF / (prevF - f);
+      const hitY = (y - (d - step)) + step * t;
+      // 法线
+      const eps = 0.2;
+      let gx = fieldWorld(x + eps, hitY, z) - fieldWorld(x - eps, hitY, z);
+      let gy = fieldWorld(x, hitY + eps, z) - fieldWorld(x, hitY - eps, z);
+      let gz = fieldWorld(x, hitY, z + eps) - fieldWorld(x, hitY, z - eps);
+      const gl2 = Math.hypot(gx, gy, gz);
+      if (gl2 < 1e-6) { gx = 0; gy = 1; gz = 0; }
+      else { gx /= gl2; gy /= gl2; gz /= gl2; }
+      // 空气侧法线 = -gradient
+      return { y: hitY + 0.05, normal: [-gx, -gy, -gz] };
+    }
+    prevF = f;
+  }
+  return null;
+}
+
+function spawnSpiderAt(x, y, z) {
+  // 找地面
+  const ground = findGround(x, z, y);
+  let footY, normal;
+  if (ground) {
+    footY = ground.y;
+    normal = ground.normal;
+  } else {
+    footY = y;
+    normal = [0, 1, 0];
+  }
+  const sp = {
+    id: spiderIdCounter++,
+    x, y: footY, z,
+    up: normal,
+    forward: [0, 0, 1],
+    animTime: 0,
+    dynBlend: 0,
+    born: performance.now(),
+    state: 'idle5',       // idle5 | chase3
+    stateTime: 0,
+    alive: true
+  };
+  spiders.push(sp);
+  if (spiders.length > 3) {
+    const old = spiders.shift();
+    old.alive = false;
+  }
+}
+
+function clearSpiders() {
+  spiders.length = 0;
+}
+
+function updateSpiders(dt) {
+  const now = performance.now();
+  const px = player.x, py = player.y, pz = player.z;
+
+  // 生成逻辑
+  spawnTimer += dt;
+  if (spawnTimer >= 25) {
+    spawnTimer -= 25;
+    // 取 10 秒前位置
+    let target = null;
+    for (let i = playerHistory.length - 1; i >= 0; i--) {
+      if (playerHistory[i].t <= now - 10000) { target = playerHistory[i]; break; }
+    }
+    if (!target && playerHistory.length > 0) target = playerHistory[0];
+    if (!target) target = { x: px, y: py, z: pz };
+    spawnSpiderAt(target.x, target.y, target.z);
+  }
+
+  // 更新每只蜘蛛
+  for (const sp of spiders) {
+    if (!sp.alive) continue;
+
+    // 朝向角色（水平投影）
+    let dx = px - sp.x, dz = pz - sp.z;
+    let dl = Math.hypot(dx, dz);
+    if (dl < 1e-4) { dx = 0; dz = 1; dl = 1; }
+    sp.forward = [dx / dl, 0, dz / dl];
+
+    sp.stateTime += dt;
+    if (sp.state === 'idle5') {
+      sp.dynBlend += (0 - sp.dynBlend) * Math.min(1, dt * 6);
+      if (sp.stateTime >= 5) {
+        sp.state = 'chase3';
+        sp.stateTime = 0;
+      }
+    } else {
+      sp.dynBlend += (1 - sp.dynBlend) * Math.min(1, dt * 6);
+      // 追击移动
+      const speed = WALK_SPEED * 1.5;
+      const nx = sp.x + sp.forward[0] * speed * dt;
+      const nz = sp.z + sp.forward[2] * speed * dt;
+      // 找新地面
+      const ground = findGround(nx, nz, sp.y);
+      if (ground) {
+        sp.x = nx; sp.z = nz;
+        sp.y = ground.y;
+        sp.up = ground.normal;
+      }
+      if (sp.stateTime >= 3) {
+        sp.state = 'idle5';
+        sp.stateTime = 0;
+      }
+    }
+    // 更新动画时间
+    sp.animTime += dt;
+
+    // 贴地（保持在地面）
+    if (sp.state !== 'chase3') {
+      const ground = findGround(sp.x, sp.z, sp.y);
+      if (ground) {
+        sp.y = ground.y;
+        sp.up = ground.normal;
+      }
+    }
+
+    // 碰撞检测
+    const ddx = px - sp.x, ddy = py - sp.y, ddz = pz - sp.z;
+    if (ddx*ddx + ddy*ddy + ddz*ddz < 1.4 * 1.4) {
+      triggerLose();
+    }
+  }
+}
+
+/* ============================================================
+   14. 胜利 / 失败
+   ============================================================ */
+const overlayEl = document.getElementById('overlay');
+const overlayTitle = document.getElementById('overlayTitle');
+const overlayDesc = document.getElementById('overlayDesc');
+
+function triggerLose() {
+  if (gameState !== 'playing') return;
+  gameState = 'lose';
+  overlayTitle.textContent = '被蜘蛛抓住了';
+  overlayDesc.textContent = '黑暗中的猎手找到了你。';
+  overlayEl.classList.add('show');
+  document.getElementById('backBtn').style.display = 'none';
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('stick').style.display = 'none';
+}
+function triggerWin() {
+  if (gameState !== 'playing') return;
+  gameState = 'win';
+  overlayTitle.textContent = '你找到了光明';
+  overlayDesc.textContent = '纯白腔室的力量将你传送出了洞穴。';
+  overlayEl.classList.add('show');
+  document.getElementById('backBtn').style.display = 'none';
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('stick').style.display = 'none';
+}
+
+document.getElementById('overlayBtn').addEventListener('click', () => {
+  overlayEl.classList.remove('show');
+  goToMenu();
+});
+
+/* ============================================================
+   15. 主菜单 / 游戏状态切换
+   ============================================================ */
+const menuEl = document.getElementById('menu');
+const hudEl = document.getElementById('hud');
+const backBtn = document.getElementById('backBtn');
+
+function goToMenu() {
+  gameState = 'menu';
+  menuEl.classList.remove('hidden');
+  hudEl.style.display = 'none';
+  backBtn.style.display = 'none';
+  document.getElementById('stick').style.display = 'none';
+  settingsEl.classList.remove('open');
+  clearSpiders();
+  spawnTimer = 0;
+  playerHistory.length = 0;
+  overlayEl.classList.remove('show');
+  popupEl.classList.remove('show');
+}
+
+function startGame() {
+  gameState = 'playing';
+  menuEl.classList.add('hidden');
+  hudEl.style.display = 'block';
+  backBtn.style.display = 'block';
+  if (IS_COARSE) document.getElementById('stick').style.display = 'block';
+  spawnPlayer();
+  yaw = 0; pitch = 0;
+  clearSpiders();
+  spawnTimer = 0;
+  playerHistory.length = 0;
+  clearHistoryBuffers();
+  // 确保附近区块已生成
+  updateChunks(1200);
+}
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+backBtn.addEventListener('click', () => {
+  goToMenu();
+});
+
+/* ============================================================
+   16. 纯白腔室胜利检测
+   ============================================================ */
+function checkWhiteRoomWin() {
+  if (gameState !== 'playing') return;
+  const ci = Math.floor(player.x / GRID), cj = Math.floor(player.z / GRID);
+  for (let di = -1; di <= 1; di++) {
+    for (let dj = -1; dj <= 1; dj++) {
+      const n = getNode(ci + di, cj + dj);
+      if (!n.white) continue;
+      const dx = player.x - n.x, dy = player.y - n.y, dz = player.z - n.z;
+      const ex = dx / n.rx, ey = dy / n.ry, ez = dz / n.rz;
+      const d = Math.sqrt(ex*ex + ey*ey + ez*ez);
+      if (d < 0.95) { triggerWin(); return; }
+    }
+  }
+}
+
+/* ============================================================
+   17. 渲染
+   ============================================================ */
+const BLUR_BLEND = 0.52;
+let camEye = [0, 0, 0];
+
+function render(now) {
+  resize();
+
+  /* ---- 相机 ---- */
+  let ex, ey, ez, fx, fy, fz, ux, uy, uz;
+  if (gameState === 'menu') {
+    // 主菜单：在出生点附近旋转
+    const spawn = getNode(0, 0);
+    const t = menuTime * 0.18;
+    const dist = 5.5;
+    ex = spawn.x + Math.sin(t) * dist;
+    ey = spawn.y + 2.2;
+    ez = spawn.z + Math.cos(t) * dist;
+    // 看向出生点
+    const dx = spawn.x - ex, dy = spawn.y - ey, dz = spawn.z - ez;
+    const dl = Math.hypot(dx, dy, dz) || 1;
+    fx = dx / dl; fy = dy / dl; fz = dz / dl;
+    // right = normalize(cross(f, up))
+    let rxv = -fz, ryv = 0, rzv = fx;
+    const rlen = Math.hypot(rxv, ryv, rzv) || 1;
+    rxv /= rlen; ryv /= rlen; rzv /= rlen;
+    ux = ryv * fz - rzv * fy;
+    uy = rzv * fx - rxv * fz;
+    uz = rxv * fy - ryv * fx;
+    viewMat[0] = rxv; viewMat[1] = ux; viewMat[2] = -fx; viewMat[3] = 0;
+    viewMat[4] = ryv; viewMat[5] = uy; viewMat[6] = -fy; viewMat[7] = 0;
+    viewMat[8] = rzv; viewMat[9] = uz; viewMat[10] = -fz; viewMat[11] = 0;
+    viewMat[12] = -(rxv * ex + ryv * ey + rzv * ez);
+    viewMat[13] = -(ux * ex + uy * ey + uz * ez);
+    viewMat[14] = (fx * ex + fy * ey + fz * ez);
+    viewMat[15] = 1;
+  } else {
+    ex = player.x;
+    ey = player.y + EYE_OFFSET;
+    ez = player.z;
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    fx = -sy * cp; fy = sp; fz = -cy * cp;
+    let rxv = -fz, ryv = 0, rzv = fx;
+    const rlen = Math.hypot(rxv, ryv, rzv) || 1;
+    rxv /= rlen; ryv /= rlen; rzv /= rlen;
+    ux = ryv * fz - rzv * fy;
+    uy = rzv * fx - rxv * fz;
+    uz = rxv * fy - ryv * fx;
+    viewMat[0] = rxv; viewMat[1] = ux; viewMat[2] = -fx; viewMat[3] = 0;
+    viewMat[4] = ryv; viewMat[5] = uy; viewMat[6] = -fy; viewMat[7] = 0;
+    viewMat[8] = rzv; viewMat[9] = uz; viewMat[10] = -fz; viewMat[11] = 0;
+    viewMat[12] = -(rxv * ex + ryv * ey + rzv * ez);
+    viewMat[13] = -(ux * ex + uy * ey + uz * ez);
+    viewMat[14] = (fx * ex + fy * ey + fz * ez);
+    viewMat[15] = 1;
+  }
+  camEye = [ex, ey, ez];
+
+  perspective(projMat, 75 * Math.PI / 180, VW / VH, 0.08, 260.0);
+
+  /* ---- Pass 1: 场景 → fboScene ---- */
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fboScene.fb);
+  gl.viewport(0, 0, VW, VH);
+  gl.clearColor(0.0, 0.0, 0.0, 1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.depthMask(true);
+  gl.disable(gl.CULL_FACE);
+  gl.disable(gl.BLEND);
+
+  /* 洞穴 */
+  gl.useProgram(progScene);
+  gl.uniformMatrix4fv(uScene.proj, false, projMat);
+  gl.uniformMatrix4fv(uScene.view, false, viewMat);
+  gl.uniform3f(uScene.cam, ex, ey, ez);
+  gl.uniform1f(uScene.ao, uAOOn);
+  gl.uniform1f(uScene.fres, uFresOn);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, normalMapTex);
+  gl.uniform1i(uScene.nmap, 0);
+
+  const maxDist2 = 132 * 132;
+  for (const ch of chunks.values()) {
+    if (ch.empty) continue;
+    const ccx = (ch.cx + 0.5) * CHUNK_SIZE;
+    const ccz = (ch.cz + 0.5) * CHUNK_SIZE;
+    const ddx = ccx - player.x, ddz = ccz - player.z;
+    if (ddx * ddx + ddz * ddz > maxDist2) continue;
+    gl.bindVertexArray(ch.vao);
+    gl.drawElements(gl.TRIANGLES, ch.count, gl.UNSIGNED_INT, 0);
+  }
+  gl.bindVertexArray(null);
+
+  /* 蜘蛛（仅游戏中） */
+  if (gameState === 'playing' || gameState === 'lose') {
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    for (const sp of spiders) {
+      if (sp.alive) drawSpider(sp);
+    }
+    gl.bindVertexArray(null);
+    gl.disable(gl.CULL_FACE);
+  }
+
+  /* ---- Pass 2: 动态模糊 ---- */
+  gl.disable(gl.DEPTH_TEST);
+  gl.depthMask(false);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fboPong.fb);
+  gl.viewport(0, 0, VW, VH);
+
+  gl.useProgram(progBlur);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, fboScene.tex);
+  gl.uniform1i(uBlur.cur, 0);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, fboPing.tex);
+  gl.uniform1i(uBlur.prev, 1);
+  gl.uniform1f(uBlur.blend, BLUR_BLEND);
+
+  gl.bindVertexArray(quadVAO);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  /* ---- Pass 3: 显示 ---- */
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, VW, VH);
+
+  gl.useProgram(progDisplay);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, fboPong.tex);
+  gl.uniform1i(uDisp.tex, 0);
+  gl.uniform1f(uDisp.gamma, uGammaVal);
+  gl.uniform1f(uDisp.rgb, uRGBVal);
+  gl.uniform1f(uDisp.barrel, uBarrelVal);
+  gl.uniform1f(uDisp.noise, uNoiseOn);
+  gl.uniform1f(uDisp.time, now * 0.001);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  gl.bindVertexArray(null);
+  gl.depthMask(true);
+
+  const tmp = fboPing; fboPing = fboPong; fboPong = tmp;
+}
+
+/* ============================================================
+   18. 主循环
+   ============================================================ */
+let lastTime = performance.now();
+let fpsAcc = 0, fpsFrames = 0;
+const elFps = document.getElementById('fpsTxt');
+const elChunk = document.getElementById('chunkTxt');
+const elPos = document.getElementById('posTxt');
+
+function frame(now) {
+  requestAnimationFrame(frame);
+
+  let dt = (now - lastTime) / 1000;
+  lastTime = now;
+  if (dt > 0.1) dt = 0.1;
+  if (dt <= 0) dt = 0.0001;
+
+  menuTime += dt;
+
+  if (gameState === 'playing') {
+    updatePhysics(dt);
+    updateChunks(12);
+
+    // 记录历史
+    playerHistory.push({ x: player.x, y: player.y, z: player.z, t: now });
+    while (playerHistory.length > 0 && playerHistory[0].t < now - HISTORY_KEEP * 1000) {
+      playerHistory.shift();
+    }
+
+    updateSpiders(dt);
+    checkWhiteRoomWin();
+  } else if (gameState === 'menu') {
+    // 菜单下仍加载区块
+    updateChunks(8);
+  } else {
+    // win / lose 状态仍加载区块
+    updateChunks(6);
+  }
+
+  render(now);
+
+  fpsAcc += dt; fpsFrames++;
+  if (fpsAcc >= 0.5) {
+    const fps = Math.round(fpsFrames / fpsAcc);
+    fpsAcc = 0; fpsFrames = 0;
+    elFps.textContent = fps;
+    elChunk.textContent = chunks.size;
+    elPos.textContent = 'XYZ ' + player.x.toFixed(1) + ' / ' +
+                        player.y.toFixed(1) + ' / ' + player.z.toFixed(1) +
+                        (player.onGround ? '  地面' : '  空中');
+  }
+}
+
+/* ---- 启动 ---- */
+const loadingEl = document.getElementById('loading');
+requestAnimationFrame(function boot() {
+  spawnPlayer();
+  updateChunks(4500);
+  loadingEl.classList.add('done');
+  lastTime = performance.now();
+  requestAnimationFrame(frame);
+});
+
+})();
+</script>
+</body>
+</html>
