@@ -1,0 +1,2025 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>LEVEL ZERO</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#080604;font-family:system-ui,-apple-system,sans-serif;color:#f2dca6;}
+
+  #appContainer{
+    position: fixed;
+    top: 50%; left: 50%;
+    width: 100vw; height: 100vh;
+    transform: translate(-50%, -50%);
+    transform-origin: center center;
+    transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1),
+                width 0s, height 0s;
+    background: #080604;
+    overflow: hidden;
+  }
+  #appContainer.portrait{
+    width: 100vh; height: 100vw;
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+  #appContainer > *{
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+  }
+
+  #gl{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair;}
+  #ui{position:absolute;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none;}
+
+  #crosshair{
+    position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;
+    border-radius:50%;border:2px solid rgba(255,240,200,0.55);
+    transition:all .15s ease;pointer-events:none;
+  }
+  #crosshair.active{
+    border-color:rgba(255,255,150,0.98);
+    box-shadow:0 0 16px rgba(255,255,150,0.8);
+    width:28px;height:28px;margin:-14px 0 0 -14px;
+  }
+  #crosshair::after{
+    content:'';position:absolute;left:50%;top:50%;width:3px;height:3px;
+    margin:-1.5px 0 0 -1.5px;background:rgba(255,255,200,0.9);border-radius:50%;
+  }
+
+  /* ★ 互动按钮：始终存在（游戏内） */
+  #interactBtn{
+    position:absolute;right:32px;bottom:32px;width:88px;height:88px;border-radius:50%;
+    border:2px solid rgba(255,240,180,0.55);
+    background:radial-gradient(circle at 50% 40%, rgba(255,220,120,0.28), rgba(180,120,40,0.16) 70%, transparent);
+    box-shadow:0 0 20px rgba(255,200,90,0.28), 0 4px 14px rgba(0,0,0,0.6);
+    color:#fff5d8;font-size:16px;font-weight:600;letter-spacing:1px;
+    display:none;align-items:center;justify-content:center;
+    pointer-events:auto;cursor:pointer;
+    text-shadow:0 1px 3px rgba(0,0,0,0.7);
+    transition:all .16s ease;
+  }
+  #interactBtn.show{display:flex;}
+  #interactBtn.active{
+    border-color:rgba(255,255,150,0.98);
+    box-shadow:0 0 32px rgba(255,255,150,0.75), 0 4px 14px rgba(0,0,0,0.6);
+    color:#fffde8;
+    background:radial-gradient(circle at 50% 40%, rgba(255,240,150,0.55), rgba(220,160,60,0.28) 70%, transparent);
+    transform:scale(1.05);
+  }
+  #interactBtn:disabled{
+    opacity:0.55;
+    cursor:default;
+    transform:none;
+  }
+  #interactBtn:active:not(:disabled){transform:scale(0.94);}
+
+  #stickBase{
+    position:absolute;left:26px;bottom:26px;width:132px;height:132px;border-radius:50%;
+    border:2px solid rgba(255,220,150,0.30);
+    background:radial-gradient(circle at 50% 50%, rgba(255,205,120,0.10), rgba(255,180,90,0.03) 70%, transparent 72%);
+    box-shadow:0 0 24px rgba(255,180,80,0.12) inset, 0 0 18px rgba(0,0,0,0.55);
+    display:none;
+  }
+  #stickBase.show{display:block;}
+  #stickKnob{
+    position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;
+    background:radial-gradient(circle at 34% 28%, rgba(255,244,208,0.92), rgba(226,172,88,0.62) 62%, rgba(140,96,40,0.35));
+    box-shadow:0 0 16px rgba(255,198,110,0.55), 0 3px 10px rgba(0,0,0,0.45);
+    will-change:transform;
+  }
+
+  .overlay{
+    position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    flex-direction:column;pointer-events:auto;
+    background:radial-gradient(ellipse at center, rgba(12,10,6,0.55), rgba(4,3,2,0.88) 80%);
+    backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+    z-index:20;
+  }
+  .overlay.show{display:flex;}
+
+  #menu h1{
+    font-size:64px;letter-spacing:12px;margin:0 0 48px;
+    color:#ffefc8;text-shadow:0 0 32px rgba(255,200,90,0.55), 0 6px 20px rgba(0,0,0,0.9);
+    font-weight:800;text-align:center;
+  }
+  #menu .menuBtns{display:flex;flex-direction:column;gap:16px;align-items:center;}
+  #menu button{
+    min-width:240px;padding:16px 32px;font-size:18px;letter-spacing:4px;
+    border-radius:14px;cursor:pointer;
+    border:1px solid rgba(255,220,150,0.5);
+    background:linear-gradient(180deg, rgba(60,45,25,0.85), rgba(30,22,12,0.9));
+    color:#ffe8b8;text-shadow:0 1px 3px rgba(0,0,0,0.8);
+    box-shadow:0 4px 14px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,0,0,0.4) inset;
+    transition:all .18s ease;
+    font-family:inherit;font-weight:600;
+  }
+  #menu button:hover:not(:disabled){
+    background:linear-gradient(180deg, rgba(95,72,38,0.95), rgba(50,36,18,0.95));
+    border-color:rgba(255,240,190,0.9);
+    transform:translateY(-2px);
+    box-shadow:0 6px 22px rgba(255,180,80,0.28), 0 4px 14px rgba(0,0,0,0.6);
+  }
+  #menu button:active:not(:disabled){transform:translateY(0);}
+  #menu button:disabled{
+    opacity:.35;cursor:not-allowed;
+    background:linear-gradient(180deg, rgba(40,30,20,0.6), rgba(20,14,8,0.7));
+  }
+
+  #menu #btnFlipScreen{
+    min-width: 190px;
+    padding: 10px 22px;
+    font-size: 15px;
+    letter-spacing: 3px;
+    opacity: 0.88;
+    margin-top: 10px;
+  }
+
+  #winScreen h2, #deadScreen h2{
+    font-size:44px;letter-spacing:8px;margin:0 0 24px;font-weight:800;
+    color:#ffe08a;text-shadow:0 0 28px rgba(255,180,60,0.6);
+  }
+  #deadScreen h2{color:#ff6a5a;text-shadow:0 0 28px rgba(255,60,40,0.65);}
+  .overlay p{color:rgba(255,240,210,0.7);font-size:15px;margin:0 0 32px;letter-spacing:1.5px;}
+  .overlay button.confirm{
+    min-width:180px;padding:14px 28px;font-size:16px;letter-spacing:3px;
+    border-radius:12px;cursor:pointer;
+    border:1px solid rgba(255,220,150,0.55);
+    background:linear-gradient(180deg, rgba(60,45,25,0.9), rgba(30,22,12,0.95));
+    color:#ffe8b8;font-family:inherit;font-weight:600;
+    transition:all .16s ease;
+  }
+  .overlay button.confirm:hover{
+    background:linear-gradient(180deg, rgba(95,72,38,1), rgba(50,36,18,1));
+    transform:translateY(-1px);
+  }
+
+  #hint{
+    position:absolute;left:0;right:0;top:16px;text-align:center;
+    color:#f2dca6;font-size:12px;letter-spacing:.4px;opacity:.7;
+    text-shadow:0 1px 6px rgba(0,0,0,0.9);transition:opacity .8s;
+  }
+
+  @media (max-width: 640px){
+    #menu h1{font-size:42px;letter-spacing:7px;margin-bottom:32px;}
+    #menu button{min-width:200px;padding:13px 24px;font-size:15px;}
+    #interactBtn{width:74px;height:74px;right:22px;bottom:22px;font-size:14px;}
+  }
+</style>
+</head>
+<body>
+<div id="appContainer">
+  <canvas id="gl"></canvas>
+  <div id="ui">
+    <div id="crosshair"></div>
+    <div id="stickBase"><div id="stickKnob"></div></div>
+    <button id="interactBtn">互动</button>
+    <div id="hint"></div>
+
+    <div id="menu" class="overlay show">
+      <h1>LEVEL ZERO</h1>
+      <div class="menuBtns">
+        <button data-region="A">区域 A</button>
+        <button data-region="B" disabled>区域 B</button>
+        <button data-region="C" disabled>区域 C</button>
+        <button id="btnFlipScreen">横屏模式</button>
+      </div>
+    </div>
+
+    <div id="winScreen" class="overlay">
+      <h2>胜利</h2>
+      <p>该区域已完成</p>
+      <button class="confirm" id="winConfirm">确认</button>
+    </div>
+
+    <div id="deadScreen" class="overlay">
+      <h2>死亡</h2>
+      <p>被怪物抓住...</p>
+      <button class="confirm" id="deadConfirm">确认</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   0. 基础环境
+   ========================================================================= */
+const canvas = document.getElementById('gl');
+const gl = canvas.getContext('webgl2', {
+  antialias:false, alpha:false, depth:true, stencil:false,
+  powerPreference:'high-performance', preserveDrawingBuffer:false
+});
+if (!gl) { document.body.innerHTML='<div style="color:#f88;font:16px sans-serif;padding:40px;text-align:center">当前浏览器不支持 WebGL2</div>'; throw new Error('WebGL2 not supported'); }
+
+/* =========================================================================
+   1. 随机 / 噪声工具
+   ========================================================================= */
+const SEED = (Math.random()*2147483647)|0;
+function hash2i(x,y,s){
+  let h = Math.imul(x|0,374761393) ^ Math.imul(y|0,668265263) ^ Math.imul(s|0,144665);
+  h = Math.imul(h^(h>>>13), 1274126177);
+  return ((h^(h>>>16))>>>0)/4294967296;
+}
+function mod2(v){ return ((v%2)+2)%2; }
+function vnoise(x,y,s){
+  const xi=Math.floor(x), yi=Math.floor(y);
+  const xf=x-xi, yf=y-yi;
+  const u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf);
+  const a=hash2i(xi,yi,s), b=hash2i(xi+1,yi,s);
+  const c=hash2i(xi,yi+1,s), d=hash2i(xi+1,yi+1,s);
+  return a*(1-u)*(1-v)+b*u*(1-v)+c*(1-u)*v+d*u*v;
+}
+function fbm(x,y,s,oct){
+  oct=oct||4;
+  let val=0, amp=0.5, f=1;
+  for(let i=0;i<oct;i++){ val+=amp*vnoise(x*f,y*f,s+i*37); amp*=0.5; f*=2; }
+  return val;
+}
+
+/* =========================================================================
+   2. 迷宫系统
+   ========================================================================= */
+const CELL = 1.75;
+const WALL_H = 2.75;
+const CEIL_H = 2.75;
+const VIEW_R = 12;
+const R_RANGE = 3;
+const WALL_OPEN_RATE = 0.55;
+const EXIT_RATE = 0.04;
+
+const roomVersion  = new Map();
+const roomVisible  = new Map();
+const exitCache    = new Map();
+
+function getRoomVersion(rx,rz){ return roomVersion.get(rx+','+rz)||0; }
+function bumpRoomVersion(rx,rz){
+  const k=rx+','+rz;
+  roomVersion.set(k,(roomVersion.get(k)||0)+1);
+}
+
+function isExitRoom(rx,rz){
+  const key=rx+','+rz;
+  if (exitCache.has(key)) return exitCache.get(key);
+  const result = hash2i(rx,rz,SEED ^ 0xabc123) < EXIT_RATE;
+  exitCache.set(key,result);
+  return result;
+}
+
+function isWallCell(cx,cz){
+  const ax=mod2(cx), az=mod2(cz);
+  if(ax===0 && az===0) return false;
+  if(ax===1 && az===1) return true;
+  if(ax===1 && az===0){
+    const rx=Math.floor((cx-1)/2), rz=Math.floor(cz/2);
+    const v=getRoomVersion(rx,rz);
+    return hash2i(rx+v*1013, rz-v*727, SEED ^ 0x1f3a7b) > WALL_OPEN_RATE;
+  }
+  const rx=Math.floor(cx/2), rz=Math.floor((cz-1)/2);
+  const v=getRoomVersion(rx,rz);
+  return hash2i(rx-v*511, rz+v*997, SEED ^ 0x7c21e5) > WALL_OPEN_RATE;
+}
+
+function isWhiteWall(cx,cz){
+  if(!isWallCell(cx,cz)) return false;
+  const ax=mod2(cx), az=mod2(cz);
+  if(ax===1 && az===0){
+    const rx=Math.floor((cx-1)/2), rz=Math.floor(cz/2);
+    return isExitRoom(rx,rz) || isExitRoom(rx+1,rz);
+  }
+  if(ax===0 && az===1){
+    const rx=Math.floor(cx/2), rz=Math.floor((cz-1)/2);
+    return isExitRoom(rx,rz) || isExitRoom(rx,rz+1);
+  }
+  return false;
+}
+
+function lampAt(cx,cz){
+  if(mod2(cx)!==0 || mod2(cz)!==0) return false;
+  const rx=cx/2, rz=cz/2;
+  const v=getRoomVersion(rx,rz);
+  return hash2i(rx+v*331, rz-v*557, SEED+77713) < 0.42;
+}
+
+/* =========================================================================
+   3. 程序化纹理
+   ========================================================================= */
+function makeCanvas(s){ const c=document.createElement('canvas'); c.width=c.height=s; return c; }
+
+function makeCarpetTexture(){
+  const S=512, cv=makeCanvas(S), ctx=cv.getContext('2d');
+  const img=ctx.createImageData(S,S), D=img.data, sd=(Math.random()*99999)|0;
+  for(let y=0;y<S;y++) for(let x=0;x<S;x++){
+    const i=(y*S+x)*4;
+    const knot=fbm(x*0.055,y*0.055,sd+3,4);
+    const fib=vnoise(x*0.22,y*1.35,sd+11);
+    const fib2=vnoise(x*1.4,y*0.20,sd+23);
+    const grain=hash2i(x,y,sd+41);
+    let v=0.42+knot*0.34+fib*0.13+fib2*0.10+(grain-0.5)*0.20;
+    v=Math.max(0.06,Math.min(1.15,v));
+    let r=108+v*122, g=58+v*84, b=26+v*44;
+    if(grain>0.988){ r*=0.62; g*=0.60; b*=0.60; }
+    D[i]=r>255?255:r; D[i+1]=g>255?255:g; D[i+2]=b>255?255:b; D[i+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+  ctx.globalAlpha=0.10; ctx.lineCap='round';
+  for(let k=0;k<90;k++){
+    ctx.strokeStyle=Math.random()<0.45?'#ffd9a0':'#4a2408';
+    ctx.lineWidth=Math.random()*1.8+0.3;
+    const x0=Math.random()*S,y0=Math.random()*S,ang=Math.random()*Math.PI*2,len=20+Math.random()*150;
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0+Math.cos(ang)*len,y0+Math.sin(ang)*len); ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  for(let k=0;k<60;k++){
+    const x0=Math.random()*S,y0=Math.random()*S,rad=20+Math.random()*90;
+    const g=ctx.createRadialGradient(x0,y0,0,x0,y0,rad);
+    const dark=Math.random()<0.5;
+    g.addColorStop(0, dark?'rgba(50,22,4,0.10)':'rgba(255,200,130,0.07)');
+    g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x0,y0,rad,0,Math.PI*2); ctx.fill();
+  }
+  return cv;
+}
+
+function makeWallTexture(){
+  const S=512, cv=makeCanvas(S), ctx=cv.getContext('2d');
+  const img=ctx.createImageData(S,S), D=img.data, sd=(Math.random()*99999)|0;
+  for(let y=0;y<S;y++) for(let x=0;x<S;x++){
+    const i=(y*S+x)*4;
+    const big=fbm(x*0.008,y*0.008,sd+2,4);
+    const mid=fbm(x*0.045,y*0.045,sd+19,3);
+    const fine=fbm(x*0.28,y*0.28,sd+31,2);
+    const grain=hash2i(x,y,sd+53);
+    let v=0.46+big*0.26+mid*0.16+fine*0.10+(grain-0.5)*0.09;
+    v=Math.max(0.08,Math.min(1.2,v));
+    let r=132+v*106, g=120+v*96, b=70+v*68;
+    const stain=fbm(x*0.014+100,y*0.014+40,sd+71,3);
+    if(stain<0.36){ const t=(0.36-stain)*2.4; r*=1-t*0.30; g*=1-t*0.30; b*=1-t*0.22; }
+    D[i]=r>255?255:r; D[i+1]=g>255?255:g; D[i+2]=b>255?255:b; D[i+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+  ctx.lineCap='round';
+  for(let k=0;k<150;k++){
+    const light=Math.random()<0.55;
+    ctx.globalAlpha=light?0.10+Math.random()*0.12:0.07+Math.random()*0.10;
+    ctx.strokeStyle=light?'#fff3c8':'#4a3c18';
+    ctx.lineWidth=Math.random()*1.5+0.25;
+    const x0=Math.random()*S,y0=Math.random()*S;
+    const ang=(Math.random()-0.5)*1.2+(Math.random()<0.5?0:Math.PI/2);
+    const len=12+Math.random()*110;
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0+Math.cos(ang)*len,y0+Math.sin(ang)*len); ctx.stroke();
+  }
+  ctx.globalAlpha=0.16;
+  for(let k=0;k<10;k++){
+    ctx.strokeStyle='#3a3018'; ctx.lineWidth=0.6+Math.random()*0.9;
+    let x0=Math.random()*S,y0=Math.random()*S;
+    ctx.beginPath(); ctx.moveTo(x0,y0);
+    const seg=4+(Math.random()*6|0);
+    for(let s=0;s<seg;s++){ x0+=(Math.random()-0.5)*60; y0+=(Math.random()-0.5)*60; ctx.lineTo(x0,y0); }
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  return cv;
+}
+
+function makeCeilingTexture(){
+  const S=512, cv=makeCanvas(S), ctx=cv.getContext('2d');
+  const img=ctx.createImageData(S,S), D=img.data, sd=(Math.random()*99999)|0;
+  for(let y=0;y<S;y++) for(let x=0;x<S;x++){
+    const i=(y*S+x)*4;
+    const big=fbm(x*0.010,y*0.010,sd+5,4);
+    const mid=fbm(x*0.070,y*0.070,sd+17,3);
+    const fine=fbm(x*0.40,y*0.40,sd+29,2);
+    const grain=hash2i(x,y,sd+61);
+    let v=0.52+big*0.22+mid*0.14+fine*0.08+(grain-0.5)*0.08;
+    v=Math.max(0.1,Math.min(1.2,v));
+    let r=150+v*92, g=138+v*84, b=88+v*62;
+    D[i]=r>255?255:r; D[i+1]=g>255?255:g; D[i+2]=b>255?255:b; D[i+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+  const cell=S/4;
+  for(let i=0;i<=4;i++){
+    const p=i*cell;
+    const gv=ctx.createLinearGradient(p-4,0,p+4,0);
+    gv.addColorStop(0,'rgba(90,78,46,0)');
+    gv.addColorStop(0.5,'rgba(72,62,34,0.55)');
+    gv.addColorStop(1,'rgba(90,78,46,0)');
+    ctx.fillStyle=gv; ctx.fillRect(p-4,0,8,S);
+    const gh=ctx.createLinearGradient(0,p-4,0,p+4);
+    gh.addColorStop(0,'rgba(90,78,46,0)');
+    gh.addColorStop(0.5,'rgba(72,62,34,0.55)');
+    gh.addColorStop(1,'rgba(90,78,46,0)');
+    ctx.fillStyle=gh; ctx.fillRect(0,p-4,S,8);
+  }
+  ctx.globalAlpha=0.18; ctx.strokeStyle='#ffe9b0'; ctx.lineWidth=1.2;
+  for(let i=0;i<=4;i++){
+    ctx.beginPath(); ctx.moveTo(i*cell+3,0); ctx.lineTo(i*cell+3,S); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,i*cell+3); ctx.lineTo(S,i*cell+3); ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  ctx.lineCap='round';
+  for(let k=0;k<70;k++){
+    ctx.globalAlpha=0.08+Math.random()*0.10;
+    ctx.strokeStyle=Math.random()<0.5?'#fff0c0':'#4a4020';
+    ctx.lineWidth=Math.random()*1.2+0.25;
+    const x0=Math.random()*S,y0=Math.random()*S,ang=Math.random()*Math.PI*2,len=10+Math.random()*80;
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x0+Math.cos(ang)*len,y0+Math.sin(ang)*len); ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+  return cv;
+}
+
+/* =========================================================================
+   4. GL 工具
+   ========================================================================= */
+function compile(type,src){
+  const s=gl.createShader(type);
+  gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.error(gl.getShaderInfoLog(s),src); throw new Error('shader compile failed'); }
+  return s;
+}
+function program(vsSrc,fsSrc){
+  const p=gl.createProgram();
+  gl.attachShader(p,compile(gl.VERTEX_SHADER,vsSrc));
+  gl.attachShader(p,compile(gl.FRAGMENT_SHADER,fsSrc));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ console.error(gl.getProgramInfoLog(p)); throw new Error('program link failed'); }
+  return p;
+}
+function texFromCanvas(cv){
+  const t=gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D,t);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,false);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,cv);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  const ext=gl.getExtension('EXT_texture_filter_anisotropic');
+  if(ext){
+    const max=gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+    gl.texParameterf(gl.TEXTURE_2D,ext.TEXTURE_MAX_ANISOTROPY_EXT,Math.min(8,max));
+  }
+  return t;
+}
+
+/* =========================================================================
+   5. 矩阵
+   ========================================================================= */
+function perspectiveMat(fov,aspect,near,far){
+  const f=1/Math.tan(fov/2), nf=1/(near-far);
+  return new Float32Array([f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0]);
+}
+function viewMat(ex,ey,ez,yaw,pitch){
+  const cy=Math.cos(yaw), sy=Math.sin(yaw);
+  const cp=Math.cos(pitch), sp=Math.sin(pitch);
+  const fx=-sy*cp, fy=sp, fz=-cy*cp;
+  const rx=cy, ry=0, rz=-sy;
+  const ux=ry*fz-rz*fy;
+  const uy=rz*fx-rx*fz;
+  const uz=rx*fy-ry*fx;
+  return new Float32Array([
+    rx,ux,-fx,0,
+    ry,uy,-fy,0,
+    rz,uz,-fz,0,
+    -(rx*ex+ry*ey+rz*ez),
+    -(ux*ex+uy*ey+uz*ez),
+    (fx*ex+fy*ey+fz*ez),
+    1
+  ]);
+}
+function matMul(a,b){
+  const o=new Float32Array(16);
+  for(let i=0;i<4;i++) for(let j=0;j<4;j++){
+    let s=0;
+    for(let k=0;k<4;k++) s+=a[k*4+j]*b[i*4+k];
+    o[i*4+j]=s;
+  }
+  return o;
+}
+
+/* =========================================================================
+   6. 着色器
+   ========================================================================= */
+const SCENE_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNormal;
+layout(location=2) in float aIsExit;
+uniform mat4 uViewProj;
+out vec3 vWorldPos;
+out vec3 vNormal;
+out float vIsExit;
+void main(){
+  vWorldPos = aPos;
+  vNormal   = aNormal;
+  vIsExit   = aIsExit;
+  gl_Position = uViewProj * vec4(aPos, 1.0);
+}`;
+
+const SCENE_FS = `#version 300 es
+precision highp float;
+in vec3 vWorldPos;
+in vec3 vNormal;
+in float vIsExit;
+
+uniform sampler2D uTex;
+uniform vec3  uTint;
+uniform vec3  uAmbient;
+uniform float uUVScale;
+uniform float uBump;
+uniform float uLightFalloff;
+uniform int   uNumLamps;
+uniform vec3  uLampPos[8];
+uniform vec3  uLampCol[8];
+
+out vec4 fragColor;
+
+void main(){
+  vec3 N = normalize(vNormal);
+  vec2 uv;
+  if (abs(N.y) > 0.5) {
+    uv = vWorldPos.xz;
+  } else {
+    uv = vec2(dot(vWorldPos.xz, vec2(-N.z, N.x)), vWorldPos.y);
+  }
+  uv *= uUVScale;
+
+  vec3 T = (abs(N.y) > 0.5) ? vec3(1.0, 0.0, 0.0) : normalize(vec3(-N.z, 0.0, N.x));
+  vec3 B = (abs(N.y) > 0.5) ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+
+  vec3 c0 = texture(uTex, uv).rgb;
+  float e = 0.0022;
+  float h0 = dot(c0, vec3(0.33333));
+  float hT = dot(texture(uTex, uv + vec2(e, 0.0)).rgb, vec3(0.33333));
+  float hB = dot(texture(uTex, uv + vec2(0.0, e)).rgb, vec3(0.33333));
+  N = normalize(N - uBump * ((hT - h0) * T + (hB - h0) * B));
+
+  vec3 albedo = c0 * uTint;
+
+  vec3 light = uAmbient;
+  for (int i = 0; i < 8; i++) {
+    if (i >= uNumLamps) break;
+    vec3 d = uLampPos[i] - vWorldPos;
+    float dist2 = dot(d, d);
+    float att = 1.0 / (1.0 + dist2 * uLightFalloff);
+    float ndl = max(dot(N, normalize(d)), 0.0);
+    light += uLampCol[i] * att * (ndl * 0.86 + 0.14);
+  }
+
+  vec3 col;
+  if (vIsExit > 0.5) {
+    col = vec3(0.94, 0.93, 0.90) + vec3(0.05) * light;
+  } else {
+    col = albedo * light;
+    col = pow(max(col, vec3(0.0)), vec3(0.88));
+  }
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const LAMP_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec2 aUV;
+uniform mat4 uViewProj;
+out vec2 vUV;
+void main(){
+  vUV = aUV;
+  gl_Position = uViewProj * vec4(aPos, 1.0);
+}`;
+
+const LAMP_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+out vec4 fragColor;
+void main(){
+  vec2 q = abs(vUV - 0.5) * 2.0;
+  float b = max(q.x, q.y);
+  float inner = 1.0 - smoothstep(0.70, 0.76, b);
+  vec3 col = mix(vec3(0.015), vec3(1.0), inner);
+  col += vec3(0.06, 0.055, 0.045) * inner;
+  fragColor = vec4(col, 1.0);
+}`;
+
+/* 屏幕（视频）：顺时针旋转 180° */
+const SCREEN_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec2 aUV;
+uniform mat4 uViewProj;
+out vec2 vUV;
+void main(){
+  vUV = aUV;
+  gl_Position = uViewProj * vec4(aPos, 1.0);
+}`;
+
+const SCREEN_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+out vec4 fragColor;
+uniform sampler2D uTex;
+uniform float uHasVideo;
+uniform float uScreenOn;
+uniform float uTime;
+uniform float uAspect;
+
+void main(){
+  vec3 c = vec3(0.012, 0.014, 0.02);
+  if (uScreenOn > 0.5) {
+    if (uHasVideo > 0.5) {
+      vec2 uv = vec2(1.0 - vUV.x, 1.0 - vUV.y);
+      float frameAspect = uAspect;
+      if (frameAspect > 1.0) {
+        float s = 1.0 / frameAspect;
+        uv.y = (uv.y - 0.5) / s + 0.5;
+      } else {
+        float s = frameAspect;
+        uv.x = (uv.x - 0.5) / s + 0.5;
+      }
+      if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
+        c = texture(uTex, uv).rgb;
+        c *= 0.94 + 0.06 * sin(vUV.y * 480.0);
+        vec2 d = vUV - 0.5;
+        c *= 1.0 - 0.65 * dot(d, d);
+        c = mix(c, c * vec3(1.05, 1.0, 0.95), 0.7);
+      }
+    } else {
+      vec2 p = vUV * vec2(320.0, 240.0);
+      float n = fract(sin(dot(p + uTime * 13.0, vec2(12.9898, 78.233))) * 43758.5453);
+      c = vec3(n * 0.075) + vec3(0.006, 0.013, 0.022);
+    }
+  }
+  fragColor = vec4(c, 1.0);
+}`;
+
+const MONSTER_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec2 aUV;
+layout(location=2) in float aAlpha;
+uniform mat4 uViewProj;
+out vec2 vUV;
+out float vAlpha;
+void main(){
+  vUV = aUV;
+  vAlpha = aAlpha;
+  gl_Position = uViewProj * vec4(aPos, 1.0);
+}`;
+
+const MONSTER_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+in float vAlpha;
+out vec4 fragColor;
+uniform sampler2D uTex;
+uniform float uHasTex;
+void main(){
+  vec3 col;
+  if (uHasTex > 0.5) {
+    col = texture(uTex, vUV).rgb;
+  } else {
+    vec2 q = vUV - 0.5;
+    float r = length(q);
+    float body = smoothstep(0.52, 0.48, r);
+    float eyeL = smoothstep(0.16, 0.10, length(q - vec2(-0.13, -0.05)));
+    float eyeR = smoothstep(0.16, 0.10, length(q - vec2( 0.13, -0.05)));
+    col = vec3(0.92) * body;
+    col = mix(col, vec3(0.05), max(eyeL, eyeR) * body);
+  }
+  fragColor = vec4(col, vAlpha);
+}`;
+
+const FS_VS = `#version 300 es
+layout(location=0) in vec2 aPos;
+out vec2 vUV;
+void main(){
+  vUV = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
+const ACC_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uCur;
+uniform sampler2D uPrev;
+uniform float uDecay;
+uniform float uInit;
+out vec4 fragColor;
+void main(){
+  vec3 c = texture(uCur,  vUV).rgb;
+  vec3 p = texture(uPrev, vUV).rgb;
+  fragColor = vec4(mix(c, p, uDecay * uInit), 1.0);
+}`;
+
+const FINAL_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uTex;
+uniform vec2  uRes;
+uniform float uTime;
+uniform float uCA;
+uniform float uGrain;
+uniform float uVig;
+out vec4 fragColor;
+float hash21(vec2 p){
+  p = fract(p * vec2(443.897, 441.423));
+  p += dot(p, p.yx + 19.19);
+  return fract((p.x + p.y) * p.x);
+}
+void main(){
+  vec2 uv = vUV;
+  vec2 cc = uv - 0.5;
+  float d = length(cc);
+  vec2 off = cc * d * uCA;
+  float r = texture(uTex, uv + off).r;
+  float g = texture(uTex, uv).g;
+  float b = texture(uTex, uv - off).b;
+  vec3 col = vec3(r, g, b);
+  float n = hash21(uv * uRes * 0.65 + vec2(uTime * 37.13, uTime * 71.7));
+  col += (n - 0.5) * uGrain;
+  float vig = smoothstep(1.02, 0.28, d);
+  col *= mix(1.0, vig, uVig);
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const sceneProg   = program(SCENE_VS, SCENE_FS);
+const lampProg    = program(LAMP_VS, LAMP_FS);
+const screenProg  = program(SCREEN_VS, SCREEN_FS);
+const monsterProg = program(MONSTER_VS, MONSTER_FS);
+const accProg     = program(FS_VS, ACC_FS);
+const finalProg   = program(FS_VS, FINAL_FS);
+
+const SU = {
+  viewProj:     gl.getUniformLocation(sceneProg,'uViewProj'),
+  tex:          gl.getUniformLocation(sceneProg,'uTex'),
+  tint:         gl.getUniformLocation(sceneProg,'uTint'),
+  ambient:      gl.getUniformLocation(sceneProg,'uAmbient'),
+  uvScale:      gl.getUniformLocation(sceneProg,'uUVScale'),
+  bump:         gl.getUniformLocation(sceneProg,'uBump'),
+  lightFalloff: gl.getUniformLocation(sceneProg,'uLightFalloff'),
+  numLamps:     gl.getUniformLocation(sceneProg,'uNumLamps'),
+  lampPos:      gl.getUniformLocation(sceneProg,'uLampPos[0]'),
+  lampCol:      gl.getUniformLocation(sceneProg,'uLampCol[0]')
+};
+const LU = { viewProj: gl.getUniformLocation(lampProg,'uViewProj') };
+const SCR = {
+  viewProj: gl.getUniformLocation(screenProg,'uViewProj'),
+  tex:      gl.getUniformLocation(screenProg,'uTex'),
+  hasVideo: gl.getUniformLocation(screenProg,'uHasVideo'),
+  screenOn: gl.getUniformLocation(screenProg,'uScreenOn'),
+  time:     gl.getUniformLocation(screenProg,'uTime'),
+  aspect:   gl.getUniformLocation(screenProg,'uAspect')
+};
+const MU = {
+  viewProj: gl.getUniformLocation(monsterProg,'uViewProj'),
+  tex:      gl.getUniformLocation(monsterProg,'uTex'),
+  hasTex:   gl.getUniformLocation(monsterProg,'uHasTex')
+};
+const AU = {
+  cur:   gl.getUniformLocation(accProg,'uCur'),
+  prev:  gl.getUniformLocation(accProg,'uPrev'),
+  decay: gl.getUniformLocation(accProg,'uDecay'),
+  init:  gl.getUniformLocation(accProg,'uInit')
+};
+const FU = {
+  tex:   gl.getUniformLocation(finalProg,'uTex'),
+  res:   gl.getUniformLocation(finalProg,'uRes'),
+  time:  gl.getUniformLocation(finalProg,'uTime'),
+  ca:    gl.getUniformLocation(finalProg,'uCA'),
+  grain: gl.getUniformLocation(finalProg,'uGrain'),
+  vig:   gl.getUniformLocation(finalProg,'uVig')
+};
+
+/* =========================================================================
+   7. 纹理 + 视频 / 音频
+   ========================================================================= */
+const texCarpet  = texFromCanvas(makeCarpetTexture());
+const texWall    = texFromCanvas(makeWallTexture());
+const texCeiling = texFromCanvas(makeCeilingTexture());
+
+const VIDEO_SRC = "https://tymov2.a.kwimgs.com/upic/2026/01/28/15/BMjAyNjAxMjgxNTE2MjlfMTMzMzAyNzE0OV8xODYxNzc0OTEzMjhfMl8z_b_B8d1e8445538125a4c03bcee6e1746b95.mp4?clientCacheKey=3xnr3pia7s5iu6q_b.mp4&tt=b&di=89f966a&bp=10004";
+
+/* 视频（静音） */
+const video = document.createElement('video');
+video.crossOrigin = 'anonymous';
+video.src = VIDEO_SRC;
+video.loop = false;
+video.muted = true;
+video.playsInline = true;
+video.preload = 'auto';
+video.style.cssText = 'position:fixed;left:-9999px;top:-9999px;width:2px;height:2px;opacity:0;pointer-events:none;';
+document.body.appendChild(video);
+
+/* ★ 音频（与视频同源，独立播放声音） */
+const videoAudio = document.createElement('audio');
+videoAudio.crossOrigin = 'anonymous';
+videoAudio.src = VIDEO_SRC;
+videoAudio.loop = false;
+videoAudio.preload = 'auto';
+videoAudio.style.cssText = 'display:none;';
+document.body.appendChild(videoAudio);
+
+const videoTex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, videoTex);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([0,0,0,255]));
+
+let videoReady = false;
+video.addEventListener('loadeddata', ()=>{ videoReady = true; });
+video.addEventListener('canplay', ()=>{ videoReady = true; });
+video.addEventListener('error', ()=>{ console.warn('视频加载失败，使用降级'); });
+video.addEventListener('ended', ()=>{
+  try { videoAudio.pause(); } catch(e){}
+  if (GAME.mode === 'regionA' && GAME.screenOn && GAME.videoEndTimer <= 0) {
+    GAME.videoEndTimer = 3.0;
+  }
+});
+
+/* 怪物纹理 */
+const monsterTex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, monsterTex);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,1,1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array([255,255,255,255]));
+
+let monsterImgLoaded = false;
+const monsterImg = new Image();
+monsterImg.onload = () => {
+  try {
+    gl.bindTexture(gl.TEXTURE_2D, monsterTex);
+    gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,monsterImg);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    monsterImgLoaded = true;
+  } catch(e) { console.warn('怪物贴图加载失败', e); }
+};
+monsterImg.onerror = () => { monsterImgLoaded = false; };
+monsterImg.src = 'Smiler.png';
+
+/* =========================================================================
+   8. 几何体
+   ========================================================================= */
+let wallVAO = gl.createVertexArray();
+let wallVBO = gl.createBuffer();
+let wallVertCount = 0;
+gl.bindVertexArray(wallVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, wallVBO);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1,3,gl.FLOAT,false,28,12);
+gl.enableVertexAttribArray(2);
+gl.vertexAttribPointer(2,1,gl.FLOAT,false,28,24);
+gl.bindVertexArray(null);
+
+function makeQuadVAO(){
+  const vao = gl.createVertexArray();
+  const vbo = gl.createBuffer();
+  gl.bindVertexArray(vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, 6*6*4, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0,3,gl.FLOAT,false,24,0);
+  gl.enableVertexAttribArray(1);
+  gl.vertexAttribPointer(1,3,gl.FLOAT,false,24,12);
+  gl.bindVertexArray(null);
+  return { vao, vbo };
+}
+const floorQuad = makeQuadVAO();
+const ceilQuad  = makeQuadVAO();
+
+let lampVAO = gl.createVertexArray();
+let lampVBO = gl.createBuffer();
+let lampVertCount = 0;
+gl.bindVertexArray(lampVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, lampVBO);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0,3,gl.FLOAT,false,20,0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1,2,gl.FLOAT,false,20,12);
+gl.bindVertexArray(null);
+
+/* 桌子（区域A，木色） */
+let furnVAO = gl.createVertexArray();
+let furnVBO = gl.createBuffer();
+let furnVertCount = 0;
+gl.bindVertexArray(furnVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, furnVBO);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1,3,gl.FLOAT,false,28,12);
+gl.enableVertexAttribArray(2);
+gl.vertexAttribPointer(2,1,gl.FLOAT,false,28,24);
+gl.bindVertexArray(null);
+
+/* 显示器外壳（白色） */
+let monitorShellVAO = gl.createVertexArray();
+let monitorShellVBO = gl.createBuffer();
+let monitorShellVertCount = 0;
+gl.bindVertexArray(monitorShellVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, monitorShellVBO);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0,3,gl.FLOAT,false,28,0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1,3,gl.FLOAT,false,28,12);
+gl.enableVertexAttribArray(2);
+gl.vertexAttribPointer(2,1,gl.FLOAT,false,28,24);
+gl.bindVertexArray(null);
+
+/* 显示器屏幕 */
+let screenVAO = gl.createVertexArray();
+let screenVBO = gl.createBuffer();
+let screenVertCount = 0;
+gl.bindVertexArray(screenVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, screenVBO);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0,3,gl.FLOAT,false,20,0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1,2,gl.FLOAT,false,20,12);
+gl.bindVertexArray(null);
+
+/* 怪物 */
+let monsterVAO = gl.createVertexArray();
+let monsterVBO = gl.createBuffer();
+let monsterVertCount = 0;
+gl.bindVertexArray(monsterVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, monsterVBO);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0,3,gl.FLOAT,false,24,0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1,2,gl.FLOAT,false,24,12);
+gl.enableVertexAttribArray(2);
+gl.vertexAttribPointer(2,1,gl.FLOAT,false,24,20);
+gl.bindVertexArray(null);
+
+const fsVAO = gl.createVertexArray();
+const fsVBO = gl.createBuffer();
+gl.bindVertexArray(fsVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, fsVBO);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);
+gl.bindVertexArray(null);
+
+/* =========================================================================
+   9. 几何构建辅助
+   ========================================================================= */
+function pushQuad(arr, p0, p1, p2, p3, n, isExit){
+  isExit = isExit || 0;
+  const pts = [p0,p1,p2,p0,p2,p3];
+  for(let i=0;i<6;i++){
+    const p = pts[i];
+    arr.push(p[0],p[1],p[2], n[0],n[1],n[2], isExit);
+  }
+}
+
+function addBox(arr, w,h,d, cx,cy,cz, isExit){
+  isExit = isExit || 0;
+  const x0=cx-w/2, x1=cx+w/2;
+  const y0=cy-h/2, y1=cy+h/2;
+  const z0=cz-d/2, z1=cz+d/2;
+  pushQuad(arr, [x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1], [0,0,1], isExit);
+  pushQuad(arr, [x1,y0,z0],[x0,y0,z0],[x0,y1,z0],[x1,y1,z0], [0,0,-1], isExit);
+  pushQuad(arr, [x1,y0,z1],[x1,y0,z0],[x1,y1,z0],[x1,y1,z1], [1,0,0], isExit);
+  pushQuad(arr, [x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0], [-1,0,0], isExit);
+  pushQuad(arr, [x0,y1,z1],[x1,y1,z1],[x1,y1,z0],[x0,y1,z0], [0,1,0], isExit);
+  pushQuad(arr, [x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1], [0,-1,0], isExit);
+}
+
+/* =========================================================================
+   10. 游戏状态
+   ========================================================================= */
+const GAME = {
+  mode: 'menu',
+  unlocked: { A:true, B:false, C:false },
+  screenOn: false,
+  videoEndTimer: 0,
+  videoStarted: false,
+  monsters: [],
+  spawnTimer: 20,
+  winFromRegion: null,
+  deadFromRegion: null,
+};
+
+const player = {
+  x: 0.5*CELL, z: 0.5*CELL,
+  yaw: 0, pitch: 0,
+  bobT: 0, bobAmp: 0.008,
+  radius: 0.26*CELL
+};
+
+const REGION_A = {
+  halfSize: 4 * CELL,
+  monitorPos: { x:0, y:1.35, z:-1.05 },
+  monitorRadius: 0.45,
+};
+
+/* ★ 桌子碰撞 AABB（略大于桌面，含腿部位置） */
+const TABLE_AABB = {
+  minX: -0.82, maxX: 0.82,
+  minZ: -1.52, maxZ: -0.48
+};
+
+const FOV = 72 * Math.PI / 180;
+
+/* =========================================================================
+   11. 墙壁/家具构建
+   ========================================================================= */
+let builtCX = 1e9, builtCZ = 1e9;
+let lampList = [];
+
+function rebuildMaze(cx0, cz0){
+  const arr = [];
+  const H = WALL_H;
+  for(let cz=cz0-VIEW_R; cz<=cz0+VIEW_R; cz++){
+    for(let cx=cx0-VIEW_R; cx<=cx0+VIEW_R; cx++){
+      if(!isWallCell(cx,cz)) continue;
+      const x0=cx*CELL, x1=(cx+1)*CELL;
+      const z0=cz*CELL, z1=(cz+1)*CELL;
+      const white = isWhiteWall(cx,cz) ? 1 : 0;
+
+      if(!isWallCell(cx+1,cz)) pushQuad(arr, [x1,0,z1],[x1,0,z0],[x1,H,z0],[x1,H,z1], [1,0,0], white);
+      if(!isWallCell(cx-1,cz)) pushQuad(arr, [x0,0,z0],[x0,0,z1],[x0,H,z1],[x0,H,z0], [-1,0,0], white);
+      if(!isWallCell(cx,cz+1)) pushQuad(arr, [x0,0,z1],[x1,0,z1],[x1,H,z1],[x0,H,z1], [0,0,1], white);
+      if(!isWallCell(cx,cz-1)) pushQuad(arr, [x1,0,z0],[x0,0,z0],[x0,H,z0],[x1,H,z0], [0,0,-1], white);
+    }
+  }
+  wallVertCount = arr.length / 7;
+  gl.bindBuffer(gl.ARRAY_BUFFER, wallVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.DYNAMIC_DRAW);
+
+  const larr = [];
+  lampList = [];
+  const y = CEIL_H - 0.02;
+  const s = 0.21 * CELL;
+  for(let cz=cz0-VIEW_R; cz<=cz0+VIEW_R; cz++){
+    for(let cx=cx0-VIEW_R; cx<=cx0+VIEW_R; cx++){
+      if(!lampAt(cx,cz)) continue;
+      const lx=(cx+0.5)*CELL, lz=(cz+0.5)*CELL;
+      const X0=lx-s, X1=lx+s, Z0=lz-s, Z1=lz+s;
+      const verts = [
+        [X0,y,Z0,0,0],[X1,y,Z0,1,0],[X1,y,Z1,1,1],
+        [X0,y,Z0,0,0],[X1,y,Z1,1,1],[X0,y,Z1,0,1]
+      ];
+      for(const v of verts) larr.push(v[0],v[1],v[2],v[3],v[4]);
+      lampList.push({ x:lx, y:CEIL_H-0.12, z:lz });
+    }
+  }
+  lampVertCount = larr.length / 5;
+  gl.bindBuffer(gl.ARRAY_BUFFER, lampVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(larr), gl.DYNAMIC_DRAW);
+
+  builtCX = cx0; builtCZ = cz0;
+}
+
+function rebuildRegionARoom(){
+  const arr = [];
+  const H = WALL_H;
+  const h = REGION_A.halfSize;
+
+  pushQuad(arr, [-h,0,-h],[h,0,-h],[h,H,-h],[-h,H,-h], [0,0,1], 0);
+  pushQuad(arr, [h,0,h],[-h,0,h],[-h,H,h],[h,H,h], [0,0,-1], 0);
+  pushQuad(arr, [h,0,-h],[h,0,h],[h,H,h],[h,H,-h], [-1,0,0], 0);
+  pushQuad(arr, [-h,0,h],[-h,0,-h],[-h,H,-h],[-h,H,h], [1,0,0], 0);
+
+  wallVertCount = arr.length / 7;
+  gl.bindBuffer(gl.ARRAY_BUFFER, wallVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.DYNAMIC_DRAW);
+
+  const larr = [];
+  const y = CEIL_H - 0.02;
+  const s = 0.30 * CELL;
+  const verts = [
+    [-s,y,-s,0,0],[s,y,-s,1,0],[s,y,s,1,1],
+    [-s,y,-s,0,0],[s,y,s,1,1],[-s,y,s,0,1]
+  ];
+  for(const v of verts) larr.push(v[0],v[1],v[2],v[3],v[4]);
+  lampVertCount = larr.length / 5;
+  gl.bindBuffer(gl.ARRAY_BUFFER, lampVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(larr), gl.DYNAMIC_DRAW);
+  lampList = [{ x:0, y:CEIL_H-0.12, z:0 }];
+}
+
+function rebuildRegionAFurniture(){
+  /* 桌子（木色） */
+  const arr = [];
+  addBox(arr, 1.5, 0.10, 0.9, 0, 0.95, -1.0, 0);
+  addBox(arr, 0.08, 0.90, 0.08, -0.65, 0.45, -1.35, 0);
+  addBox(arr, 0.08, 0.90, 0.08,  0.65, 0.45, -1.35, 0);
+  addBox(arr, 0.08, 0.90, 0.08, -0.65, 0.45, -0.65, 0);
+  addBox(arr, 0.08, 0.90, 0.08,  0.65, 0.45, -0.65, 0);
+  furnVertCount = arr.length / 7;
+  gl.bindBuffer(gl.ARRAY_BUFFER, furnVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.DYNAMIC_DRAW);
+
+  /* 显示器外壳（白色） */
+  const arr2 = [];
+  addBox(arr2, 0.55, 0.45, 0.14, 0, 1.28, -0.98, 1);
+  addBox(arr2, 0.10, 0.10, 0.12, 0, 1.03, -1.02, 1);
+  addBox(arr2, 0.30, 0.03, 0.20, 0, 0.99, -1.02, 1);
+  addBox(arr2, 0.03, 0.02, 0.02, 0.25, 1.08, -0.91, 1);
+  monitorShellVertCount = arr2.length / 7;
+  gl.bindBuffer(gl.ARRAY_BUFFER, monitorShellVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr2), gl.DYNAMIC_DRAW);
+
+  /* 屏幕 */
+  const sarr = [];
+  const sx = 0.23, sy0 = 1.10, sy1 = 1.42, sz = -0.905;
+  const verts = [
+    [-sx, sy0, sz, 0, 1],
+    [ sx, sy0, sz, 1, 1],
+    [ sx, sy1, sz, 1, 0],
+    [-sx, sy0, sz, 0, 1],
+    [ sx, sy1, sz, 1, 0],
+    [-sx, sy1, sz, 0, 0],
+  ];
+  for(const v of verts) sarr.push(v[0],v[1],v[2],v[3],v[4]);
+  screenVertCount = sarr.length / 5;
+  gl.bindBuffer(gl.ARRAY_BUFFER, screenVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(sarr), gl.DYNAMIC_DRAW);
+}
+
+/* =========================================================================
+   12. 输入
+   ========================================================================= */
+const keys = Object.create(null);
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+  if(e.code === 'KeyF') tryInteract();
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+
+const stickBase = document.getElementById('stickBase');
+const stickKnob = document.getElementById('stickKnob');
+let joyId = null, joyX = 0, joyY = 0;
+let baseCX = 0, baseCY = 0;
+const JOY_R = 56;
+
+let isPortrait = false;
+
+function layoutStick(){
+  const r = stickBase.getBoundingClientRect();
+  baseCX = r.left + r.width * 0.5;
+  baseCY = r.top + r.height * 0.5;
+}
+function updateJoy(e){
+  let dx = e.clientX - baseCX;
+  let dy = e.clientY - baseCY;
+  if (isPortrait) { const t = dx; dx = dy; dy = -t; }
+  const d = Math.hypot(dx, dy);
+  if(d > JOY_R){ dx = dx/d*JOY_R; dy = dy/d*JOY_R; }
+  joyX = dx/JOY_R; joyY = dy/JOY_R;
+  stickKnob.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+}
+function resetJoy(){
+  joyId = null; joyX = 0; joyY = 0;
+  stickKnob.style.transform = 'translate(0px,0px)';
+}
+
+let lookId = null, lastLX = 0, lastLY = 0;
+const PITCH_LIMIT = 1.35;
+
+canvas.addEventListener('pointerdown', e => {
+  if(GAME.mode !== 'regionA' && GAME.mode !== 'regionB' && GAME.mode !== 'regionC') return;
+  if(e.pointerType === 'mouse'){
+    if(document.pointerLockElement !== canvas && canvas.requestPointerLock) canvas.requestPointerLock();
+    return;
+  }
+  const sbRect = stickBase.getBoundingClientRect();
+  const inStick = e.clientX >= sbRect.left - 24 && e.clientX <= sbRect.right + 24 &&
+                  e.clientY >= sbRect.top - 24 && e.clientY <= sbRect.bottom + 24;
+  if(inStick){
+    joyId = e.pointerId;
+    layoutStick();
+    updateJoy(e);
+  } else if(lookId === null){
+    lookId = e.pointerId;
+    lastLX = e.clientX; lastLY = e.clientY;
+  }
+  e.preventDefault();
+}, { passive:false });
+
+canvas.addEventListener('pointermove', e => {
+  if(GAME.mode !== 'regionA' && GAME.mode !== 'regionB' && GAME.mode !== 'regionC') return;
+  if(e.pointerType === 'mouse') return;
+  if(e.pointerId === joyId){ updateJoy(e); e.preventDefault(); }
+  else if(e.pointerId === lookId){
+    let dx = e.clientX - lastLX;
+    let dy = e.clientY - lastLY;
+    if (isPortrait) { const t = dx; dx = dy; dy = -t; }
+    lastLX = e.clientX; lastLY = e.clientY;
+    player.yaw -= dx * 0.0048;
+    player.pitch -= dy * 0.0048;
+    player.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, player.pitch));
+    e.preventDefault();
+  }
+}, { passive:false });
+
+function endPointer(e){
+  if(e.pointerId === joyId) resetJoy();
+  if(e.pointerId === lookId) lookId = null;
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('pointerleave', endPointer);
+
+document.addEventListener('mousemove', e => {
+  if(document.pointerLockElement === canvas){
+    let dx = e.movementX, dy = e.movementY;
+    if (isPortrait) { const t = dx; dx = dy; dy = -t; }
+    player.yaw -= dx * 0.0022;
+    player.pitch -= dy * 0.0022;
+    player.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, player.pitch));
+  }
+});
+
+/* =========================================================================
+   13. 交互检测
+   ========================================================================= */
+function forwardVec(){
+  const cy = Math.cos(player.yaw), sy = Math.sin(player.yaw);
+  const cp = Math.cos(player.pitch), sp = Math.sin(player.pitch);
+  return { x: -sy*cp, y: sp, z: -cy*cp };
+}
+
+function isAimedAt(eye, target, objRadius, maxDist){
+  const dx = target.x - eye.x;
+  const dy = target.y - eye.y;
+  const dz = target.z - eye.z;
+  const dist = Math.hypot(dx, dy, dz);
+  if(dist < 0.01 || dist > maxDist) return false;
+  const fwd = forwardVec();
+  const dot = (dx*fwd.x + dy*fwd.y + dz*fwd.z) / dist;
+  const angularSize = Math.atan(objRadius / dist);
+  return dot > Math.cos(angularSize + 0.10);
+}
+
+function getInteractTarget(){
+  if(GAME.mode === 'regionA'){
+    if(!GAME.screenOn && !GAME.videoStarted){
+      const eye = { x:player.x, y:1.60 + Math.sin(player.bobT)*player.bobAmp, z:player.z };
+      const m = REGION_A.monitorPos;
+      const dx = m.x - eye.x, dz = m.z - eye.z;
+      const dist = Math.hypot(dx, dz);
+      if(dist < 4.0 && isAimedAt(eye, m, REGION_A.monitorRadius, 4.5)){
+        return { type:'monitor' };
+      }
+    }
+    return null;
+  }
+  if(GAME.mode === 'regionB' || GAME.mode === 'regionC'){
+    const eye = { x:player.x, y:1.60 + Math.sin(player.bobT)*player.bobAmp, z:player.z };
+    const pCellX = Math.floor(player.x / CELL);
+    const pCellZ = Math.floor(player.z / CELL);
+    const ax = mod2(pCellX), az = mod2(pCellZ);
+    const rooms = new Set();
+    if(ax === 0 && az === 0){ rooms.add((pCellX/2)+','+(pCellZ/2)); }
+    else if(ax === 1 && az === 0){
+      rooms.add(((pCellX-1)/2)+','+(pCellZ/2));
+      rooms.add(((pCellX+1)/2)+','+(pCellZ/2));
+    } else if(ax === 0 && az === 1){
+      rooms.add((pCellX/2)+','+((pCellZ-1)/2));
+      rooms.add((pCellX/2)+','+((pCellZ+1)/2));
+    }
+    for(const key of rooms){
+      const parts = key.split(',');
+      const rx = parseInt(parts[0]), rz = parseInt(parts[1]);
+      if(!isExitRoom(rx, rz)) continue;
+      const wx = (2*rx + 0.5) * CELL;
+      const wz = (2*rz + 0.5) * CELL;
+      const dx = wx - eye.x, dz = wz - eye.z;
+      const dist = Math.hypot(dx, dz);
+      if(dist > 8) continue;
+      const fwd = forwardVec();
+      const ndx = dx/dist, ndz = dz/dist;
+      const dot = ndx*fwd.x + ndz*fwd.z;
+      if(dot < 0.4) continue;
+      return { type:'exit' };
+    }
+    return null;
+  }
+  return null;
+}
+
+function tryInteract(){
+  const t = getInteractTarget();
+  if(!t) return;
+  if(t.type === 'monitor'){
+    GAME.screenOn = true;
+    GAME.videoStarted = true;
+    GAME.videoEndTimer = 0;
+    if(videoReady){
+      try {
+        video.currentTime = 0;
+        video.play().catch(()=>{ video.muted = true; video.play().catch(()=>{}); });
+      } catch(e){}
+      /* ★ 同步播放音频（使用用户手势触发，允许有声播放） */
+      try {
+        videoAudio.pause();
+        videoAudio.currentTime = 0;
+        videoAudio.play().catch((err)=>{ console.warn('音频播放失败:', err); });
+      } catch(e){ console.warn('音频异常', e); }
+    } else {
+      GAME.videoEndTimer = 3.0;
+    }
+  } else if(t.type === 'exit'){
+    winRegion(GAME.mode);
+  }
+}
+
+/* ★ 准星 / 互动按钮：游戏内始终显示，瞄准目标时高亮 */
+const crosshairEl = document.getElementById('crosshair');
+const interactBtnEl = document.getElementById('interactBtn');
+let lastInteractTarget = null;
+
+function refreshInteractUI(){
+  const inGame = (GAME.mode === 'regionA' || GAME.mode === 'regionB' || GAME.mode === 'regionC');
+  if(!inGame){
+    crosshairEl.classList.remove('active');
+    interactBtnEl.classList.remove('show');
+    interactBtnEl.classList.remove('active');
+    return;
+  }
+  /* 始终显示互动按钮 */
+  interactBtnEl.classList.add('show');
+
+  const t = getInteractTarget();
+  lastInteractTarget = t;
+  const active = !!t;
+  crosshairEl.classList.toggle('active', active);
+  interactBtnEl.classList.toggle('active', active);
+  interactBtnEl.disabled = !active;
+}
+
+interactBtnEl.addEventListener('click', () => { tryInteract(); });
+
+/* =========================================================================
+   14. 区域切换 / 界面
+   ========================================================================= */
+const menuEl = document.getElementById('menu');
+const winEl = document.getElementById('winScreen');
+const deadEl = document.getElementById('deadScreen');
+const hintEl = document.getElementById('hint');
+const appContainerEl = document.getElementById('appContainer');
+const btnFlipScreenEl = document.getElementById('btnFlipScreen');
+
+function stopAllMedia(){
+  try { video.pause(); } catch(e){}
+  try { videoAudio.pause(); } catch(e){}
+}
+
+function refreshMenuButtons(){
+  menuEl.querySelectorAll('button[data-region]').forEach(b => {
+    const r = b.dataset.region;
+    b.disabled = !GAME.unlocked[r];
+  });
+}
+
+function showMenu(){
+  GAME.mode = 'menu';
+  menuEl.classList.add('show');
+  winEl.classList.remove('show');
+  deadEl.classList.remove('show');
+  stickBase.classList.remove('show');
+  interactBtnEl.classList.remove('show');
+  interactBtnEl.classList.remove('active');
+  crosshairEl.style.display = 'none';
+  hintEl.textContent = '';
+  player.x = 0.5*CELL; player.z = 0.5*CELL;
+  player.yaw = 0; player.pitch = 0.05;
+  player.bobT = 0; player.bobAmp = 0.007;
+  builtCX = 1e9; builtCZ = 1e9;
+  stopAllMedia();
+  refreshMenuButtons();
+}
+
+function enterRegionA(){
+  GAME.mode = 'regionA';
+  menuEl.classList.remove('show');
+  winEl.classList.remove('show');
+  deadEl.classList.remove('show');
+  stickBase.classList.add('show');
+  crosshairEl.style.display = 'block';
+  hintEl.textContent = '靠近显示器 · F 或「互动」按键';
+  player.x = 0; player.z = 1.6;
+  player.yaw = 0; player.pitch = 0;
+  player.bobT = 0; player.bobAmp = 0.007;
+  GAME.screenOn = false;
+  GAME.videoStarted = false;
+  GAME.videoEndTimer = 0;
+  GAME.monsters = [];
+  stopAllMedia();
+  rebuildRegionARoom();
+  rebuildRegionAFurniture();
+  layoutStick();
+}
+
+function enterRegionBC(region){
+  GAME.mode = region;
+  menuEl.classList.remove('show');
+  winEl.classList.remove('show');
+  deadEl.classList.remove('show');
+  stickBase.classList.add('show');
+  crosshairEl.style.display = 'block';
+  hintEl.textContent = '寻找纯白墙壁 · F 或「互动」按键' + (region === 'regionC' ? '  ·  小心怪物' : '');
+  player.x = 0.5*CELL; player.z = 0.5*CELL;
+  player.yaw = 0; player.pitch = 0;
+  player.bobT = 0; player.bobAmp = 0.007;
+  GAME.monsters = [];
+  GAME.spawnTimer = 20;
+  roomVersion.clear();
+  roomVisible.clear();
+  builtCX = 1e9; builtCZ = 1e9;
+  stopAllMedia();
+  layoutStick();
+}
+
+function winRegion(fromMode){
+  GAME.mode = 'win';
+  winEl.classList.add('show');
+  interactBtnEl.classList.remove('show');
+  interactBtnEl.classList.remove('active');
+  crosshairEl.style.display = 'none';
+  stickBase.classList.remove('show');
+  stopAllMedia();
+  if(fromMode === 'regionA') GAME.unlocked.B = true;
+  if(fromMode === 'regionB') GAME.unlocked.C = true;
+  GAME.winFromRegion = fromMode;
+}
+
+function die(){
+  GAME.mode = 'dead';
+  deadEl.classList.add('show');
+  interactBtnEl.classList.remove('show');
+  interactBtnEl.classList.remove('active');
+  crosshairEl.style.display = 'none';
+  stickBase.classList.remove('show');
+  stopAllMedia();
+}
+
+document.getElementById('winConfirm').addEventListener('click', () => { showMenu(); });
+document.getElementById('deadConfirm').addEventListener('click', () => { showMenu(); });
+
+menuEl.querySelectorAll('button[data-region]').forEach(b => {
+  b.addEventListener('click', () => {
+    const r = b.dataset.region;
+    if(!GAME.unlocked[r]) return;
+    if(r === 'A') enterRegionA();
+    else enterRegionBC(r === 'B' ? 'regionB' : 'regionC');
+  });
+});
+
+function toggleFlipScreen(){
+  isPortrait = !isPortrait;
+  appContainerEl.classList.toggle('portrait', isPortrait);
+  if(btnFlipScreenEl) btnFlipScreenEl.textContent = isPortrait ? '竖屏模式' : '横屏模式';
+  setTimeout(resize, 60);
+  setTimeout(resize, 500);
+}
+btnFlipScreenEl.addEventListener('click', toggleFlipScreen);
+
+/* =========================================================================
+   15. 游戏逻辑更新
+   ========================================================================= */
+function collidesMaze(x, z){
+  const r = player.radius;
+  return isWallCell(Math.floor((x-r)/CELL), Math.floor((z-r)/CELL)) ||
+         isWallCell(Math.floor((x+r)/CELL), Math.floor((z-r)/CELL)) ||
+         isWallCell(Math.floor((x-r)/CELL), Math.floor((z+r)/CELL)) ||
+         isWallCell(Math.floor((x+r)/CELL), Math.floor((z+r)/CELL));
+}
+
+/* ★ 区域 A 碰撞：房间边界 + 桌子 AABB */
+function collidesRegionA(x, z){
+  const h = REGION_A.halfSize - 0.25;
+  if (Math.abs(x) > h || Math.abs(z) > h) return true;
+
+  /* 圆与桌子 AABB */
+  const r = player.radius;
+  const closestX = Math.max(TABLE_AABB.minX, Math.min(x, TABLE_AABB.maxX));
+  const closestZ = Math.max(TABLE_AABB.minZ, Math.min(z, TABLE_AABB.maxZ));
+  const dx = x - closestX, dz = z - closestZ;
+  if (dx*dx + dz*dz < r*r) return true;
+
+  return false;
+}
+
+function updatePlayer(dt){
+  let ix = 0, iz = 0;
+  if(keys['KeyW'] || keys['ArrowUp'])    iz -= 1;
+  if(keys['KeyS'] || keys['ArrowDown'])  iz += 1;
+  if(keys['KeyA'] || keys['ArrowLeft'])  ix -= 1;
+  if(keys['KeyD'] || keys['ArrowRight']) ix += 1;
+  ix += joyX; iz += joyY;
+
+  let len = Math.hypot(ix, iz);
+  if(len > 1){ ix/=len; iz/=len; len=1; }
+  if(len < 0.02){ ix=0; iz=0; len=0; }
+
+  const speed = 2.55 * CELL;
+  const cy = Math.cos(player.yaw), sy = Math.sin(player.yaw);
+  const fwd = -iz, str = ix;
+  const dirX = -sy*fwd + cy*str;
+  const dirZ = -cy*fwd - sy*str;
+
+  const nx = player.x + dirX*speed*dt;
+  const nz = player.z + dirZ*speed*dt;
+
+  if(GAME.mode === 'regionA'){
+    if(!collidesRegionA(nx, player.z)) player.x = nx;
+    if(!collidesRegionA(player.x, nz)) player.z = nz;
+  } else {
+    if(!collidesMaze(nx, player.z)) player.x = nx;
+    if(!collidesMaze(player.x, nz)) player.z = nz;
+  }
+
+  const moving = len > 0.1;
+  player.bobT += dt * (moving ? 9.2 : 1.8);
+  const targetAmp = moving ? 0.036 : 0.007;
+  player.bobAmp += (targetAmp - player.bobAmp) * Math.min(1, dt*8);
+}
+
+function updateRoomVisibility(){
+  const prx = Math.floor(player.x / CELL / 2);
+  const prz = Math.floor(player.z / CELL / 2);
+  const fwdX = -Math.sin(player.yaw);
+  const fwdZ = -Math.cos(player.yaw);
+  let needRebuild = false;
+
+  for(let drz=-R_RANGE; drz<=R_RANGE; drz++){
+    for(let drx=-R_RANGE; drx<=R_RANGE; drx++){
+      const rx = prx + drx, rz = prz + drz;
+      if(isExitRoom(rx, rz)) continue;
+      const key = rx + ',' + rz;
+      const wx = (2*rx + 1) * CELL;
+      const wz = (2*rz + 1) * CELL;
+      const dx = wx - player.x, dz = wz - player.z;
+      const dist = Math.hypot(dx, dz);
+      let visible;
+      if(dist < 1.6 * CELL) visible = true;
+      else {
+        const ndx = dx/dist, ndz = dz/dist;
+        visible = (ndx*fwdX + ndz*fwdZ) > -0.15;
+      }
+      const prev = roomVisible.get(key);
+      if(prev === true && !visible){
+        bumpRoomVersion(rx, rz);
+        needRebuild = true;
+        roomVisible.set(key, false);
+      } else if(prev === false && visible){
+        roomVisible.set(key, true);
+      } else if(prev === undefined){
+        roomVisible.set(key, visible);
+      }
+    }
+  }
+  return needRebuild;
+}
+
+function updateMonsters(dt){
+  if(GAME.mode !== 'regionC') return;
+  GAME.spawnTimer -= dt;
+  if(GAME.spawnTimer <= 0){
+    GAME.spawnTimer = 20;
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 4 + Math.random() * 4;
+    GAME.monsters.push({
+      x: player.x + Math.cos(ang) * dist,
+      z: player.z + Math.sin(ang) * dist,
+      y: 1.05,
+      speed: 2.55 * CELL * 1.2,
+      alpha: 1.0,
+      frozen: false,
+    });
+  }
+
+  const eye = { x:player.x, y:1.60 + Math.sin(player.bobT)*player.bobAmp, z:player.z };
+  const fwd = forwardVec();
+
+  for(const m of GAME.monsters){
+    const mdx = m.x - eye.x, mdy = m.y - eye.y, mdz = m.z - eye.z;
+    const mdist = Math.hypot(mdx, mdy, mdz) || 1;
+    const mdot = (mdx*fwd.x + mdy*fwd.y + mdz*fwd.z) / mdist;
+    m.frozen = (mdot > 0.985 && mdist < 20);
+
+    if(!m.frozen){
+      const dx = player.x - m.x, dz = player.z - m.z;
+      const len = Math.hypot(dx, dz) || 1;
+      m.x += (dx/len) * m.speed * dt;
+      m.z += (dz/len) * m.speed * dt;
+    }
+
+    const inWall = isWallCell(Math.floor(m.x / CELL), Math.floor(m.z / CELL));
+    const targetAlpha = inWall ? 0.12 : 1.0;
+    m.alpha += (targetAlpha - m.alpha) * Math.min(1, dt * 4);
+
+    const pdist = Math.hypot(player.x - m.x, player.z - m.z);
+    if(pdist < 0.55 && GAME.mode === 'regionC'){
+      die();
+      return;
+    }
+  }
+}
+
+function updateGameLogic(dt){
+  if(GAME.mode === 'menu'){
+    player.yaw = performance.now() * 0.00015;
+    player.pitch = 0.05 + Math.sin(performance.now() * 0.0004) * 0.06;
+    player.x = 0.5*CELL; player.z = 0.5*CELL;
+    return;
+  }
+  if(GAME.mode === 'regionA'){
+    updatePlayer(dt);
+    if(GAME.screenOn && GAME.videoEndTimer > 0){
+      GAME.videoEndTimer -= dt;
+      if(GAME.videoEndTimer <= 0){
+        GAME.videoEndTimer = 0;
+        winRegion('regionA');
+      }
+    }
+    if(GAME.screenOn && !GAME.videoEndTimer && GAME.videoStarted){
+      if(video.ended || video.error){
+        GAME.videoEndTimer = 3.0;
+      }
+    }
+    return;
+  }
+  if(GAME.mode === 'regionB' || GAME.mode === 'regionC'){
+    updatePlayer(dt);
+    const needRebuild = updateRoomVisibility();
+    const cx0 = Math.floor(player.x / CELL), cz0 = Math.floor(player.z / CELL);
+    if(cx0 !== builtCX || cz0 !== builtCZ || needRebuild){
+      rebuildMaze(cx0, cz0);
+    }
+    updateMonsters(dt);
+  }
+}
+
+/* =========================================================================
+   16. 渲染
+   ========================================================================= */
+let sceneRT = null, accRT = [null, null];
+let accIndex = 0;
+let frameCount = 0;
+
+function createColorRT(w, h){
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,w,h,0,gl.RGBA,gl.UNSIGNED_BYTE,null);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { tex, fbo, w, h };
+}
+function createSceneRT(w, h){
+  const rt = createColorRT(w, h);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, rt.fbo);
+  const rb = gl.createRenderbuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  rt.depth = rb;
+  return rt;
+}
+function destroyRT(rt){
+  if(!rt) return;
+  gl.deleteTexture(rt.tex);
+  gl.deleteFramebuffer(rt.fbo);
+  if(rt.depth) gl.deleteRenderbuffer(rt.depth);
+}
+function resize(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+  const w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+  const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+  if(canvas.width === w && canvas.height === h) return;
+  canvas.width = w; canvas.height = h;
+  destroyRT(sceneRT); destroyRT(accRT[0]); destroyRT(accRT[1]);
+  sceneRT = createSceneRT(w, h);
+  accRT[0] = createColorRT(w, h);
+  accRT[1] = createColorRT(w, h);
+  accIndex = 0; frameCount = 0;
+  layoutStick();
+}
+addEventListener('resize', resize);
+addEventListener('orientationchange', () => setTimeout(resize, 200));
+
+function updateGroundQuads(centerX, centerZ, ext){
+  const x0 = centerX - ext, x1 = centerX + ext;
+  const z0 = centerZ - ext, z1 = centerZ + ext;
+  const f = new Float32Array([
+    x0,0,z0, 0,1,0,
+    x0,0,z1, 0,1,0,
+    x1,0,z1, 0,1,0,
+    x0,0,z0, 0,1,0,
+    x1,0,z1, 0,1,0,
+    x1,0,z0, 0,1,0
+  ]);
+  gl.bindBuffer(gl.ARRAY_BUFFER, floorQuad.vbo);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, f);
+
+  const c = new Float32Array([
+    x0,CEIL_H,z1, 0,-1,0,
+    x0,CEIL_H,z0, 0,-1,0,
+    x1,CEIL_H,z0, 0,-1,0,
+    x0,CEIL_H,z1, 0,-1,0,
+    x1,CEIL_H,z0, 0,-1,0,
+    x1,CEIL_H,z1, 0,-1,0
+  ]);
+  gl.bindBuffer(gl.ARRAY_BUFFER, ceilQuad.vbo);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, c);
+}
+
+const lampPosBuf = new Float32Array(24);
+const lampColBuf = new Float32Array(24);
+const AMBIENT = [0.255, 0.235, 0.190];
+
+function selectLamps(px, pz){
+  const cands = [];
+  const maxD = 12 * CELL;
+  const maxD2 = maxD * maxD;
+  for(const L of lampList){
+    const dx = L.x - px, dz = L.z - pz;
+    const d2 = dx*dx + dz*dz;
+    if(d2 < maxD2) cands.push({ L, d2 });
+  }
+  cands.sort((a,b)=> a.d2 - b.d2);
+  const n = Math.min(8, cands.length);
+  const isRed = (GAME.mode === 'regionC');
+  const falloffK = 0.02 / (CELL * CELL);
+
+  for(let i=0;i<n;i++){
+    const L = cands[i].L;
+    lampPosBuf[i*3] = L.x;
+    lampPosBuf[i*3+1] = L.y;
+    lampPosBuf[i*3+2] = L.z;
+    let fall = 1.0 / (1.0 + cands[i].d2 * falloffK);
+
+    let r = isRed ? 2.55 : 2.55;
+    let g = isRed ? 0.50 : 2.42;
+    let b = isRed ? 0.30 : 2.02;
+
+    if(GAME.mode === 'regionC'){
+      let extinguished = false;
+      for(const m of GAME.monsters){
+        const mdx = m.x - L.x, mdz = m.z - L.z;
+        if(mdx*mdx + mdz*mdz < 4.0){ extinguished = true; break; }
+      }
+      if(extinguished){ r = 0; g = 0; b = 0; }
+    }
+
+    lampColBuf[i*3]   = r * fall;
+    lampColBuf[i*3+1] = g * fall;
+    lampColBuf[i*3+2] = b * fall;
+  }
+  return n;
+}
+
+function buildMonsterQuads(eyeX, eyeZ){
+  const arr = [];
+  if(GAME.mode !== 'regionC') return arr;
+  for(const m of GAME.monsters){
+    if(m.alpha < 0.01) continue;
+    const dx = eyeX - m.x, dz = eyeZ - m.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const rx = -dz / len * 0.6;
+    const rz = dx / len * 0.6;
+    const y0 = m.y - 0.7, y1 = m.y + 0.7;
+    const p0 = [m.x - rx, y0, m.z - rz];
+    const p1 = [m.x + rx, y0, m.z + rz];
+    const p2 = [m.x + rx, y1, m.z + rz];
+    const p3 = [m.x - rx, y1, m.z - rz];
+    const uv = [[0,1],[1,1],[1,0],[0,0]];
+    const a = m.alpha;
+    const pts = [p0,p1,p2,p0,p2,p3];
+    const uvs = [uv[0],uv[1],uv[2],uv[0],uv[2],uv[3]];
+    for(let i=0;i<6;i++){
+      arr.push(pts[i][0], pts[i][1], pts[i][2], uvs[i][0], uvs[i][1], a);
+    }
+  }
+  return arr;
+}
+
+let elapsed = 0;
+
+function render(dt){
+  elapsed += dt;
+  resize();
+  gl.viewport(0,0,canvas.width,canvas.height);
+  gl.clearColor(0.035,0.028,0.020,1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.disable(gl.CULL_FACE);
+  gl.disable(gl.BLEND);
+
+  const bob = Math.sin(player.bobT) * player.bobAmp;
+  const eyeX = player.x;
+  const eyeY = 1.60 + bob;
+  const eyeZ = player.z;
+
+  const aspect = canvas.width / canvas.height;
+  const proj = perspectiveMat(FOV, aspect, 0.04, 60);
+  const view = viewMat(eyeX, eyeY, eyeZ, player.yaw, player.pitch);
+  const vp = matMul(proj, view);
+
+  const numLamps = selectLamps(player.x, player.z);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, sceneRT.fbo);
+  gl.viewport(0,0,sceneRT.w,sceneRT.h);
+  gl.clearColor(0.035,0.028,0.020,1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  gl.useProgram(sceneProg);
+  gl.uniformMatrix4fv(SU.viewProj, false, vp);
+  gl.uniform3fv(SU.ambient, AMBIENT);
+  gl.uniform1i(SU.numLamps, numLamps);
+  gl.uniform3fv(SU.lampPos, lampPosBuf);
+  gl.uniform3fv(SU.lampCol, lampColBuf);
+  gl.uniform1f(SU.lightFalloff, 1.05 / (CELL * CELL));
+  gl.uniform1i(SU.tex, 0);
+  gl.activeTexture(gl.TEXTURE0);
+
+  const ext = (GAME.mode === 'regionA') ? REGION_A.halfSize + 0.5 : (VIEW_R + 3) * CELL;
+  const centerX = (GAME.mode === 'regionA') ? 0 : Math.floor(player.x / CELL) * CELL;
+  const centerZ = (GAME.mode === 'regionA') ? 0 : Math.floor(player.z / CELL) * CELL;
+  updateGroundQuads(centerX, centerZ, ext);
+
+  gl.uniform1f(SU.uvScale, 1.6);
+  gl.uniform1f(SU.bump, 1.15);
+  gl.uniform3f(SU.tint, 1.00, 0.94, 0.86);
+  gl.bindTexture(gl.TEXTURE_2D, texCarpet);
+  gl.bindVertexArray(floorQuad.vao);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  gl.uniform1f(SU.uvScale, 0.65);
+  gl.uniform1f(SU.bump, 0.85);
+  gl.uniform3f(SU.tint, 1.00, 0.98, 0.90);
+  gl.bindTexture(gl.TEXTURE_2D, texCeiling);
+  gl.bindVertexArray(ceilQuad.vao);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  if(wallVertCount > 0){
+    gl.uniform1f(SU.uvScale, 1.1);
+    gl.uniform1f(SU.bump, 1.45);
+    gl.uniform3f(SU.tint, 1.00, 0.97, 0.88);
+    gl.bindTexture(gl.TEXTURE_2D, texWall);
+    gl.bindVertexArray(wallVAO);
+    gl.drawArrays(gl.TRIANGLES, 0, wallVertCount);
+  }
+
+  if(GAME.mode === 'regionA' && furnVertCount > 0){
+    gl.uniform1f(SU.uvScale, 1.6);
+    gl.uniform1f(SU.bump, 0.6);
+    gl.uniform3f(SU.tint, 0.75, 0.55, 0.38);
+    gl.bindTexture(gl.TEXTURE_2D, texCarpet);
+    gl.bindVertexArray(furnVAO);
+    gl.drawArrays(gl.TRIANGLES, 0, furnVertCount);
+  }
+
+  if(GAME.mode === 'regionA' && monitorShellVertCount > 0){
+    gl.uniform1f(SU.uvScale, 1.0);
+    gl.uniform1f(SU.bump, 0.0);
+    gl.uniform3f(SU.tint, 1.0, 1.0, 1.0);
+    gl.bindVertexArray(monitorShellVAO);
+    gl.drawArrays(gl.TRIANGLES, 0, monitorShellVertCount);
+  }
+
+  if(lampVertCount > 0){
+    gl.useProgram(lampProg);
+    gl.uniformMatrix4fv(LU.viewProj, false, vp);
+    gl.bindVertexArray(lampVAO);
+    gl.drawArrays(gl.TRIANGLES, 0, lampVertCount);
+  }
+
+  if(GAME.mode === 'regionA' && screenVertCount > 0){
+    gl.useProgram(screenProg);
+    gl.uniformMatrix4fv(SCR.viewProj, false, vp);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, videoTex);
+    gl.uniform1i(SCR.tex, 0);
+    gl.uniform1f(SCR.hasVideo, videoReady ? 1.0 : 0.0);
+    gl.uniform1f(SCR.screenOn, GAME.screenOn ? 1.0 : 0.0);
+    gl.uniform1f(SCR.time, elapsed);
+    const vAspect = (video.videoWidth && video.videoHeight) ? (video.videoWidth / video.videoHeight) : (4/3);
+    gl.uniform1f(SCR.aspect, vAspect);
+    gl.disable(gl.DEPTH_TEST);
+    gl.bindVertexArray(screenVAO);
+    gl.drawArrays(gl.TRIANGLES, 0, screenVertCount);
+    gl.enable(gl.DEPTH_TEST);
+  }
+
+  if(GAME.mode === 'regionC' && GAME.monsters.length > 0){
+    const mArr = buildMonsterQuads(eyeX, eyeZ);
+    if(mArr.length > 0){
+      monsterVertCount = mArr.length / 6;
+      gl.bindBuffer(gl.ARRAY_BUFFER, monsterVBO);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(mArr), gl.DYNAMIC_DRAW);
+      gl.useProgram(monsterProg);
+      gl.uniformMatrix4fv(MU.viewProj, false, vp);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, monsterTex);
+      gl.uniform1i(MU.tex, 0);
+      gl.uniform1f(MU.hasTex, monsterImgLoaded ? 1.0 : 0.0);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+      gl.disable(gl.DEPTH_TEST);
+      gl.bindVertexArray(monsterVAO);
+      gl.drawArrays(gl.TRIANGLES, 0, monsterVertCount);
+      gl.enable(gl.DEPTH_TEST);
+      gl.disable(gl.BLEND);
+    }
+  }
+
+  const src = accRT[accIndex];
+  const dst = accRT[1 - accIndex];
+  gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fbo);
+  gl.viewport(0,0,dst.w,dst.h);
+  gl.disable(gl.DEPTH_TEST);
+  gl.useProgram(accProg);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, sceneRT.tex);
+  gl.uniform1i(AU.cur, 0);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, src.tex);
+  gl.uniform1i(AU.prev, 1);
+  gl.uniform1f(AU.decay, 0.70);
+  gl.uniform1f(AU.init, frameCount === 0 ? 0.0 : 1.0);
+  gl.bindVertexArray(fsVAO);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  accIndex = 1 - accIndex;
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0,0,canvas.width,canvas.height);
+  gl.useProgram(finalProg);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, dst.tex);
+  gl.uniform1i(FU.tex, 0);
+  gl.uniform2f(FU.res, canvas.width, canvas.height);
+  gl.uniform1f(FU.time, elapsed);
+  gl.uniform1f(FU.ca, 0.020);
+  gl.uniform1f(FU.grain, 0.085);
+  gl.uniform1f(FU.vig, 0.55);
+  gl.bindVertexArray(fsVAO);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.bindVertexArray(null);
+
+  frameCount++;
+}
+
+/* =========================================================================
+   17. 视频帧上传
+   ========================================================================= */
+let lastVideoUpload = -1;
+function updateVideoFrame(){
+  if(!videoReady) return;
+  if(video.readyState < 2) return;
+  if(video.videoWidth === 0) return;
+  if(video.paused && lastVideoUpload === 2) return;
+  try {
+    gl.bindTexture(gl.TEXTURE_2D, videoTex);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    lastVideoUpload = video.paused ? 2 : 1;
+  } catch(e){ /* 忽略瞬时错误 */ }
+}
+
+/* =========================================================================
+   18. 主循环
+   ========================================================================= */
+let lastTime = performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  let dt = (now - lastTime) / 1000;
+  lastTime = now;
+  if(dt > 0.06) dt = 0.06;
+  if(dt < 0) dt = 0;
+
+  updateVideoFrame();
+  updateGameLogic(dt);
+  render(dt);
+  refreshInteractUI();
+}
+
+/* =========================================================================
+   19. 启动
+   ========================================================================= */
+resize();
+layoutStick();
+refreshMenuButtons();
+showMenu();
+
+setTimeout(() => { hintEl.textContent = ''; }, 1500);
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
