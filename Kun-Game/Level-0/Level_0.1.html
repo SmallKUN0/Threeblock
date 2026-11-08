@@ -1,0 +1,2533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>暖黄迷宫 · WebGL2</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#080604;font-family:system-ui,-apple-system,sans-serif;}
+  #gl{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair;}
+  #ui{position:fixed;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none;}
+  #stickBase{
+    position:absolute;left:26px;bottom:26px;width:132px;height:132px;border-radius:50%;
+    border:2px solid rgba(255,220,150,0.30);
+    background:radial-gradient(circle at 50% 50%, rgba(255,205,120,0.10), rgba(255,180,90,0.03) 70%, transparent 72%);
+    box-shadow:0 0 24px rgba(255,180,80,0.12) inset, 0 0 18px rgba(0,0,0,0.55);
+  }
+  #stickKnob{
+    position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;
+    background:radial-gradient(circle at 34% 28%, rgba(255,244,208,0.92), rgba(226,172,88,0.62) 62%, rgba(140,96,40,0.35));
+    box-shadow:0 0 16px rgba(255,198,110,0.55), 0 3px 10px rgba(0,0,0,0.45);
+    will-change:transform;
+  }
+  #hint{
+    position:absolute;left:0;right:0;top:16px;text-align:center;
+    color:#f2dca6;font-size:12.5px;letter-spacing:.4px;opacity:.72;
+    text-shadow:0 1px 6px rgba(0,0,0,0.9);transition:opacity .8s;
+  }
+  #settings{
+    position:fixed;right:14px;top:14px;width:214px;padding:10px 12px;border-radius:12px;
+    background:rgba(20,12,6,0.64);
+    border:1px solid rgba(255,210,130,0.22);
+    box-shadow:0 8px 28px rgba(0,0,0,0.45), 0 0 18px rgba(255,170,70,0.08) inset;
+    color:#f2dca6;font-size:12px;line-height:1.5;
+    pointer-events:auto;user-select:none;-webkit-user-select:none;
+    backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  }
+  #settings label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0;}
+  #settings input[type=range]{width:104px;accent-color:#ffb45a;height:18px;}
+  #settings .val{min-width:38px;text-align:right;color:#ffd89a;font-variant-numeric:tabular-nums;}
+  #caught{
+    position:absolute;inset:0;pointer-events:none;opacity:0;
+    background:radial-gradient(circle, transparent 38%, rgba(255,30,10,0.38));
+    transition:opacity .18s;
+  }
+  #phase{
+    position:absolute;left:0;right:0;bottom:14px;text-align:center;
+    color:#ffb070;font-size:11.5px;letter-spacing:.5px;opacity:.7;
+    text-shadow:0 1px 6px rgba(0,0,0,0.9);pointer-events:none;
+  }
+  #endScreen{
+    position:fixed;inset:0;display:none;
+    align-items:center;justify-content:center;
+    background:rgba(0,0,0,0.72);
+    z-index:100;pointer-events:auto;
+    backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  }
+  #endScreen .panel{
+    background:rgba(30,20,15,0.92);
+    border:1px solid rgba(255,200,130,0.3);
+    border-radius:16px;
+    padding:32px 40px;
+    text-align:center;
+    color:#f2dca6;
+    max-width:400px;
+    box-shadow:0 16px 60px rgba(0,0,0,0.6);
+  }
+  #endScreen h1{font-size:24px;margin:0 0 12px 0;letter-spacing:0.1em;}
+  #endScreen p{font-size:14px;opacity:0.8;margin:0 0 24px 0;line-height:1.6;white-space:pre-line;}
+  #endScreen button{
+    background:rgba(255,180,90,0.15);
+    border:1px solid rgba(255,180,90,0.5);
+    color:#ffd89a;
+    padding:10px 28px;
+    border-radius:8px;
+    font-size:15px;
+    cursor:pointer;
+    font-family:inherit;
+    letter-spacing:0.1em;
+    transition:background 0.2s;
+  }
+  #endScreen button:hover{background:rgba(255,180,90,0.25);}
+  #audioGroup{position:fixed;left:0;top:0;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none;}
+  #err{
+    position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    color:#f88;font-size:15px;text-align:center;padding:24px;line-height:1.6;
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="ui">
+  <div id="stickBase"><div id="stickKnob"></div></div>
+  <div id="hint">WASD / 摇杆 移动 &nbsp;·&nbsp; 鼠标 / 右侧拖动 转视角 &nbsp;·&nbsp; 点击锁定指针</div>
+  <div id="settings">
+    <label>分辨率 <input id="resSlider" type="range" min="50" max="150" step="5" value="100"><span id="resVal" class="val">100%</span></label>
+    <label>动态模糊 <input id="blurSlider" type="range" min="0" max="90" step="1" value="70"><span id="blurVal" class="val">70%</span></label>
+    <label>RGB色散 <input id="caSlider" type="range" min="0" max="100" step="1" value="40"><span id="caVal" class="val">40%</span></label>
+    <label>音乐音量 <input id="musicSlider" type="range" min="0" max="100" step="1" value="40"><span id="musicVal" class="val">40%</span></label>
+  </div>
+  <div id="caught"></div>
+  <div id="phase"></div>
+  <div id="err">当前环境不支持 WebGL2</div>
+</div>
+<div id="endScreen">
+  <div class="panel">
+    <h1 id="endTitle">失败</h1>
+    <p id="endText">你被铁丝火柴人抓住了。</p>
+    <button id="restartBtn">重新开始</button>
+  </div>
+</div>
+
+<!-- 音乐：常规 BGM 三层叠加；追击 BGM 二层叠加 -->
+<div id="audioGroup">
+  <audio id="au0" src="https://tymov2.a.kwimgs.com/upic/2022/10/15/10/BMjAyMjEwMTUxMDQxMjFfMjQ0MzI0MDQ4Ml84NjQ3MTY3MDMzMl8yXzM=_b_B2fa4bfd9fb8507b76e24c322d99500b9.mp4?clientCacheKey=3xaycb7pd2pg966_b.mp4&tt=b&di=89f966a&bp=10004" loop preload="auto"></audio>
+  <audio id="au1" src="https://tymov2.a.kwimgs.com/upic/2022/10/15/10/BMjAyMjEwMTUxMDQxMjFfMjQ0MzI0MDQ4Ml84NjQ3MTY3MDMzMl8yXzM=_b_B2fa4bfd9fb8507b76e24c322d99500b9.mp4?clientCacheKey=3xaycb7pd2pg966_b.mp4&tt=b&di=89f966a&bp=10004" loop preload="auto"></audio>
+  <audio id="au2" src="https://tymov2.a.kwimgs.com/upic/2022/10/15/10/BMjAyMjEwMTUxMDQxMjFfMjQ0MzI0MDQ4Ml84NjQ3MTY3MDMzMl8yXzM=_b_B2fa4bfd9fb8507b76e24c322d99500b9.mp4?clientCacheKey=3xaycb7pd2pg966_b.mp4&tt=b&di=89f966a&bp=10004" loop preload="auto"></audio>
+  <audio id="ac0" src="https://tymov2.a.kwimgs.com/upic/2025/07/10/18/BMjAyNTA3MTAxODQ2NDNfMzY3Nzc2MTc5MV8xNjkwNzM5MzIzOTBfMl8z_b_B1357a333bc1e9ba46e1e837369262134.mp4?clientCacheKey=3x26th6z3djy65u_b.mp4&tt=b&di=89f966a&bp=10004" loop preload="auto"></audio>
+  <audio id="ac1" src="https://tymov2.a.kwimgs.com/upic/2025/07/10/18/BMjAyNTA3MTAxODQ2NDNfMzY3Nzc2MTc5MV8xNjkwNzM5MzIzOTBfMl8z_b_B1357a333bc1e9ba46e1e837369262134.mp4?clientCacheKey=3x26th6z3djy65u_b.mp4&tt=b&di=89f966a&bp=10004" loop preload="auto"></audio>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   0. 基础环境
+   ========================================================================= */
+const canvas = document.getElementById('gl');
+const gl = canvas.getContext('webgl2', {
+  antialias: false, alpha: false, depth: true, stencil: false,
+  powerPreference: 'high-performance', preserveDrawingBuffer: false
+});
+if (!gl) {
+  document.getElementById('err').style.display = 'flex';
+  throw new Error('WebGL2 not supported');
+}
+
+/* =========================================================================
+   0.5 音频管理
+   ========================================================================= */
+const normalAudios = [
+  document.getElementById('au0'),
+  document.getElementById('au1'),
+  document.getElementById('au2')
+];
+const chaseAudios = [
+  document.getElementById('ac0'),
+  document.getElementById('ac1')
+];
+
+let audioUnlocked = false;
+let currentMusic = 'none';   // 'none' | 'normal' | 'chase'
+let musicVolume = 0.40;
+
+function setMusicVolume(v) {
+  musicVolume = Math.max(0, Math.min(1, v));
+  for (const a of normalAudios) a.volume = musicVolume;
+  for (const a of chaseAudios) a.volume = musicVolume;
+}
+setMusicVolume(musicVolume);
+
+function pauseGroup(group) {
+  for (const a of group) {
+    if (!a.paused) a.pause();
+  }
+}
+function playGroup(group) {
+  for (const a of group) {
+    const p = a.play();
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  }
+}
+function stopAllMusic() {
+  pauseGroup(normalAudios);
+  pauseGroup(chaseAudios);
+  currentMusic = 'none';
+}
+
+function updateMusic() {
+  if (!audioUnlocked) return;
+
+  if (gameState !== 'playing') {
+    if (currentMusic !== 'none') stopAllMusic();
+    return;
+  }
+
+  const wantChase = monsterActive;
+
+  if (wantChase && currentMusic !== 'chase') {
+    pauseGroup(normalAudios);
+    playGroup(chaseAudios);
+    currentMusic = 'chase';
+  } else if (!wantChase && currentMusic !== 'normal') {
+    pauseGroup(chaseAudios);
+    playGroup(normalAudios);
+    currentMusic = 'normal';
+  }
+}
+
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  updateMusic();
+}
+document.addEventListener('pointerdown', unlockAudio, { once: true });
+document.addEventListener('keydown', unlockAudio, { once: true });
+document.addEventListener('touchstart', unlockAudio, { once: true, passive: true });
+
+/* =========================================================================
+   1. 随机 / 噪声工具
+   ========================================================================= */
+const SEED = (Math.random() * 2147483647) | 0;
+
+function hash2i(x, y, s) {
+  let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(s | 0, 144665);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function mod2(v) { return ((v % 2) + 2) % 2; }
+
+function vnoise(x, y, s) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const a = hash2i(xi, yi, s);
+  const b = hash2i(xi + 1, yi, s);
+  const c = hash2i(xi, yi + 1, s);
+  const d = hash2i(xi + 1, yi + 1, s);
+  return a * (1 - u) * (1 - v) + b * u * (1 - v) + c * (1 - u) * v + d * u * v;
+}
+function fbm(x, y, s, oct) {
+  oct = oct || 4;
+  let val = 0, amp = 0.5, f = 1;
+  for (let i = 0; i < oct; i++) {
+    val += amp * vnoise(x * f, y * f, s + i * 37);
+    amp *= 0.5; f *= 2;
+  }
+  return val;
+}
+function smoothstep(a, b, x) {
+  if (a === b) return x < a ? 0 : 1;
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+
+/* =========================================================================
+   2. 迷宫
+   ========================================================================= */
+const CELL   = 1.75;
+const WALL_H = 2.75;
+const CEIL_H = 2.75;
+const VIEW_R = 12;
+const WALL_OPEN_RATE = 0.55;
+
+const roomVersion = new Map();
+function getRoomVersion(rx, rz) {
+  return roomVersion.get(rx + ',' + rz) || 0;
+}
+function bumpRoomVersion(rx, rz) {
+  const k = rx + ',' + rz;
+  roomVersion.set(k, (roomVersion.get(k) || 0) + 1);
+}
+
+function isWallCell(cx, cz) {
+  const ax = mod2(cx), az = mod2(cz);
+  if (ax === 0 && az === 0) return false;
+  if (ax === 1 && az === 1) return true;
+
+  if (ax === 1 && az === 0) {
+    const rx = Math.floor((cx - 1) / 2), rz = Math.floor(cz / 2);
+    const v = getRoomVersion(rx, rz);
+    return hash2i(rx + v * 1013, rz - v * 727, SEED ^ 0x1f3a7b) > WALL_OPEN_RATE;
+  }
+  const rx = Math.floor(cx / 2), rz = Math.floor((cz - 1) / 2);
+  const v = getRoomVersion(rx, rz);
+  return hash2i(rx - v * 511, rz + v * 997, SEED ^ 0x7c21e5) > WALL_OPEN_RATE;
+}
+
+function isWhiteWallCell(cx, cz) {
+  return isWallCell(cx, cz) && hash2i(cx, cz, SEED ^ 0x9e3779b9) < 0.0001;
+}
+
+function lampAt(cx, cz) {
+  if (mod2(cx) !== 0 || mod2(cz) !== 0) return false;
+  const rx = cx / 2, rz = cz / 2;
+  const v = getRoomVersion(rx, rz);
+  return hash2i(rx + v * 331, rz - v * 557, SEED + 77713) < 0.42;
+}
+
+/* =========================================================================
+   3. 程序化纹理（含脏污 + 黑色细边框）
+   ========================================================================= */
+function makeCanvas(s) {
+  const c = document.createElement('canvas');
+  c.width = c.height = s;
+  return c;
+}
+
+function strokeTileBorder(ctx, S) {
+  const B = 5;
+  ctx.globalAlpha = 0.90;
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, S, B);
+  ctx.fillRect(0, S - B, S, B);
+  ctx.fillRect(0, 0, B, S);
+  ctx.fillRect(S - B, 0, B, S);
+  ctx.globalAlpha = 1;
+}
+
+function makeCarpetTexture() {
+  const S = 512;
+  const cv = makeCanvas(S);
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(S, S);
+  const D = img.data;
+  const sd = (Math.random() * 99999) | 0;
+
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const i = (y * S + x) * 4;
+      const knot = fbm(x * 0.055, y * 0.055, sd + 3, 4);
+      const fib  = vnoise(x * 0.22, y * 1.35, sd + 11);
+      const fib2 = vnoise(x * 1.4, y * 0.20, sd + 23);
+      const grain = hash2i(x, y, sd + 41);
+      const stain = fbm(x * 0.02, y * 0.02, sd + 67, 3);
+      let v = 0.40 + knot * 0.32 + fib * 0.12 + fib2 * 0.10 + (grain - 0.5) * 0.18;
+      if (stain < 0.38) v *= 0.55 + stain * 0.6;
+      v = Math.max(0.04, Math.min(1.1, v));
+      let r = 100 + v * 118, g = 52 + v * 78, b = 22 + v * 40;
+      if (grain > 0.985) { r *= 0.5; g *= 0.48; b *= 0.5; }
+      D[i] = r > 255 ? 255 : r;
+      D[i + 1] = g > 255 ? 255 : g;
+      D[i + 2] = b > 255 ? 255 : b;
+      D[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  ctx.globalAlpha = 0.12;
+  ctx.lineCap = 'round';
+  for (let k = 0; k < 130; k++) {
+    ctx.strokeStyle = Math.random() < 0.4 ? '#3a1a04' : '#ffd9a0';
+    ctx.lineWidth = Math.random() * 1.8 + 0.3;
+    const x0 = Math.random() * S, y0 = Math.random() * S;
+    const ang = Math.random() * Math.PI * 2;
+    const len = 20 + Math.random() * 150;
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  for (let k = 0; k < 80; k++) {
+    const x0 = Math.random() * S, y0 = Math.random() * S;
+    const rad = 15 + Math.random() * 100;
+    const g = ctx.createRadialGradient(x0, y0, 0, x0, y0, rad);
+    const dark = Math.random() < 0.65;
+    const alpha = 0.15 + Math.random() * 0.25;
+    g.addColorStop(0, dark ? `rgba(20,8,2,${alpha})` : `rgba(255,210,140,${alpha*0.5})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x0, y0, rad, 0, Math.PI * 2); ctx.fill();
+  }
+
+  ctx.globalAlpha = 0.22;
+  for (let k = 0; k < 22; k++) {
+    ctx.strokeStyle = '#0e0602';
+    ctx.lineWidth = 0.4 + Math.random() * 0.9;
+    let x0 = Math.random() * S, y0 = Math.random() * S;
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    const seg = 4 + (Math.random() * 7 | 0);
+    for (let s = 0; s < seg; s++) {
+      x0 += (Math.random() - 0.5) * 90;
+      y0 += (Math.random() - 0.5) * 90;
+      ctx.lineTo(x0, y0);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  for (let k = 0; k < 400; k++) {
+    const x0 = Math.random() * S, y0 = Math.random() * S;
+    const r = 0.5 + Math.random() * 2.5;
+    ctx.fillStyle = Math.random() < 0.7
+      ? `rgba(20,10,2,${0.15 + Math.random() * 0.3})`
+      : `rgba(255,220,150,${0.08 + Math.random() * 0.15})`;
+    ctx.beginPath(); ctx.arc(x0, y0, r, 0, Math.PI * 2); ctx.fill();
+  }
+
+  strokeTileBorder(ctx, S);
+  return cv;
+}
+
+function makeWallTexture() {
+  const S = 512;
+  const cv = makeCanvas(S);
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(S, S);
+  const D = img.data;
+  const sd = (Math.random() * 99999) | 0;
+
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const i = (y * S + x) * 4;
+      const big  = fbm(x * 0.008, y * 0.008, sd + 2, 4);
+      const mid  = fbm(x * 0.045, y * 0.045, sd + 19, 3);
+      const fine = fbm(x * 0.28, y * 0.28, sd + 31, 2);
+      const grain = hash2i(x, y, sd + 53);
+      let v = 0.42 + big * 0.24 + mid * 0.15 + fine * 0.10 + (grain - 0.5) * 0.10;
+      v = Math.max(0.06, Math.min(1.2, v));
+      let r = 118 + v * 100, g = 105 + v * 90, b = 58 + v * 62;
+      const stain = fbm(x * 0.014 + 100, y * 0.014 + 40, sd + 71, 3);
+      if (stain < 0.40) {
+        const t = (0.40 - stain) * 2.6;
+        r *= 1 - t * 0.45; g *= 1 - t * 0.45; b *= 1 - t * 0.35;
+      }
+      D[i] = r > 255 ? 255 : r;
+      D[i + 1] = g > 255 ? 255 : g;
+      D[i + 2] = b > 255 ? 255 : b;
+      D[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  ctx.lineCap = 'round';
+  for (let k = 0; k < 220; k++) {
+    const light = Math.random() < 0.45;
+    ctx.globalAlpha = light ? 0.10 + Math.random() * 0.14 : 0.08 + Math.random() * 0.12;
+    ctx.strokeStyle = light ? '#fff3c8' : '#2a1c08';
+    ctx.lineWidth = Math.random() * 1.8 + 0.25;
+    const x0 = Math.random() * S, y0 = Math.random() * S;
+    const ang = (Math.random() - 0.5) * 1.0 + (Math.random() < 0.5 ? 0 : Math.PI / 2);
+    const len = 12 + Math.random() * 140;
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  for (let k = 0; k < 60; k++) {
+    const x0 = Math.random() * S;
+    const y0 = Math.random() * S * 0.75;
+    const len = 25 + Math.random() * 200;
+    const drift = (Math.random() - 0.5) * 15;
+    ctx.globalAlpha = 0.10 + Math.random() * 0.16;
+    ctx.strokeStyle = Math.random() < 0.65 ? '#1a1004' : '#4a3410';
+    ctx.lineWidth = 0.5 + Math.random() * 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.quadraticCurveTo(x0 + drift * 0.5, y0 + len * 0.5, x0 + drift, y0 + len);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  for (let k = 0; k < 60; k++) {
+    const x0 = Math.random() * S, y0 = Math.random() * S;
+    const rad = 15 + Math.random() * 80;
+    const g = ctx.createRadialGradient(x0, y0, 0, x0, y0, rad);
+    const darkness = 0.25 + Math.random() * 0.35;
+    g.addColorStop(0, `rgba(20, 12, 3, ${darkness})`);
+    g.addColorStop(1, 'rgba(20, 12, 3, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x0, y0, rad, 0, Math.PI * 2); ctx.fill();
+  }
+
+  ctx.globalAlpha = 0.28;
+  for (let k = 0; k < 25; k++) {
+    ctx.strokeStyle = '#0f0802';
+    ctx.lineWidth = 0.4 + Math.random() * 0.9;
+    let x0 = Math.random() * S, y0 = Math.random() * S;
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    const seg = 5 + (Math.random() * 8 | 0);
+    for (let s = 0; s < seg; s++) {
+      x0 += (Math.random() - 0.5) * 110;
+      y0 += (Math.random() - 0.5) * 110;
+      ctx.lineTo(x0, y0);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  for (let k = 0; k < 300; k++) {
+    const x0 = Math.random() * S, y0 = Math.random() * S;
+    const r = 0.5 + Math.random() * 2.5;
+    ctx.fillStyle = Math.random() < 0.75
+      ? `rgba(15,8,2,${0.12 + Math.random() * 0.28})`
+      : `rgba(255,240,190,${0.06 + Math.random() * 0.14})`;
+    ctx.beginPath(); ctx.arc(x0, y0, r, 0, Math.PI * 2); ctx.fill();
+  }
+
+  strokeTileBorder(ctx, S);
+  return cv;
+}
+
+function makeCeilingTexture() {
+  const S = 512;
+  const cv = makeCanvas(S);
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(S, S);
+  const D = img.data;
+  const sd = (Math.random() * 99999) | 0;
+
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const i = (y * S + x) * 4;
+      const big  = fbm(x * 0.010, y * 0.010, sd + 5, 4);
+      const mid  = fbm(x * 0.070, y * 0.070, sd + 17, 3);
+      const fine = fbm(x * 0.40, y * 0.40, sd + 29, 2);
+      const grain = hash2i(x, y, sd + 61);
+      const water = fbm(x * 0.016, y * 0.016, sd + 83, 3);
+      let v = 0.50 + big * 0.20 + mid * 0.13 + fine * 0.08 + (grain - 0.5) * 0.09;
+      if (water < 0.42) v *= 0.70 + water * 0.5;
+      v = Math.max(0.06, Math.min(1.2, v));
+      let r = 140 + v * 90, g = 126 + v * 82, b = 78 + v * 60;
+      const stain = fbm(x * 0.014 + 100, y * 0.014 + 40, sd + 71, 3);
+      if (stain < 0.38) {
+        const t = (0.38 - stain) * 2.6;
+        r *= 1 - t * 0.40; g *= 1 - t * 0.38; b *= 1 - t * 0.30;
+      }
+      D[i] = r > 255 ? 255 : r;
+      D[i + 1] = g > 255 ? 255 : g;
+      D[i + 2] = b > 255 ? 255 : b;
+      D[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const cell = S / 4;
+  for (let i = 0; i <= 4; i++) {
+    const p = i * cell;
+    const gv = ctx.createLinearGradient(p - 4, 0, p + 4, 0);
+    gv.addColorStop(0, 'rgba(40,30,15,0)');
+    gv.addColorStop(0.5, 'rgba(40,30,15,0.75)');
+    gv.addColorStop(1, 'rgba(40,30,15,0)');
+    ctx.fillStyle = gv;
+    ctx.fillRect(p - 4, 0, 8, S);
+    const gh = ctx.createLinearGradient(0, p - 4, 0, p + 4);
+    gh.addColorStop(0, 'rgba(40,30,15,0)');
+    gh.addColorStop(0.5, 'rgba(40,30,15,0.75)');
+    gh.addColorStop(1, 'rgba(40,30,15,0)');
+    ctx.fillStyle = gh;
+    ctx.fillRect(0, p - 4, S, 8);
+  }
+  ctx.globalAlpha = 0.15;
+  ctx.strokeStyle = '#ffe9b0';
+  ctx.lineWidth = 1.2;
+  for (let i = 0; i <= 4; i++) {
+    ctx.beginPath(); ctx.moveTo(i * cell + 3, 0); ctx.lineTo(i * cell + 3, S); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * cell + 3); ctx.lineTo(S, i * cell + 3); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.lineCap = 'round';
+  for (let k = 0; k < 130; k++) {
+    ctx.globalAlpha = 0.10 + Math.random() * 0.14;
+    ctx.strokeStyle = Math.random() < 0.5 ? '#fff0c0' : '#2a1e08';
+    ctx.lineWidth = Math.random() * 1.6 + 0.25;
+    const x0 = Math.random() * S, y0 = Math.random() * S;
+    const ang = Math.random() * Math.PI * 2;
+    const len = 10 + Math.random() * 100;
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  for (let k = 0; k < 50; k++) {
+    const x0 = Math.random() * S, y0 = Math.random() * S;
+    const rad = 20 + Math.random() * 90;
+    const g = ctx.createRadialGradient(x0, y0, 0, x0, y0, rad);
+    const dark = Math.random() < 0.6;
+    const alpha = 0.14 + Math.random() * 0.22;
+    g.addColorStop(0, dark
+      ? `rgba(30, 18, 6, ${alpha})`
+      : `rgba(160, 120, 60, ${alpha * 0.7})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x0, y0, rad, 0, Math.PI * 2); ctx.fill();
+  }
+
+  for (let k = 0; k < 200; k++) {
+    const x0 = Math.random() * S, y0 = Math.random() * S;
+    const r = 0.5 + Math.random() * 2;
+    ctx.fillStyle = Math.random() < 0.7
+      ? `rgba(15,10,3,${0.12 + Math.random() * 0.25})`
+      : `rgba(240,220,160,${0.06 + Math.random() * 0.14})`;
+    ctx.beginPath(); ctx.arc(x0, y0, r, 0, Math.PI * 2); ctx.fill();
+  }
+  return cv;
+}
+
+/* =========================================================================
+   4. GL 工具
+   ========================================================================= */
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s), src);
+    throw new Error('shader compile failed');
+  }
+  return s;
+}
+function program(vsSrc, fsSrc) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(p));
+    throw new Error('program link failed');
+  }
+  return p;
+}
+function texFromCanvas(cv) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  const ext = gl.getExtension('EXT_texture_filter_anisotropic');
+  if (ext) {
+    const max = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+    gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, max));
+  }
+  return t;
+}
+
+/* =========================================================================
+   5. 矩阵
+   ========================================================================= */
+function perspectiveMat(fov, aspect, near, far) {
+  const f = 1 / Math.tan(fov / 2);
+  const nf = 1 / (near - far);
+  return new Float32Array([
+    f / aspect, 0, 0, 0,
+    0, f, 0, 0,
+    0, 0, (far + near) * nf, -1,
+    0, 0, 2 * far * near * nf, 0
+  ]);
+}
+function viewMat(ex, ey, ez, yaw, pitch) {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const fx = -sy * cp, fy = sp, fz = -cy * cp;
+  const rx = cy, ry = 0, rz = -sy;
+  const ux = ry * fz - rz * fy;
+  const uy = rz * fx - rx * fz;
+  const uz = rx * fy - ry * fx;
+  return new Float32Array([
+    rx, ux, -fx, 0,
+    ry, uy, -fy, 0,
+    rz, uz, -fz, 0,
+    -(rx * ex + ry * ey + rz * ez),
+    -(ux * ex + uy * ey + uz * ez),
+    (fx * ex + fy * ey + fz * ez),
+    1
+  ]);
+}
+function matMul(a, b) {
+  const o = new Float32Array(16);
+  for (let i = 0; i < 4; i++)
+    for (let j = 0; j < 4; j++) {
+      let s = 0;
+      for (let k = 0; k < 4; k++) s += a[k * 4 + j] * b[i * 4 + k];
+      o[i * 4 + j] = s;
+    }
+  return o;
+}
+
+/* =========================================================================
+   6. 着色器
+   ========================================================================= */
+const SCENE_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNormal;
+uniform mat4 uViewProj;
+out vec3 vWorldPos;
+out vec3 vNormal;
+void main(){
+  vWorldPos = aPos;
+  vNormal   = aNormal;
+  gl_Position = uViewProj * vec4(aPos, 1.0);
+}`;
+
+const SCENE_FS = `#version 300 es
+precision highp float;
+in vec3 vWorldPos;
+in vec3 vNormal;
+
+uniform sampler2D uTex;
+uniform vec3  uTint;
+uniform vec3  uAmbient;
+uniform float uUVScale;
+uniform float uBump;
+uniform float uLightFalloff;
+uniform int   uNumLamps;
+uniform vec3  uLampPos[8];
+uniform vec3  uLampCol[8];
+
+out vec4 fragColor;
+
+float hash21(vec2 p){
+  p = fract(p * vec2(443.897, 441.423));
+  p += dot(p, p.yx + 19.19);
+  return fract((p.x + p.y) * p.x);
+}
+
+void main(){
+  vec3 N = normalize(vNormal);
+
+  bool isFloor   = (N.y >  0.5);
+  bool isCeiling = (N.y < -0.5);
+  bool isWall    = !isFloor && !isCeiling;
+
+  vec2 uv;
+  if (isFloor || isCeiling) {
+    uv = vWorldPos.xz;
+  } else {
+    uv = vec2(dot(vWorldPos.xz, vec2(-N.z, N.x)), vWorldPos.y);
+  }
+  uv *= uUVScale;
+
+  if (isFloor || isWall) {
+    vec2 tileId = floor(uv);
+    vec2 local  = fract(uv);
+
+    float h = hash21(tileId + 0.5);
+    if (h >= 0.25 && h < 0.50) {
+      local = vec2(1.0 - local.y, local.x);
+    } else if (h >= 0.50 && h < 0.75) {
+      local = vec2(1.0 - local.x, 1.0 - local.y);
+    } else if (h >= 0.75) {
+      local = vec2(local.y, 1.0 - local.x);
+    }
+    uv = tileId + local;
+  }
+
+  vec3 T = (abs(N.y) > 0.5) ? vec3(1.0, 0.0, 0.0) : normalize(vec3(-N.z, 0.0, N.x));
+  vec3 B = (abs(N.y) > 0.5) ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+
+  vec3 c0 = texture(uTex, uv).rgb;
+  float e = 0.0022;
+  float h0 = dot(c0, vec3(0.33333));
+  float hT = dot(texture(uTex, uv + vec2(e, 0.0)).rgb, vec3(0.33333));
+  float hB = dot(texture(uTex, uv + vec2(0.0, e)).rgb, vec3(0.33333));
+  N = normalize(N - uBump * ((hT - h0) * T + (hB - h0) * B));
+
+  vec3 albedo = c0 * uTint;
+
+  vec2 wp = vWorldPos.xz;
+  float grime = 0.5 + 0.5 * sin(wp.x * 1.3 + sin(wp.y * 0.8));
+  grime *= 0.5 + 0.5 * sin(wp.y * 1.7 + sin(wp.x * 0.9));
+  grime = pow(grime, 1.6);
+  albedo *= mix(0.68, 1.05, grime);
+
+  vec3 light = uAmbient;
+  for (int i = 0; i < 8; i++) {
+    if (i >= uNumLamps) break;
+    vec3 d = uLampPos[i] - vWorldPos;
+    float dist2 = dot(d, d);
+    float att = 1.0 / (1.0 + dist2 * uLightFalloff);
+    float ndl = max(dot(N, normalize(d)), 0.0);
+    light += uLampCol[i] * att * (ndl * 0.86 + 0.14);
+  }
+
+  vec3 col = albedo * light;
+  col = pow(max(col, vec3(0.0)), vec3(0.88));
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const WHITE_WALL_FS = `#version 300 es
+precision highp float;
+in vec3 vWorldPos;
+in vec3 vNormal;
+out vec4 fragColor;
+void main(){
+  vec3 N = normalize(vNormal);
+  float ndl = 0.88 + 0.12 * max(N.y, 0.0);
+  fragColor = vec4(vec3(ndl), 1.0);
+}`;
+
+const LAMP_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec2 aUV;
+uniform mat4 uViewProj;
+out vec2 vUV;
+out vec3 vWorldPos;
+void main(){
+  vUV = aUV;
+  vWorldPos = aPos;
+  gl_Position = uViewProj * vec4(aPos, 1.0);
+}`;
+
+const LAMP_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+in vec3 vWorldPos;
+uniform vec3 uMonsterPos;
+uniform float uWarnRadius;
+out vec4 fragColor;
+void main(){
+  vec2 q = abs(vUV - 0.5) * 2.0;
+  float b = max(q.x, q.y);
+  float inner = 1.0 - smoothstep(0.70, 0.76, b);
+
+  float distM = distance(vWorldPos.xz, uMonsterPos.xz);
+  float warn = 1.0 - smoothstep(uWarnRadius * 0.55, uWarnRadius, distM);
+
+  vec3 lit = mix(vec3(1.0, 0.96, 0.82), vec3(1.0, 0.06, 0.015), warn);
+  vec3 col = mix(vec3(0.015), lit, inner);
+  col += vec3(0.06, 0.055, 0.045) * inner * (1.0 - warn * 0.7);
+  col += vec3(0.85, 0.03, 0.0) * inner * warn * 0.65;
+  fragColor = vec4(col, 1.0);
+}`;
+
+const FS_VS = `#version 300 es
+layout(location=0) in vec2 aPos;
+out vec2 vUV;
+void main(){
+  vUV = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
+const ACC_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uCur;
+uniform sampler2D uPrev;
+uniform float uDecay;
+uniform float uInit;
+out vec4 fragColor;
+void main(){
+  vec3 c = texture(uCur,  vUV).rgb;
+  vec3 p = texture(uPrev, vUV).rgb;
+  fragColor = vec4(mix(c, p, uDecay * uInit), 1.0);
+}`;
+
+const FINAL_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uTex;
+uniform vec2  uRes;
+uniform float uTime;
+uniform float uCA;
+uniform float uGrain;
+uniform float uVig;
+out vec4 fragColor;
+
+float hash21(vec2 p){
+  p = fract(p * vec2(443.897, 441.423));
+  p += dot(p, p.yx + 19.19);
+  return fract((p.x + p.y) * p.x);
+}
+
+void main(){
+  vec2 uv = vUV;
+  vec2 cc = uv - 0.5;
+  float d = length(cc);
+
+  vec2 off = cc * d * uCA;
+  float r = texture(uTex, uv + off).r;
+  float g = texture(uTex, uv).g;
+  float b = texture(uTex, uv - off).b;
+  vec3 col = vec3(r, g, b);
+
+  float n = hash21(uv * uRes * 0.65 + vec2(uTime * 37.13, uTime * 71.7));
+  col += (n - 0.5) * uGrain;
+
+  float vig = smoothstep(1.02, 0.28, d);
+  col *= mix(1.0, vig, uVig);
+
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const STICK_VS = `#version 300 es
+precision highp float;
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aDir;
+layout(location=2) in float aSide;
+layout(location=3) in float aWidth;
+
+uniform mat4 uVP;
+uniform vec2 uRes;
+
+void main(){
+  vec4 c0 = uVP * vec4(aPos, 1.0);
+  if (c0.w <= 0.0001) {
+    gl_Position = vec4(0.0, 0.0, -2.0, 1.0);
+    return;
+  }
+  vec4 c1 = uVP * vec4(aPos + aDir * 0.05, 1.0);
+
+  vec2 s0 = c0.xy / c0.w;
+  vec2 s1 = c1.xy / max(c1.w, 0.0001);
+
+  vec2 d = (s1 - s0) * uRes;
+  float L = length(d);
+  vec2 dir = (L > 1e-7) ? d / L : vec2(1.0, 0.0);
+  vec2 nrm = vec2(-dir.y, dir.x);
+
+  vec2 off = nrm * (aSide * aWidth * 0.5) * 2.0 / uRes;
+
+  vec4 p = c0;
+  p.xy += off * c0.w;
+  gl_Position = p;
+}`;
+
+const STICK_FS = `#version 300 es
+precision highp float;
+out vec4 fragColor;
+void main(){
+  fragColor = vec4(0.10, 0.02, 0.025, 1.0);
+}`;
+
+const sceneProg = program(SCENE_VS, SCENE_FS);
+const whiteWallProg = program(SCENE_VS, WHITE_WALL_FS);
+const lampProg  = program(LAMP_VS, LAMP_FS);
+const accProg   = program(FS_VS, ACC_FS);
+const finalProg = program(FS_VS, FINAL_FS);
+const stickProg = program(STICK_VS, STICK_FS);
+
+const SU = {
+  viewProj:     gl.getUniformLocation(sceneProg, 'uViewProj'),
+  tex:          gl.getUniformLocation(sceneProg, 'uTex'),
+  tint:         gl.getUniformLocation(sceneProg, 'uTint'),
+  ambient:      gl.getUniformLocation(sceneProg, 'uAmbient'),
+  uvScale:      gl.getUniformLocation(sceneProg, 'uUVScale'),
+  bump:         gl.getUniformLocation(sceneProg, 'uBump'),
+  lightFalloff: gl.getUniformLocation(sceneProg, 'uLightFalloff'),
+  numLamps:     gl.getUniformLocation(sceneProg, 'uNumLamps'),
+  lampPos:      gl.getUniformLocation(sceneProg, 'uLampPos[0]'),
+  lampCol:      gl.getUniformLocation(sceneProg, 'uLampCol[0]')
+};
+const WWU = { viewProj: gl.getUniformLocation(whiteWallProg, 'uViewProj') };
+const LU = {
+  viewProj:   gl.getUniformLocation(lampProg, 'uViewProj'),
+  monsterPos: gl.getUniformLocation(lampProg, 'uMonsterPos'),
+  warnRadius: gl.getUniformLocation(lampProg, 'uWarnRadius')
+};
+const AU = {
+  cur:   gl.getUniformLocation(accProg, 'uCur'),
+  prev:  gl.getUniformLocation(accProg, 'uPrev'),
+  decay: gl.getUniformLocation(accProg, 'uDecay'),
+  init:  gl.getUniformLocation(accProg, 'uInit')
+};
+const FU = {
+  tex:   gl.getUniformLocation(finalProg, 'uTex'),
+  res:   gl.getUniformLocation(finalProg, 'uRes'),
+  time:  gl.getUniformLocation(finalProg, 'uTime'),
+  ca:    gl.getUniformLocation(finalProg, 'uCA'),
+  grain: gl.getUniformLocation(finalProg, 'uGrain'),
+  vig:   gl.getUniformLocation(finalProg, 'uVig')
+};
+const STU = {
+  vp:  gl.getUniformLocation(stickProg, 'uVP'),
+  res: gl.getUniformLocation(stickProg, 'uRes')
+};
+
+/* =========================================================================
+   7. 纹理实例
+   ========================================================================= */
+const texCarpet  = texFromCanvas(makeCarpetTexture());
+const texWall    = texFromCanvas(makeWallTexture());
+const texCeiling = texFromCanvas(makeCeilingTexture());
+
+/* =========================================================================
+   8. 几何体
+   ========================================================================= */
+let wallVAO = gl.createVertexArray();
+let wallVBO = gl.createBuffer();
+let wallVertCount = 0;
+
+gl.bindVertexArray(wallVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, wallVBO);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+gl.bindVertexArray(null);
+
+let whiteWallVAO = gl.createVertexArray();
+let whiteWallVBO = gl.createBuffer();
+let whiteWallVertCount = 0;
+
+gl.bindVertexArray(whiteWallVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, whiteWallVBO);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+gl.bindVertexArray(null);
+
+function makeQuadVAO() {
+  const vao = gl.createVertexArray();
+  const vbo = gl.createBuffer();
+  gl.bindVertexArray(vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, 6 * 6 * 4, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(1);
+  gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+  gl.bindVertexArray(null);
+  return { vao, vbo };
+}
+const floorQuad = makeQuadVAO();
+const ceilQuad  = makeQuadVAO();
+
+let lampVAO = gl.createVertexArray();
+let lampVBO = gl.createBuffer();
+let lampVertCount = 0;
+gl.bindVertexArray(lampVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, lampVBO);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 20, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 20, 12);
+gl.bindVertexArray(null);
+
+const fsVAO = gl.createVertexArray();
+const fsVBO = gl.createBuffer();
+gl.bindVertexArray(fsVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, fsVBO);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1,  -1, 1,
+  -1,  1,  1, -1,   1, 1
+]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 8, 0);
+gl.bindVertexArray(null);
+
+const stickVAO = gl.createVertexArray();
+const stickVBO = gl.createBuffer();
+const stickIBO = gl.createBuffer();
+
+gl.bindVertexArray(stickVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, stickVBO);
+const STICK_STRIDE = 8 * 4;
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, STICK_STRIDE, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 3, gl.FLOAT, false, STICK_STRIDE, 12);
+gl.enableVertexAttribArray(2);
+gl.vertexAttribPointer(2, 1, gl.FLOAT, false, STICK_STRIDE, 24);
+gl.enableVertexAttribArray(3);
+gl.vertexAttribPointer(3, 1, gl.FLOAT, false, STICK_STRIDE, 28);
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, stickIBO);
+gl.bindVertexArray(null);
+
+/* =========================================================================
+   9. 区块构建（含白墙分离）
+   ========================================================================= */
+let lampList = [];
+let builtCX = 1e9, builtCZ = 1e9;
+
+function pushQuad(arr, p0, p1, p2, p3, n) {
+  const pts = [p0, p1, p2, p0, p2, p3];
+  for (let i = 0; i < 6; i++) {
+    const p = pts[i];
+    arr.push(p[0], p[1], p[2], n[0], n[1], n[2]);
+  }
+}
+
+function rebuild(cx0, cz0) {
+  const arr = [];
+  const warr = [];
+  const H = WALL_H;
+
+  for (let cz = cz0 - VIEW_R; cz <= cz0 + VIEW_R; cz++) {
+    for (let cx = cx0 - VIEW_R; cx <= cx0 + VIEW_R; cx++) {
+      if (!isWallCell(cx, cz)) continue;
+      const isWhite = isWhiteWallCell(cx, cz);
+      const target = isWhite ? warr : arr;
+      const x0 = cx * CELL, x1 = (cx + 1) * CELL;
+      const z0 = cz * CELL, z1 = (cz + 1) * CELL;
+
+      if (!isWallCell(cx + 1, cz))
+        pushQuad(target, [x1, 0, z1], [x1, 0, z0], [x1, H, z0], [x1, H, z1], [1, 0, 0]);
+      if (!isWallCell(cx - 1, cz))
+        pushQuad(target, [x0, 0, z0], [x0, 0, z1], [x0, H, z1], [x0, H, z0], [-1, 0, 0]);
+      if (!isWallCell(cx, cz + 1))
+        pushQuad(target, [x0, 0, z1], [x1, 0, z1], [x1, H, z1], [x0, H, z1], [0, 0, 1]);
+      if (!isWallCell(cx, cz - 1))
+        pushQuad(target, [x1, 0, z0], [x0, 0, z0], [x0, H, z0], [x1, H, z0], [0, 0, -1]);
+    }
+  }
+
+  wallVertCount = arr.length / 6;
+  gl.bindBuffer(gl.ARRAY_BUFFER, wallVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.DYNAMIC_DRAW);
+
+  whiteWallVertCount = warr.length / 6;
+  gl.bindBuffer(gl.ARRAY_BUFFER, whiteWallVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(warr), gl.DYNAMIC_DRAW);
+
+  const larr = [];
+  lampList = [];
+  const y = CEIL_H - 0.02;
+  const s = 0.21 * CELL;
+
+  for (let cz = cz0 - VIEW_R; cz <= cz0 + VIEW_R; cz++) {
+    for (let cx = cx0 - VIEW_R; cx <= cx0 + VIEW_R; cx++) {
+      if (!lampAt(cx, cz)) continue;
+      const lx = (cx + 0.5) * CELL;
+      const lz = (cz + 0.5) * CELL;
+      const X0 = lx - s, X1 = lx + s, Z0 = lz - s, Z1 = lz + s;
+      const verts = [
+        [X0, y, Z0, 0, 0],
+        [X1, y, Z0, 1, 0],
+        [X1, y, Z1, 1, 1],
+        [X0, y, Z0, 0, 0],
+        [X1, y, Z1, 1, 1],
+        [X0, y, Z1, 0, 1]
+      ];
+      for (let i = 0; i < verts.length; i++) {
+        larr.push(verts[i][0], verts[i][1], verts[i][2], verts[i][3], verts[i][4]);
+      }
+      lampList.push({ x: lx, y: CEIL_H - 0.12, z: lz });
+    }
+  }
+  lampVertCount = larr.length / 5;
+  gl.bindBuffer(gl.ARRAY_BUFFER, lampVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(larr), gl.DYNAMIC_DRAW);
+
+  builtCX = cx0; builtCZ = cz0;
+}
+
+/* =========================================================================
+   10. 玩家 / 相机 / 怪物
+   ========================================================================= */
+const player = {
+  x: 0.5 * CELL, z: 0.5 * CELL,
+  yaw: 0, pitch: 0,
+  bobT: 0, bobAmp: 0.008,
+  radius: 0.26 * CELL
+};
+
+function collidesAt(x, z, r) {
+  return isWallCell(Math.floor((x - r) / CELL), Math.floor((z - r) / CELL)) ||
+         isWallCell(Math.floor((x + r) / CELL), Math.floor((z - r) / CELL)) ||
+         isWallCell(Math.floor((x - r) / CELL), Math.floor((z + r) / CELL)) ||
+         isWallCell(Math.floor((x + r) / CELL), Math.floor((z + r) / CELL));
+}
+function collides(x, z) {
+  return collidesAt(x, z, player.radius);
+}
+
+function collidesWhiteWall(x, z) {
+  const r = player.radius;
+  return isWhiteWallCell(Math.floor((x - r) / CELL), Math.floor((z - r) / CELL)) ||
+         isWhiteWallCell(Math.floor((x + r) / CELL), Math.floor((z - r) / CELL)) ||
+         isWhiteWallCell(Math.floor((x - r) / CELL), Math.floor((z + r) / CELL)) ||
+         isWhiteWallCell(Math.floor((x + r) / CELL), Math.floor((z + r) / CELL));
+}
+
+const PHASE_DURATION = 20;
+const MONSTER_WARN_RADIUS = 6 * CELL;
+const MONSTER_LOCK_RADIUS = 6 * CELL;
+const MONSTER_AI_RADIUS = 5;
+const MONSTER_SPEED = 2.25 * CELL;
+const MONSTER_CATCH_DIST = 0.72 * CELL;
+
+let phaseTimer = PHASE_DURATION;
+let monsterActive = false;
+
+const monster = {
+  x: 0, z: 0,
+  radius: 0.30 * CELL,
+  state: 'chase',
+  path: [],
+  pathIndex: 0,
+  repathTimer: 0,
+  waitTimer: 0
+};
+
+let caughtFlash = 0;
+const caughtEl = document.getElementById('caught');
+const phaseEl = document.getElementById('phase');
+
+let gameState = 'playing';
+
+function isRoomProtectedByMonster(rx, rz) {
+  if (!monsterActive) return false;
+  const wx = (2 * rx + 1) * CELL;
+  const wz = (2 * rz + 1) * CELL;
+  const dx = wx - monster.x;
+  const dz = wz - monster.z;
+  return dx * dx + dz * dz <= MONSTER_LOCK_RADIUS * MONSTER_LOCK_RADIUS;
+}
+
+function findWalkableSpawn(minCells, maxCells, avoidMinWorld) {
+  const minR = minCells * CELL;
+  const maxR = maxCells * CELL;
+
+  for (let attempt = 0; attempt < 140; attempt++) {
+    const ang = Math.random() * Math.PI * 2;
+    const r = minR + Math.random() * (maxR - minR);
+    const wx0 = player.x + Math.cos(ang) * r;
+    const wz0 = player.z + Math.sin(ang) * r;
+    const cx = Math.floor(wx0 / CELL);
+    const cz = Math.floor(wz0 / CELL);
+    const wx = (cx + 0.5) * CELL;
+    const wz = (cz + 0.5) * CELL;
+    if (isWallCell(cx, cz)) continue;
+    if (collidesAt(wx, wz, monster.radius)) continue;
+    const d = Math.hypot(wx - player.x, wz - player.z);
+    if (d < avoidMinWorld) continue;
+    if (d > maxR + CELL * 1.8) continue;
+    return { x: wx, z: wz };
+  }
+
+  const centerCX = Math.floor(player.x / CELL);
+  const centerCZ = Math.floor(player.z / CELL);
+  const minCell = Math.max(1, Math.floor(minCells));
+  const maxCell = Math.ceil(maxCells) + 2;
+
+  for (let ring = minCell; ring <= maxCell; ring++) {
+    for (let dz = -ring; dz <= ring; dz++) {
+      for (let dx = -ring; dx <= ring; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== ring) continue;
+        const cx = centerCX + dx;
+        const cz = centerCZ + dz;
+        if (isWallCell(cx, cz)) continue;
+        const wx = (cx + 0.5) * CELL;
+        const wz = (cz + 0.5) * CELL;
+        const d = Math.hypot(wx - player.x, wz - player.z);
+        if (d < avoidMinWorld) continue;
+        if (collidesAt(wx, wz, monster.radius)) continue;
+        return { x: wx, z: wz };
+      }
+    }
+  }
+
+  return { x: player.x + minCells * CELL, z: player.z };
+}
+
+function initMonster() {
+  const p = findWalkableSpawn(6, 9, 4.5 * CELL);
+  monster.x = p.x;
+  monster.z = p.z;
+  monster.state = 'chase';
+  monster.path = [];
+  monster.pathIndex = 0;
+  monster.repathTimer = 0.3;
+  monster.waitTimer = 0;
+}
+
+function chooseMonsterTarget(scx, scz) {
+  const R = MONSTER_AI_RADIUS;
+  let best = null;
+  let bestScore = Infinity;
+
+  for (let dz = -R; dz <= R; dz++) {
+    for (let dx = -R; dx <= R; dx++) {
+      const cx = scx + dx;
+      const cz = scz + dz;
+      if (isWallCell(cx, cz)) continue;
+      const wx = (cx + 0.5) * CELL;
+      const wz = (cz + 0.5) * CELL;
+      const dPlayer = Math.hypot(wx - player.x, wz - player.z);
+      const dMonster = Math.hypot(wx - monster.x, wz - monster.z);
+      const score = dPlayer + dMonster * 0.08;
+      if (score < bestScore) {
+        bestScore = score;
+        best = { cx, cz };
+      }
+    }
+  }
+  return best;
+}
+
+function cellKey(cx, cz) { return cx + ',' + cz; }
+
+function findPathAStar(startCX, startCZ, goalCX, goalCZ, radius) {
+  const minX = startCX - radius, maxX = startCX + radius;
+  const minZ = startCZ - radius, maxZ = startCZ + radius;
+  const open = [];
+  const gScore = new Map();
+  const came = new Map();
+  const closed = new Set();
+
+  const sk = cellKey(startCX, startCZ);
+  gScore.set(sk, 0);
+  open.push({
+    x: startCX, z: startCZ, g: 0,
+    f: Math.abs(goalCX - startCX) + Math.abs(goalCZ - startCZ)
+  });
+
+  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+
+  while (open.length > 0) {
+    let bestI = 0;
+    for (let i = 1; i < open.length; i++) {
+      if (open[i].f < open[bestI].f) bestI = i;
+    }
+    const cur = open.splice(bestI, 1)[0];
+    const ck = cellKey(cur.x, cur.z);
+    if (closed.has(ck)) continue;
+
+    if (cur.x === goalCX && cur.z === goalCZ) {
+      const path = [];
+      let cx = goalCX, cz = goalCZ;
+      while (true) {
+        path.push({ cx, cz });
+        if (cx === startCX && cz === startCZ) break;
+        const parentKey = came.get(cellKey(cx, cz));
+        if (!parentKey) return null;
+        const parts = parentKey.split(',');
+        cx = +parts[0];
+        cz = +parts[1];
+      }
+      path.reverse();
+      return path;
+    }
+
+    closed.add(ck);
+
+    for (const d of dirs) {
+      const nx = cur.x + d[0];
+      const nz = cur.z + d[1];
+      if (nx < minX || nx > maxX || nz < minZ || nz > maxZ) continue;
+      if (isWallCell(nx, nz)) continue;
+      const nk = cellKey(nx, nz);
+      if (closed.has(nk)) continue;
+
+      const tentative = cur.g + 1;
+      const old = gScore.get(nk);
+      if (old === undefined || tentative < old) {
+        gScore.set(nk, tentative);
+        came.set(nk, ck);
+        const h = Math.abs(goalCX - nx) + Math.abs(goalCZ - nz);
+        open.push({ x: nx, z: nz, g: tentative, f: tentative + h });
+      }
+    }
+  }
+  return null;
+}
+
+function enterMonsterWait() {
+  if (monster.state === 'wait') return;
+  monster.state = 'wait';
+  monster.waitTimer = 1.15 + Math.random() * 0.95;
+  monster.path = [];
+  monster.pathIndex = 0;
+}
+
+function teleportMonsterNearPlayer() {
+  const p = findWalkableSpawn(4, 6, 3.5 * CELL);
+  monster.x = p.x;
+  monster.z = p.z;
+  monster.state = 'chase';
+  monster.path = [];
+  monster.pathIndex = 0;
+  monster.repathTimer = 0.28;
+  monster.waitTimer = 0;
+}
+
+function planMonsterPath() {
+  const scx = Math.floor(monster.x / CELL);
+  const scz = Math.floor(monster.z / CELL);
+
+  const target = chooseMonsterTarget(scx, scz);
+  if (!target) {
+    enterMonsterWait();
+    return;
+  }
+
+  const pathCells = findPathAStar(scx, scz, target.cx, target.cz, MONSTER_AI_RADIUS);
+  const targetWX = (target.cx + 0.5) * CELL;
+  const targetWZ = (target.cz + 0.5) * CELL;
+  const targetDistP = Math.hypot(targetWX - player.x, targetWZ - player.z);
+  const curDistP = Math.hypot(monster.x - player.x, monster.z - player.z);
+
+  if (!pathCells || pathCells.length <= 1) {
+    if (curDistP > 3.0 * CELL) {
+      enterMonsterWait();
+    } else {
+      monster.path = [];
+      monster.pathIndex = 0;
+      monster.repathTimer = 0.26;
+    }
+    return;
+  }
+
+  if (targetDistP > curDistP + 0.4 * CELL && curDistP > 3.5 * CELL) {
+    enterMonsterWait();
+    return;
+  }
+
+  monster.path = pathCells.map(p => ({
+    x: (p.cx + 0.5) * CELL,
+    z: (p.cz + 0.5) * CELL
+  }));
+  monster.pathIndex = 1;
+}
+
+function updateMonster(dt) {
+  if (monster.state === 'wait') {
+    monster.waitTimer -= dt;
+    if (monster.waitTimer <= 0) {
+      teleportMonsterNearPlayer();
+    }
+    return;
+  }
+
+  const distP = Math.hypot(player.x - monster.x, player.z - monster.z);
+  if (distP < MONSTER_CATCH_DIST) {
+    gameState = 'lost';
+    showEndScreen('lost');
+    return;
+  }
+
+  monster.repathTimer -= dt;
+  if (monster.repathTimer <= 0 || monster.path.length === 0 ||
+      monster.pathIndex >= monster.path.length) {
+    planMonsterPath();
+    monster.repathTimer = 0.30;
+  }
+
+  if (monster.state !== 'chase') return;
+  if (monster.pathIndex >= monster.path.length) return;
+
+  const t = monster.path[monster.pathIndex];
+  let dx = t.x - monster.x;
+  let dz = t.z - monster.z;
+  const d = Math.hypot(dx, dz);
+
+  if (d < 0.045 * CELL) {
+    monster.pathIndex++;
+    return;
+  }
+
+  const step = Math.min(d, MONSTER_SPEED * dt);
+  const nx = monster.x + dx / d * step;
+  const nz = monster.z + dz / d * step;
+
+  if (!collidesAt(nx, monster.z, monster.radius)) {
+    monster.x = nx;
+  } else {
+    monster.repathTimer = 0;
+  }
+  if (!collidesAt(monster.x, nz, monster.radius)) {
+    monster.z = nz;
+  } else {
+    monster.repathTimer = 0;
+  }
+}
+
+function updateCaughtFlash(dt) {
+  if (caughtFlash > 0) {
+    caughtFlash = Math.max(0, caughtFlash - dt * 1.8);
+    caughtEl.style.opacity = (caughtFlash * 0.85).toFixed(3);
+  } else if (caughtEl.style.opacity !== '0') {
+    caughtEl.style.opacity = '0';
+  }
+}
+
+function updatePhase(dt) {
+  phaseTimer -= dt;
+  if (phaseTimer > 0) return;
+
+  phaseTimer += PHASE_DURATION;
+  monsterActive = !monsterActive;
+
+  if (monsterActive) {
+    teleportMonsterNearPlayer();
+  } else {
+    monster.path = [];
+    monster.pathIndex = 0;
+  }
+}
+
+function updatePhaseHint() {
+  if (gameState !== 'playing') {
+    if (phaseEl.textContent !== '') phaseEl.textContent = '';
+    return;
+  }
+  const rem = Math.max(0, phaseTimer);
+  const text = monsterActive
+    ? `追击中 ${rem.toFixed(1)}s`
+    : `安全期 ${rem.toFixed(1)}s`;
+  if (phaseEl.textContent !== text) phaseEl.textContent = text;
+  phaseEl.style.color = monsterActive ? '#ff6050' : '#ffb070';
+}
+
+function showEndScreen(type) {
+  const title = document.getElementById('endTitle');
+  const text = document.getElementById('endText');
+  if (type === 'won') {
+    title.textContent = '胜利';
+    title.style.color = '#9effa0';
+    text.textContent = '你触碰到了纯白之墙。\n迷宫向你臣服。';
+  } else {
+    title.textContent = '被抓住了';
+    title.style.color = '#ff8a8a';
+    text.textContent = '铁丝火柴人抓住了你。';
+  }
+  document.getElementById('endScreen').style.display = 'flex';
+}
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+  location.reload();
+});
+
+function triggerWin() {
+  if (gameState !== 'playing') return;
+  gameState = 'won';
+  showEndScreen('won');
+}
+
+/* =========================================================================
+   11. 视野外房间重建 + 怪物保护
+   ========================================================================= */
+const R_RANGE = 3;
+const roomVisible = new Map();
+
+function updateRoomVisibility() {
+  const prx = Math.floor(player.x / CELL / 2);
+  const prz = Math.floor(player.z / CELL / 2);
+
+  const fwdX = -Math.sin(player.yaw);
+  const fwdZ = -Math.cos(player.yaw);
+
+  let needRebuild = false;
+
+  for (let drz = -R_RANGE; drz <= R_RANGE; drz++) {
+    for (let drx = -R_RANGE; drx <= R_RANGE; drx++) {
+      const rx = prx + drx;
+      const rz = prz + drz;
+      const key = rx + ',' + rz;
+
+      const wx = (2 * rx + 1) * CELL;
+      const wz = (2 * rz + 1) * CELL;
+      const dx = wx - player.x;
+      const dz = wz - player.z;
+      const dist = Math.hypot(dx, dz);
+
+      let visible;
+      if (dist < 1.6 * CELL) {
+        visible = true;
+      } else {
+        const ndx = dx / dist, ndz = dz / dist;
+        const dotFwd = ndx * fwdX + ndz * fwdZ;
+        visible = dotFwd > -0.15;
+      }
+
+      const prev = roomVisible.get(key);
+      const locked = isRoomProtectedByMonster(rx, rz);
+
+      if (prev === true && !visible) {
+        if (locked) {
+          roomVisible.set(key, true);
+        } else {
+          bumpRoomVersion(rx, rz);
+          needRebuild = true;
+          roomVisible.set(key, false);
+        }
+      } else if (prev === false && visible) {
+        roomVisible.set(key, true);
+      } else if (prev === undefined) {
+        roomVisible.set(key, visible);
+      }
+    }
+  }
+  return needRebuild;
+}
+
+/* =========================================================================
+   12. 输入
+   ========================================================================= */
+const keys = Object.create(null);
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+
+const stickBase = document.getElementById('stickBase');
+const stickKnob = document.getElementById('stickKnob');
+let joyId = null, joyX = 0, joyY = 0;
+let baseCX = 0, baseCY = 0;
+const JOY_R = 56;
+
+function layoutStick() {
+  const r = stickBase.getBoundingClientRect();
+  baseCX = r.left + r.width * 0.5;
+  baseCY = r.top + r.height * 0.5;
+}
+function updateJoy(e) {
+  let dx = e.clientX - baseCX;
+  let dy = e.clientY - baseCY;
+  const d = Math.hypot(dx, dy);
+  if (d > JOY_R) { dx = dx / d * JOY_R; dy = dy / d * JOY_R; }
+  joyX = dx / JOY_R;
+  joyY = dy / JOY_R;
+  stickKnob.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+}
+function resetJoy() {
+  joyId = null; joyX = 0; joyY = 0;
+  stickKnob.style.transform = 'translate(0px, 0px)';
+}
+
+let lookId = null, lastLX = 0, lastLY = 0;
+const PITCH_LIMIT = 1.35;
+
+canvas.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse') {
+    if (document.pointerLockElement !== canvas && canvas.requestPointerLock) {
+      canvas.requestPointerLock();
+    }
+    return;
+  }
+  if (e.clientX < innerWidth * 0.5 && e.clientY > innerHeight * 0.42) {
+    joyId = e.pointerId;
+    updateJoy(e);
+  } else if (lookId === null) {
+    lookId = e.pointerId;
+    lastLX = e.clientX; lastLY = e.clientY;
+  }
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerType === 'mouse') return;
+  if (e.pointerId === joyId) {
+    updateJoy(e);
+    e.preventDefault();
+  } else if (e.pointerId === lookId) {
+    const dx = e.clientX - lastLX;
+    const dy = e.clientY - lastLY;
+    lastLX = e.clientX; lastLY = e.clientY;
+    player.yaw -= dx * 0.0048;
+    player.pitch -= dy * 0.0048;
+    player.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, player.pitch));
+    e.preventDefault();
+  }
+}, { passive: false });
+
+function endPointer(e) {
+  if (e.pointerId === joyId) resetJoy();
+  if (e.pointerId === lookId) lookId = null;
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('pointerleave', endPointer);
+
+document.addEventListener('mousemove', e => {
+  if (document.pointerLockElement === canvas) {
+    player.yaw -= e.movementX * 0.0022;
+    player.pitch -= e.movementY * 0.0022;
+    player.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, player.pitch));
+  }
+});
+
+const settingsEl = document.getElementById('settings');
+settingsEl.addEventListener('pointerdown', () => {
+  if (document.pointerLockElement === canvas) document.exitPointerLock();
+});
+
+/* =========================================================================
+   13. 渲染目标 / 滑块
+   ========================================================================= */
+let renderScale = 1.0;
+let blurAmount = 0.70;
+let chromaAmount = 0.020;
+
+let sceneRT = null, accRT = [null, null];
+let accIndex = 0;
+let frameCount = 0;
+
+function createColorRT(w, h) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { tex, fbo, w, h };
+}
+
+function createSceneRT(w, h) {
+  const rt = createColorRT(w, h);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, rt.fbo);
+  const rb = gl.createRenderbuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  rt.depth = rb;
+  return rt;
+}
+
+function destroyRT(rt) {
+  if (!rt) return;
+  gl.deleteTexture(rt.tex);
+  gl.deleteFramebuffer(rt.fbo);
+  if (rt.depth) gl.deleteRenderbuffer(rt.depth);
+}
+
+function resize(force) {
+  const baseDpr = Math.min(window.devicePixelRatio || 1, 1.75);
+  const dpr = Math.min(2.0, baseDpr * renderScale);
+  const w = Math.max(1, Math.floor(innerWidth * dpr));
+  const h = Math.max(1, Math.floor(innerHeight * dpr));
+  if (!force && canvas.width === w && canvas.height === h) return;
+  canvas.width = w;
+  canvas.height = h;
+
+  destroyRT(sceneRT);
+  destroyRT(accRT[0]);
+  destroyRT(accRT[1]);
+
+  sceneRT = createSceneRT(w, h);
+  accRT[0] = createColorRT(w, h);
+  accRT[1] = createColorRT(w, h);
+  accIndex = 0;
+  frameCount = 0;
+
+  layoutStick();
+}
+addEventListener('resize', () => resize(false));
+addEventListener('orientationchange', () => setTimeout(() => resize(true), 200));
+
+const resSlider = document.getElementById('resSlider');
+const resVal = document.getElementById('resVal');
+const blurSlider = document.getElementById('blurSlider');
+const blurVal = document.getElementById('blurVal');
+const caSlider = document.getElementById('caSlider');
+const caVal = document.getElementById('caVal');
+const musicSlider = document.getElementById('musicSlider');
+const musicVal = document.getElementById('musicVal');
+
+let resizeScheduled = false;
+function scheduleResize() {
+  if (resizeScheduled) return;
+  resizeScheduled = true;
+  requestAnimationFrame(() => {
+    resizeScheduled = false;
+    resize(true);
+  });
+}
+
+resSlider.addEventListener('input', () => {
+  renderScale = parseInt(resSlider.value, 10) / 100;
+  resVal.textContent = resSlider.value + '%';
+  scheduleResize();
+});
+blurSlider.addEventListener('input', () => {
+  blurAmount = parseInt(blurSlider.value, 10) / 100;
+  blurVal.textContent = blurSlider.value + '%';
+});
+caSlider.addEventListener('input', () => {
+  chromaAmount = (parseInt(caSlider.value, 10) / 100) * 0.05;
+  caVal.textContent = caSlider.value + '%';
+});
+musicSlider.addEventListener('input', () => {
+  const v = parseInt(musicSlider.value, 10) / 100;
+  setMusicVolume(v);
+  musicVal.textContent = musicSlider.value + '%';
+});
+
+renderScale = parseInt(resSlider.value, 10) / 100;
+blurAmount = parseInt(blurSlider.value, 10) / 100;
+chromaAmount = (parseInt(caSlider.value, 10) / 100) * 0.05;
+setMusicVolume(parseInt(musicSlider.value, 10) / 100);
+resVal.textContent = resSlider.value + '%';
+blurVal.textContent = blurSlider.value + '%';
+caVal.textContent = caSlider.value + '%';
+musicVal.textContent = musicSlider.value + '%';
+
+/* =========================================================================
+   14. 玩家更新（含白墙碰撞胜局检测）
+   ========================================================================= */
+function updatePlayer(dt) {
+  let ix = 0, iz = 0;
+  if (keys['KeyW'] || keys['ArrowUp'])    iz -= 1;
+  if (keys['KeyS'] || keys['ArrowDown'])  iz += 1;
+  if (keys['KeyA'] || keys['ArrowLeft'])  ix -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
+
+  ix += joyX;
+  iz += joyY;
+
+  let len = Math.hypot(ix, iz);
+  if (len > 1) { ix /= len; iz /= len; len = 1; }
+  if (len < 0.02) { ix = 0; iz = 0; len = 0; }
+
+  const speed = 2.55 * CELL;
+  const cy = Math.cos(player.yaw), sy = Math.sin(player.yaw);
+
+  const fwd = -iz;
+  const str = ix;
+
+  const dirX = -sy * fwd + cy * str;
+  const dirZ = -cy * fwd - sy * str;
+
+  const nx = player.x + dirX * speed * dt;
+  const nz = player.z + dirZ * speed * dt;
+
+  if (!collides(nx, player.z)) {
+    player.x = nx;
+  } else if (collidesWhiteWall(nx, player.z)) {
+    triggerWin();
+    return;
+  }
+  if (!collides(player.x, nz)) {
+    player.z = nz;
+  } else if (collidesWhiteWall(player.x, nz)) {
+    triggerWin();
+    return;
+  }
+
+  const moving = len > 0.1;
+  player.bobT += dt * (moving ? 9.2 : 1.8);
+  const targetAmp = moving ? 0.036 : 0.007;
+  player.bobAmp += (targetAmp - player.bobAmp) * Math.min(1, dt * 8);
+}
+
+/* =========================================================================
+   15. 铁丝火柴人几何生成（怪物用）
+   ========================================================================= */
+const NOISE_N = 4096;
+const noiseTab = new Float32Array(NOISE_N);
+(function () {
+  let s = 20240517 >>> 0;
+  for (let i = 0; i < NOISE_N; i++) {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    noiseTab[i] = s / 4294967296;
+  }
+})();
+function nz(i) { return noiseTab[i & (NOISE_N - 1)]; }
+
+const _basis = new Float32Array(6);
+function basis(nx, ny, nzAx) {
+  let t1x, t1y, t1z;
+  if (Math.abs(ny) < 0.9) { t1x = -nzAx; t1y = 0; t1z = nx; }
+  else { t1x = 1; t1y = 0; t1z = 0; }
+  const l = Math.sqrt(t1x * t1x + t1y * t1y + t1z * t1z) || 1e-6;
+  t1x /= l; t1y /= l; t1z /= l;
+  _basis[0] = t1x; _basis[1] = t1y; _basis[2] = t1z;
+  _basis[3] = ny * t1z - nzAx * t1y;
+  _basis[4] = nzAx * t1x - nx * t1z;
+  _basis[5] = nx * t1y - ny * t1x;
+  return _basis;
+}
+
+const segBuf = [];
+const TAU = Math.PI * 2;
+
+let monsterXf = null;
+
+function addSeg(ax, ay, az, bx, by, bz, w) {
+  if (monsterXf) {
+    const c = monsterXf.c, s = monsterXf.s;
+    const tx = monsterXf.tx, ty = monsterXf.ty, tz = monsterXf.tz;
+    const ax2 = c * ax + s * az + tx;
+    const ay2 = ay + ty;
+    const az2 = -s * ax + c * az + tz;
+    const bx2 = c * bx + s * bz + tx;
+    const by2 = by + ty;
+    const bz2 = -s * bx + c * bz + tz;
+    segBuf.push(ax2, ay2, az2, bx2, by2, bz2, w);
+  } else {
+    segBuf.push(ax, ay, az, bx, by, bz, w);
+  }
+}
+
+function wirePass(ax, ay, az, bx, by, bz, n, spread, seed, width, wav) {
+  wav = wav || 0.02;
+  const ux = bx - ax, uy = by - ay, uz = bz - az;
+  const len = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1e-6;
+
+  const b = basis(ux / len, uy / len, uz / len);
+  const t1x = b[0], t1y = b[1], t1z = b[2];
+  const t2x = b[3], t2y = b[4], t2z = b[5];
+
+  const steps = 7;
+  for (let k = 0; k < n; k++) {
+    const sd = (seed + k * 4177) | 0;
+
+    const a0 = (nz(sd + 1) - 0.5) * spread;
+    const a1 = (nz(sd + 2) - 0.5) * spread;
+    const b0 = (nz(sd + 3) - 0.5) * spread;
+    const b1 = (nz(sd + 4) - 0.5) * spread;
+
+    let px = 0, py = 0, pz = 0;
+    for (let i = 0; i <= steps; i++) {
+      const u = i / steps;
+      const mid = Math.sin(u * Math.PI);
+      const wob0 = (nz(sd + i * 13 + 7) - 0.5) * wav * mid;
+      const wob1 = (nz(sd + i * 17 + 11) - 0.5) * wav * mid;
+
+      const o0 = a0 + (b0 - a0) * u + wob0;
+      const o1 = a1 + (b1 - a1) * u + wob1;
+
+      const x = ax + ux * u + o0 * t1x + o1 * t2x;
+      const y = ay + uy * u + o0 * t1y + o1 * t2y;
+      const z = az + uz * u + o0 * t1z + o1 * t2z;
+
+      if (i > 0) addSeg(px, py, pz, x, y, z, width);
+      px = x; py = y; pz = z;
+    }
+  }
+}
+
+function wrapRing(cx, cy, cz, dx, dy, dz, r, steps, seed, width) {
+  const l = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
+  const nx = dx / l, ny = dy / l, nzA = dz / l;
+
+  const b = basis(nx, ny, nzA);
+  const t1x = b[0], t1y = b[1], t1z = b[2];
+  const t2x = b[3], t2y = b[4], t2z = b[5];
+
+  let ang = nz(seed + 1) * TAU;
+  let px = 0, py = 0, pz = 0;
+
+  for (let i = 0; i <= steps; i++) {
+    ang += (TAU / steps) * (0.55 + 1.25 * nz(seed + i * 7 + 3));
+
+    const rr  = r * (0.74 + 0.54 * nz(seed + i * 13 + 5));
+    const off = (nz(seed + i * 17 + 9) - 0.5) * r * 0.75;
+
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    const x = cx + rr * (ca * t1x + sa * t2x) + nx * off;
+    const y = cy + rr * (ca * t1y + sa * t2y) + ny * off;
+    const z = cz + rr * (ca * t1z + sa * t2z) + nzA * off;
+
+    if (i > 0) addSeg(px, py, pz, x, y, z, width * (0.85 + 0.3 * nz(seed + i * 29 + 7)));
+    px = x; py = y; pz = z;
+  }
+}
+
+function faceDisc(cx, cy, cz, nx, ny, nzA, R, seed, width) {
+  const l = Math.sqrt(nx * nx + ny * ny + nzA * nzA) || 1e-6;
+  nx /= l; ny /= l; nzA /= l;
+
+  const b = basis(nx, ny, nzA);
+  const t1x = b[0], t1y = b[1], t1z = b[2];
+  const t2x = b[3], t2y = b[4], t2z = b[5];
+
+  const N = 28;
+  let px = 0, py = 0, pz = 0;
+  for (let i = 0; i <= N; i++) {
+    const a = (i / N) * TAU;
+    const r = R * (0.84 + 0.28 * nz(seed + i * 7 + 1));
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const x = cx + r * (ca * t1x + sa * t2x);
+    const y = cy + r * (ca * t1y + sa * t2y);
+    const z = cz + r * (ca * t1z + sa * t2z);
+    if (i > 0) addSeg(px, py, pz, x, y, z, width);
+    px = x; py = y; pz = z;
+  }
+
+  const spokes = 10;
+  for (let k = 0; k < spokes; k++) {
+    const sd = (seed * 31 + k * 997) | 0;
+    const a = (k / spokes) * TAU + (nz(sd + 1) - 0.5) * 0.55;
+    const rEnd = R * (0.60 + 0.48 * nz(sd + 2));
+    const ca = Math.cos(a), sa = Math.sin(a);
+
+    const rIn = R * 0.14 * nz(sd + 3);
+    const ox = cx + (nz(sd + 4) - 0.5) * R * 0.12;
+    const oy = cy + (nz(sd + 5) - 0.5) * R * 0.12;
+    const oz = cz + (nz(sd + 6) - 0.5) * R * 0.12;
+
+    const x0 = ox + rIn * (ca * t1x + sa * t2x);
+    const y0 = oy + rIn * (ca * t1y + sa * t2y);
+    const z0 = oz + rIn * (ca * t1z + sa * t2z);
+
+    const x1 = cx + rEnd * (ca * t1x + sa * t2x);
+    const y1 = cy + rEnd * (ca * t1y + sa * t2y);
+    const z1 = cz + rEnd * (ca * t1z + sa * t2z);
+
+    const mx = (x0 + x1) * 0.5 + (nz(sd + 7) - 0.5) * R * 0.22;
+    const my = (y0 + y1) * 0.5 + (nz(sd + 8) - 0.5) * R * 0.22;
+    const mz = (z0 + z1) * 0.5 + (nz(sd + 9) - 0.5) * R * 0.22;
+
+    addSeg(x0, y0, z0, mx, my, mz, width);
+    addSeg(mx, my, mz, x1, y1, z1, width);
+  }
+
+  const chords = 7;
+  for (let k = 0; k < chords; k++) {
+    const sd = (seed * 17 + k * 7919) | 0;
+    const a0 = nz(sd + 1) * TAU;
+    const a1 = a0 + (0.45 + nz(sd + 2)) * Math.PI * 0.95;
+    const r0 = R * (0.30 + 0.58 * nz(sd + 3));
+    const r1 = R * (0.30 + 0.58 * nz(sd + 4));
+    const c0 = Math.cos(a0), s0 = Math.sin(a0);
+    const c1 = Math.cos(a1), s1 = Math.sin(a1);
+
+    const x0 = cx + r0 * (c0 * t1x + s0 * t2x);
+    const y0 = cy + r0 * (c0 * t1y + s0 * t2y);
+    const z0 = cz + r0 * (c0 * t1z + s0 * t2z);
+
+    const x1 = cx + r1 * (c1 * t1x + s1 * t2x);
+    const y1 = cy + r1 * (c1 * t1y + s1 * t2y);
+    const z1 = cz + r1 * (c1 * t1z + s1 * t2z);
+
+    addSeg(x0, y0, z0, x1, y1, z1, width * 0.9);
+  }
+}
+
+const S_FIG = {
+  hipH:     0.88,
+  thigh:    0.44,
+  shin:     0.42,
+  foot:     0.16,
+  spine:    0.50,
+  hipW:     0.088,
+  shoulderW:0.145,
+  upperArm: 0.31,
+  foreArm:  0.28,
+  neck:     0.09
+};
+
+function buildFigure(t, W) {
+  segBuf.length = 0;
+
+  const PH   = t * TAU * 1.25;
+  const bob  = 0.032 * Math.sin(PH * 2.0);
+  const lean = 0.24;
+
+  const hipC = [0, S_FIG.hipH + bob, 0];
+  const sdir = [0, Math.cos(lean), Math.sin(lean)];
+
+  const chest = [
+    hipC[0] + sdir[0] * S_FIG.spine,
+    hipC[1] + sdir[1] * S_FIG.spine,
+    hipC[2] + sdir[2] * S_FIG.spine
+  ];
+  const neckB = [
+    chest[0] + sdir[0] * S_FIG.neck,
+    chest[1] + sdir[1] * S_FIG.neck,
+    chest[2] + sdir[2] * S_FIG.neck
+  ];
+  const headC = [
+    neckB[0] + sdir[0] * 0.15,
+    neckB[1] + sdir[1] * 0.15,
+    neckB[2] + sdir[2] * 0.15
+  ];
+
+  wirePass(hipC[0], hipC[1], hipC[2], neckB[0], neckB[1], neckB[2],
+           3, 0.13, 101, 1.8 * W, 0.035);
+
+  const ribSeeds = [11, 23, 37];
+  for (let k = 0; k < 3; k++) {
+    const u = 0.24 + k * 0.23;
+    const cx0 = hipC[0] + (neckB[0] - hipC[0]) * u;
+    const cy0 = hipC[1] + (neckB[1] - hipC[1]) * u;
+    const cz0 = hipC[2] + (neckB[2] - hipC[2]) * u;
+    const half = 0.075 + 0.030 * nz(ribSeeds[k]);
+    const zo = (nz(ribSeeds[k] + 1) - 0.5) * 0.05;
+    addSeg(cx0 - half, cy0, cz0 + zo,
+           cx0 + half, cy0, cz0 + zo - 0.015, 1.4 * W);
+  }
+
+  wrapRing(hipC[0], hipC[1], hipC[2], 0, 1, 0, 0.085, 22, 201, 1.4 * W);
+  wrapRing(chest[0], chest[1], chest[2], sdir[0], sdir[1], sdir[2], 0.105, 24, 202, 1.4 * W);
+
+  addSeg(neckB[0], neckB[1], neckB[2],
+         headC[0] - sdir[0] * 0.08,
+         headC[1] - sdir[1] * 0.08,
+         headC[2] - sdir[2] * 0.08,
+         1.5 * W);
+
+  faceDisc(
+    headC[0], headC[1], headC[2],
+    0, -Math.sin(lean) * 0.55, Math.cos(lean),
+    0.145, 301, 1.35 * W
+  );
+
+  for (let s = 0; s < 2; s++) {
+    const side = (s === 0) ? -1 : 1;
+    const phi  = PH + (s === 0 ? 0 : Math.PI);
+    const sd0  = s * 31;
+
+    const hipA  = 0.78 * Math.cos(phi);
+    const kneeA = 0.16 + 0.95 * Math.pow(0.5 - 0.5 * Math.cos(phi - 0.55), 1.35);
+
+    const hipJ = [hipC[0] + side * S_FIG.hipW, hipC[1] - 0.02, hipC[2]];
+
+    const d1y = -Math.cos(hipA);
+    const d1z =  Math.sin(hipA);
+    const kneeJ = [
+      hipJ[0],
+      hipJ[1] + d1y * S_FIG.thigh,
+      hipJ[2] + d1z * S_FIG.thigh
+    ];
+
+    const a2  = hipA - kneeA;
+    const d2y = -Math.cos(a2);
+    const d2z =  Math.sin(a2);
+    const ankleJ = [
+      kneeJ[0],
+      kneeJ[1] + d2y * S_FIG.shin,
+      kneeJ[2] + d2z * S_FIG.shin
+    ];
+
+    const fa = 0.30 + 0.42 * Math.cos(phi + 1.0);
+    const toeJ = [
+      ankleJ[0],
+      ankleJ[1] - Math.sin(fa) * S_FIG.foot,
+      ankleJ[2] + Math.cos(fa) * S_FIG.foot
+    ];
+
+    wirePass(hipJ[0], hipJ[1], hipJ[2], kneeJ[0], kneeJ[1], kneeJ[2],
+             2, 0.055, 401 + sd0, 1.7 * W, 0.02);
+
+    wirePass(kneeJ[0], kneeJ[1], kneeJ[2], ankleJ[0], ankleJ[1], ankleJ[2],
+             2, 0.050, 403 + sd0, 1.6 * W, 0.02);
+
+    wirePass(ankleJ[0], ankleJ[1], ankleJ[2], toeJ[0], toeJ[1], toeJ[2],
+             1, 0.0, 405 + sd0, 1.4 * W, 0.01);
+
+    wrapRing(hipJ[0], hipJ[1], hipJ[2], 0, d1y, d1z, 0.048, 12, 501 + sd0, 1.3 * W);
+    wrapRing(kneeJ[0], kneeJ[1], kneeJ[2], 0, d2y, d2z, 0.042, 12, 502 + sd0, 1.3 * W);
+    wrapRing(ankleJ[0], ankleJ[1], ankleJ[2], 0, -Math.sin(fa), Math.cos(fa),
+             0.032, 10, 503 + sd0, 1.2 * W);
+  }
+
+  for (let s = 0; s < 2; s++) {
+    const side = (s === 0) ? -1 : 1;
+    const phi  = PH + (s === 0 ? Math.PI : 0);
+    const sd0  = s * 37;
+
+    const shJ = [
+      chest[0] + side * S_FIG.shoulderW,
+      chest[1] - 0.03,
+      chest[2] - 0.01
+    ];
+
+    const aArm = -0.80 * Math.cos(phi);
+
+    let ux = side * 0.13;
+    let uy = -Math.cos(aArm);
+    let uz =  Math.sin(aArm);
+    let ul = Math.sqrt(ux * ux + uy * uy + uz * uz) || 1;
+    ux /= ul; uy /= ul; uz /= ul;
+
+    const elbowJ = [
+      shJ[0] + ux * S_FIG.upperArm,
+      shJ[1] + uy * S_FIG.upperArm,
+      shJ[2] + uz * S_FIG.upperArm
+    ];
+
+    const eA = 1.15 + 0.35 * Math.cos(phi);
+    const ce = Math.cos(eA), se = Math.sin(eA);
+    let fx = ux * 0.72;
+    let fy = uy * ce + uz * se;
+    let fz = -uy * se + uz * ce;
+    const fl = Math.sqrt(fx * fx + fy * fy + fz * fz) || 1;
+    fx /= fl; fy /= fl; fz /= fl;
+
+    const handJ = [
+      elbowJ[0] + fx * S_FIG.foreArm,
+      elbowJ[1] + fy * S_FIG.foreArm,
+      elbowJ[2] + fz * S_FIG.foreArm
+    ];
+
+    wirePass(shJ[0], shJ[1], shJ[2], elbowJ[0], elbowJ[1], elbowJ[2],
+             2, 0.050, 601 + sd0, 1.6 * W, 0.02);
+
+    wirePass(elbowJ[0], elbowJ[1], elbowJ[2], handJ[0], handJ[1], handJ[2],
+             2, 0.045, 603 + sd0, 1.5 * W, 0.02);
+
+    wrapRing(shJ[0], shJ[1], shJ[2], ux, uy, uz, 0.042, 12, 701 + sd0, 1.3 * W);
+    wrapRing(elbowJ[0], elbowJ[1], elbowJ[2], fx, fy, fz, 0.038, 12, 702 + sd0, 1.3 * W);
+    wrapRing(handJ[0], handJ[1], handJ[2], fx, fy, fz, 0.028, 10, 703 + sd0, 1.2 * W);
+  }
+}
+
+let stickVertArr = new Float32Array(1 << 17);
+let stickIdxArr = new Uint32Array(1 << 15);
+let stickIdxCount = 0;
+let stickLastSeg = -1;
+let stickVboFloats = 0;
+
+function uploadStickGeometry() {
+  const nSeg = (segBuf.length / 7) | 0;
+  if (nSeg === 0) {
+    stickIdxCount = 0;
+    return;
+  }
+
+  const need = nSeg * 4 * 8;
+  if (stickVertArr.length < need) stickVertArr = new Float32Array(Math.ceil(need * 1.6));
+
+  if (stickLastSeg !== nSeg) {
+    if (stickIdxArr.length < nSeg * 6) stickIdxArr = new Uint32Array(Math.ceil(nSeg * 6 * 1.6));
+    let k = 0;
+    for (let i = 0; i < nSeg; i++) {
+      const b = i * 4;
+      stickIdxArr[k++] = b;     stickIdxArr[k++] = b + 1; stickIdxArr[k++] = b + 2;
+      stickIdxArr[k++] = b + 2; stickIdxArr[k++] = b + 1; stickIdxArr[k++] = b + 3;
+    }
+    stickIdxCount = k;
+    stickLastSeg = nSeg;
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, stickIBO);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, stickIdxArr.subarray(0, k), gl.STATIC_DRAW);
+  }
+
+  let p = 0;
+  for (let i = 0; i < nSeg; i++) {
+    const o = i * 7;
+    const ax = segBuf[o],     ay = segBuf[o + 1], az = segBuf[o + 2];
+    const bx = segBuf[o + 3], by = segBuf[o + 4], bz = segBuf[o + 5];
+    const w  = segBuf[o + 6];
+
+    let dx = bx - ax, dy = by - ay, dz = bz - az;
+    const L = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+    dx /= L; dy /= L; dz /= L;
+
+    stickVertArr[p++] = ax; stickVertArr[p++] = ay; stickVertArr[p++] = az;
+    stickVertArr[p++] = dx; stickVertArr[p++] = dy; stickVertArr[p++] = dz;
+    stickVertArr[p++] = -1; stickVertArr[p++] = w;
+
+    stickVertArr[p++] = ax; stickVertArr[p++] = ay; stickVertArr[p++] = az;
+    stickVertArr[p++] = dx; stickVertArr[p++] = dy; stickVertArr[p++] = dz;
+    stickVertArr[p++] = 1;  stickVertArr[p++] = w;
+
+    stickVertArr[p++] = bx; stickVertArr[p++] = by; stickVertArr[p++] = bz;
+    stickVertArr[p++] = dx; stickVertArr[p++] = dy; stickVertArr[p++] = dz;
+    stickVertArr[p++] = -1; stickVertArr[p++] = w;
+
+    stickVertArr[p++] = bx; stickVertArr[p++] = by; stickVertArr[p++] = bz;
+    stickVertArr[p++] = dx; stickVertArr[p++] = dy; stickVertArr[p++] = dz;
+    stickVertArr[p++] = 1;  stickVertArr[p++] = w;
+  }
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, stickVBO);
+  if (stickVboFloats < need) {
+    gl.bufferData(gl.ARRAY_BUFFER, stickVertArr.subarray(0, need), gl.DYNAMIC_DRAW);
+    stickVboFloats = need;
+  } else {
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, stickVertArr.subarray(0, need));
+  }
+}
+
+function buildMonsterFigure(t, W) {
+  const dx = player.x - monster.x;
+  const dz = player.z - monster.z;
+  const r = Math.hypot(dx, dz);
+  const yaw = r > 0.0001 ? Math.atan2(dx, dz) : 0;
+  monsterXf = {
+    c: Math.cos(yaw),
+    s: Math.sin(yaw),
+    tx: monster.x,
+    ty: 0.13,
+    tz: monster.z
+  };
+  buildFigure(t, W);
+  monsterXf = null;
+}
+
+/* =========================================================================
+   16. 渲染
+   ========================================================================= */
+const lampPosBuf = new Float32Array(24);
+const lampColBuf = new Float32Array(24);
+const AMBIENT = [0.255, 0.235, 0.190];
+
+function selectLamps(px, pz) {
+  const cands = [];
+  const maxD = 12 * CELL;
+  const maxD2 = maxD * maxD;
+  for (let i = 0; i < lampList.length; i++) {
+    const L = lampList[i];
+    const dx = L.x - px, dz = L.z - pz;
+    const d2 = dx * dx + dz * dz;
+    if (d2 < maxD2) cands.push({ L, d2 });
+  }
+  cands.sort((a, b) => a.d2 - b.d2);
+  const n = Math.min(8, cands.length);
+  const falloffK = 0.02 / (CELL * CELL);
+  const warnR2 = MONSTER_WARN_RADIUS * MONSTER_WARN_RADIUS;
+
+  for (let i = 0; i < n; i++) {
+    const L = cands[i].L;
+    lampPosBuf[i * 3]     = L.x;
+    lampPosBuf[i * 3 + 1] = L.y;
+    lampPosBuf[i * 3 + 2] = L.z;
+
+    const fall = 1.0 / (1.0 + cands[i].d2 * falloffK);
+
+    let warn = 0;
+    if (monsterActive) {
+      const mdx = L.x - monster.x;
+      const mdz = L.z - monster.z;
+      const md2 = mdx * mdx + mdz * mdz;
+      if (md2 < warnR2) {
+        const md = Math.sqrt(md2);
+        warn = 1.0 - smoothstep(MONSTER_WARN_RADIUS * 0.55, MONSTER_WARN_RADIUS, md);
+      }
+    }
+
+    const baseR = 2.55, baseG = 2.42, baseB = 2.02;
+    const redR = 2.95, redG = 0.30, redB = 0.10;
+
+    lampColBuf[i * 3]     = (baseR * (1 - warn) + redR * warn) * fall;
+    lampColBuf[i * 3 + 1] = (baseG * (1 - warn) + redG * warn) * fall;
+    lampColBuf[i * 3 + 2] = (baseB * (1 - warn) + redB * warn) * fall;
+  }
+  return n;
+}
+
+function updateGroundQuads(cx, cz) {
+  const R = VIEW_R + 3;
+  const x0 = (cx - R) * CELL, x1 = (cx + R) * CELL;
+  const z0 = (cz - R) * CELL, z1 = (cz + R) * CELL;
+
+  const f = new Float32Array([
+    x0, 0, z0, 0, 1, 0,
+    x0, 0, z1, 0, 1, 0,
+    x1, 0, z1, 0, 1, 0,
+    x0, 0, z0, 0, 1, 0,
+    x1, 0, z1, 0, 1, 0,
+    x1, 0, z0, 0, 1, 0
+  ]);
+  gl.bindBuffer(gl.ARRAY_BUFFER, floorQuad.vbo);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, f);
+
+  const c = new Float32Array([
+    x0, CEIL_H, z1, 0, -1, 0,
+    x0, CEIL_H, z0, 0, -1, 0,
+    x1, CEIL_H, z0, 0, -1, 0,
+    x0, CEIL_H, z1, 0, -1, 0,
+    x1, CEIL_H, z0, 0, -1, 0,
+    x1, CEIL_H, z1, 0, -1, 0
+  ]);
+  gl.bindBuffer(gl.ARRAY_BUFFER, ceilQuad.vbo);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, c);
+}
+
+let elapsed = 0;
+
+function render() {
+  const cx0 = Math.floor(player.x / CELL);
+  const cz0 = Math.floor(player.z / CELL);
+
+  const needRebuild = updateRoomVisibility();
+
+  if (cx0 !== builtCX || cz0 !== builtCZ || needRebuild) {
+    rebuild(cx0, cz0);
+  }
+
+  const bob = Math.sin(player.bobT) * player.bobAmp;
+  const eyeX = player.x;
+  const eyeY = 1.60 + bob;
+  const eyeZ = player.z;
+
+  const aspect = canvas.width / canvas.height;
+  const proj = perspectiveMat(72 * Math.PI / 180, aspect, 0.04, 60);
+  const view = viewMat(eyeX, eyeY, eyeZ, player.yaw, player.pitch);
+  const vp = matMul(proj, view);
+
+  const numLamps = selectLamps(player.x, player.z);
+  updateGroundQuads(cx0, cz0);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, sceneRT.fbo);
+  gl.viewport(0, 0, sceneRT.w, sceneRT.h);
+  gl.clearColor(0.035, 0.028, 0.020, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.disable(gl.CULL_FACE);
+  gl.disable(gl.BLEND);
+
+  gl.useProgram(sceneProg);
+  gl.uniformMatrix4fv(SU.viewProj, false, vp);
+  gl.uniform3fv(SU.ambient, AMBIENT);
+  gl.uniform1i(SU.numLamps, numLamps);
+  gl.uniform3fv(SU.lampPos, lampPosBuf);
+  gl.uniform3fv(SU.lampCol, lampColBuf);
+  gl.uniform1f(SU.lightFalloff, 1.05 / (CELL * CELL));
+  gl.uniform1i(SU.tex, 0);
+  gl.activeTexture(gl.TEXTURE0);
+
+  gl.uniform1f(SU.uvScale, 1.6);
+  gl.uniform1f(SU.bump, 1.30);
+  gl.uniform3f(SU.tint, 0.98, 0.92, 0.84);
+  gl.bindTexture(gl.TEXTURE_2D, texCarpet);
+  gl.bindVertexArray(floorQuad.vao);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  gl.uniform1f(SU.uvScale, 0.65);
+  gl.uniform1f(SU.bump, 1.05);
+  gl.uniform3f(SU.tint, 0.96, 0.94, 0.86);
+  gl.bindTexture(gl.TEXTURE_2D, texCeiling);
+  gl.bindVertexArray(ceilQuad.vao);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  if (wallVertCount > 0) {
+    gl.uniform1f(SU.uvScale, 1.1);
+    gl.uniform1f(SU.bump, 1.75);
+    gl.uniform3f(SU.tint, 0.98, 0.95, 0.86);
+    gl.bindTexture(gl.TEXTURE_2D, texWall);
+    gl.bindVertexArray(wallVAO);
+    gl.drawArrays(gl.TRIANGLES, 0, wallVertCount);
+  }
+
+  if (whiteWallVertCount > 0) {
+    gl.useProgram(whiteWallProg);
+    gl.uniformMatrix4fv(WWU.viewProj, false, vp);
+    gl.bindVertexArray(whiteWallVAO);
+    gl.drawArrays(gl.TRIANGLES, 0, whiteWallVertCount);
+  }
+
+  if (monsterActive) {
+    const animSpeed = (monster.state === 'wait') ? 0.35 : 1.0;
+    const animT = elapsed * animSpeed;
+    const lineW = Math.max(1.0, 1.0 * (sceneRT.w / innerWidth));
+    buildMonsterFigure(animT, lineW);
+    uploadStickGeometry();
+
+    if (stickIdxCount > 0) {
+      gl.useProgram(stickProg);
+      gl.uniformMatrix4fv(STU.vp, false, vp);
+      gl.uniform2f(STU.res, sceneRT.w, sceneRT.h);
+      gl.bindVertexArray(stickVAO);
+      gl.drawElements(gl.TRIANGLES, stickIdxCount, gl.UNSIGNED_INT, 0);
+    }
+  }
+
+  if (lampVertCount > 0) {
+    gl.useProgram(lampProg);
+    gl.uniformMatrix4fv(LU.viewProj, false, vp);
+    const mpx = monsterActive ? monster.x : 1e9;
+    const mpz = monsterActive ? monster.z : 1e9;
+    gl.uniform3f(LU.monsterPos, mpx, 0, mpz);
+    gl.uniform1f(LU.warnRadius, MONSTER_WARN_RADIUS);
+    gl.bindVertexArray(lampVAO);
+    gl.drawArrays(gl.TRIANGLES, 0, lampVertCount);
+  }
+
+  const src = accRT[accIndex];
+  const dst = accRT[1 - accIndex];
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fbo);
+  gl.viewport(0, 0, dst.w, dst.h);
+  gl.disable(gl.DEPTH_TEST);
+  gl.useProgram(accProg);
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, sceneRT.tex);
+  gl.uniform1i(AU.cur, 0);
+
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, src.tex);
+  gl.uniform1i(AU.prev, 1);
+
+  gl.uniform1f(AU.decay, blurAmount);
+  gl.uniform1f(AU.init, frameCount === 0 ? 0.0 : 1.0);
+
+  gl.bindVertexArray(fsVAO);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  accIndex = 1 - accIndex;
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.useProgram(finalProg);
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, dst.tex);
+  gl.uniform1i(FU.tex, 0);
+  gl.uniform2f(FU.res, canvas.width, canvas.height);
+  gl.uniform1f(FU.time, elapsed);
+  gl.uniform1f(FU.ca, chromaAmount);
+  gl.uniform1f(FU.grain, 0.085);
+  gl.uniform1f(FU.vig, 0.55);
+
+  gl.bindVertexArray(fsVAO);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  gl.bindVertexArray(null);
+
+  frameCount++;
+}
+
+/* =========================================================================
+   17. 主循环
+   ========================================================================= */
+let lastTime = performance.now();
+
+function loop(now) {
+  requestAnimationFrame(loop);
+  let dt = (now - lastTime) / 1000;
+  lastTime = now;
+  if (dt > 0.06) dt = 0.06;
+  if (dt < 0) dt = 0;
+
+  if (gameState === 'playing') {
+    elapsed += dt;
+    updatePhase(dt);
+    updatePlayer(dt);
+    if (monsterActive) updateMonster(dt);
+  }
+  updateCaughtFlash(dt);
+  render();
+  updatePhaseHint();
+  updateMusic();
+}
+
+/* =========================================================================
+   18. 启动
+   ========================================================================= */
+resize(false);
+layoutStick();
+initMonster();
+monsterActive = false;
+phaseTimer = PHASE_DURATION;
+rebuild(Math.floor(player.x / CELL), Math.floor(player.z / CELL));
+
+setTimeout(() => {
+  const h = document.getElementById('hint');
+  if (h) h.style.opacity = '0.28';
+}, 6000);
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
