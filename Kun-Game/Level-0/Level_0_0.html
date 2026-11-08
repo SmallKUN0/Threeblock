@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>暖黄迷宫 · WebGL2</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#080604;font-family:system-ui,-apple-system,sans-serif;}
+  #gl{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair;}
+  #ui{position:fixed;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none;}
+  #stickBase{
+    position:absolute;left:26px;bottom:26px;width:132px;height:132px;border-radius:50%;
+    border:2px solid rgba(255,220,150,0.30);
+    background:radial-gradient(circle at 50% 50%, rgba(255,205,120,0.10), rgba(255,180,90,0.03) 70%, transparent 72%);
+    box-shadow:0 0 24px rgba(255,180,80,0.12) inset, 0 0 18px rgba(0,0,0,0.55);
+  }
+  #stickKnob{
+    position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;
+    background:radial-gradient(circle at 34% 28%, rgba(255,244,208,0.92), rgba(226,172,88,0.62) 62%, rgba(140,96,40,0.35));
+    box-shadow:0 0 16px rgba(255,198,110,0.55), 0 3px 10px rgba(0,0,0,0.45);
+    will-change:transform;
+  }
+  #hint{
+    position:absolute;left:0;right:0;top:16px;text-align:center;
+    color:#f2dca6;font-size:12.5px;letter-spacing:.4px;opacity:.72;
+    text-shadow:0 1px 6px rgba(0,0,0,0.9);transition:opacity .8s;
+  }
+  #err{
+    position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    color:#f88;font-size:15px;text-align:center;padding:24px;line-height:1.6;
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="ui">
+  <div id="stickBase"><div id="stickKnob"></div></div>
+  <div id="hint">WASD / 摇杆 移动 &nbsp;·&nbsp; 鼠标 / 右侧拖动 转视角 &nbsp;·&nbsp; 点击锁定指针</div>
+  <div id="err">当前环境不支持 WebGL2</div>
+</div>
+<script>
+"use strict";
+/* =========================================================================
+   0. 基础环境
+   ========================================================================= */
+const canvas = document.getElementById('gl');
+const gl = canvas.getContext('webgl2', {
+  antialias: false, alpha: false, depth: true, stencil: false,
+  powerPreference: 'high-performance', preserveDrawingBuffer: false
+});
+if (!gl) {
+  document.getElementById('err').style.display = 'flex';
+  throw new Error('WebGL2 not supported');
+}
+
+/* =========================================================================
+   1. 随机 / 噪声工具
+   ========================================================================= */
+const SEED = (Math.random() * 2147483647) | 0;
+
+function hash2i(x, y, s) {
+  let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(s | 0, 144665);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+function mod2(v) { return ((v % 2) + 2) % 2; }
+
+function vnoise(x, y, s) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  const a = hash2i(xi, yi, s);
+  const b = hash2i(xi + 1, yi, s);
+  const c = hash2i(xi, yi + 1, s);
+  const d = hash2i(xi + 1, yi + 1, s);
+  return a * (1 - u) * (1 - v) + b * u * (1 - v) + c * (1 - u) * v + d * u * v;
+}
+function fbm(x, y, s, oct) {
+  oct = oct || 4;
+  let val = 0, amp = 0.5, f = 1;
+  for (let i = 0; i < oct; i++) {
+    val += amp * vnoise(x * f, y * f, s + i * 37);
+    amp *= 0.5; f *= 2;
+  }
+  return val;
+}
+
+/* =========================================================================
+   2. 迷宫（区块哈希 · 无限生成 · 房间版本）
+   ========================================================================= */
+const CELL   = 1.75;          // 每格世界尺寸
+const WALL_H = 2.75;
+const CEIL_H = 2.75;
+const VIEW_R = 12;
+const WALL_OPEN_RATE = 0.55;
+
+/* ---- 房间版本：每个偶偶格（房间）可被“重生成” ---- */
+const roomVersion = new Map();   // key: "rx,rz" → integer
+function getRoomVersion(rx, rz) {
+  return roomVersion.get(rx + ',' + rz) || 0;
+}
+function bumpRoomVersion(rx, rz) {
+  const k = rx + ',' + rz;
+  roomVersion.set(k, (roomVersion.get(k) || 0) + 1);
+}
+
+/* ---- 墙体判定（使用房间版本，版本变化后布局会变） ---- */
+function isWallCell(cx, cz) {
+  const ax = mod2(cx), az = mod2(cz);
+  if (ax === 0 && az === 0) return false;          // 房间格：永远可通行
+  if (ax === 1 && az === 1) return true;           // 拐角格：永远实心
+
+  if (ax === 1 && az === 0) {                      // 东西向连接口（由西侧房间决定）
+    const rx = Math.floor((cx - 1) / 2), rz = Math.floor(cz / 2);
+    const v = getRoomVersion(rx, rz);
+    return hash2i(rx + v * 1013, rz - v * 727, SEED ^ 0x1f3a7b) > WALL_OPEN_RATE;
+  }
+  // 南北向连接口（由北侧房间决定）
+  const rx = Math.floor(cx / 2), rz = Math.floor((cz - 1) / 2);
+  const v = getRoomVersion(rx, rz);
+  return hash2i(rx - v * 511, rz + v * 997, SEED ^ 0x7c21e5) > WALL_OPEN_RATE;
+}
+
+/* ---- 灯位置（同样受房间版本影响） ---- */
+function lampAt(cx, cz) {
+  if (mod2(cx) !== 0 || mod2(cz) !== 0) return false;
+  const rx = cx / 2, rz = cz / 2;
+  const v = getRoomVersion(rx, rz);
+  return hash2i(rx + v * 331, rz - v * 557, SEED + 77713) < 0.42;
+}
+
+/* =========================================================================
+   3. 程序化纹理（Canvas + 噪声 + 划痕）
+   ========================================================================= */
+function makeCanvas(s) {
+  const c = document.createElement('canvas');
+  c.width = c.height = s;
+  return c;
+}
+
+function makeCarpetTexture() {
+  const S = 512;
+  const cv = makeCanvas(S);
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(S, S);
+  const D = img.data;
+  const sd = (Math.random() * 99999) | 0;
+
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const i = (y * S + x) * 4;
+      const knot = fbm(x * 0.055, y * 0.055, sd + 3, 4);
+      const fib  = vnoise(x * 0.22, y * 1.35, sd + 11);
+      const fib2 = vnoise(x * 1.4, y * 0.20, sd + 23);
+      const grain = hash2i(x, y, sd + 41);
+      let v = 0.42 + knot * 0.34 + fib * 0.13 + fib2 * 0.10 + (grain - 0.5) * 0.20;
+      v = Math.max(0.06, Math.min(1.15, v));
+      let r = 108 + v * 122, g = 58 + v * 84, b = 26 + v * 44;
+      if (grain > 0.988) { r *= 0.62; g *= 0.60; b *= 0.60; }
+      D[i] = r > 255 ? 255 : r;
+      D[i + 1] = g > 255 ? 255 : g;
+      D[i + 2] = b > 255 ? 255 : b;
+      D[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  ctx.globalAlpha = 0.10;
+  ctx.lineCap = 'round';
+  for (let k = 0; k < 90; k++) {
+    ctx.strokeStyle = Math.random() < 0.45 ? '#ffd9a0' : '#4a2408';
+    ctx.lineWidth = Math.random() * 1.8 + 0.3;
+    const x0 = Math.random() * S, y0 = Math.random() * S;
+    const ang = Math.random() * Math.PI * 2;
+    const len = 20 + Math.random() * 150;
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  for (let k = 0; k < 60; k++) {
+    const x0 = Math.random() * S, y0 = Math.random() * S;
+    const rad = 20 + Math.random() * 90;
+    const g = ctx.createRadialGradient(x0, y0, 0, x0, y0, rad);
+    const dark = Math.random() < 0.5;
+    g.addColorStop(0, dark ? 'rgba(50,22,4,0.10)' : 'rgba(255,200,130,0.07)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x0, y0, rad, 0, Math.PI * 2); ctx.fill();
+  }
+  return cv;
+}
+
+function makeWallTexture() {
+  const S = 512;
+  const cv = makeCanvas(S);
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(S, S);
+  const D = img.data;
+  const sd = (Math.random() * 99999) | 0;
+
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const i = (y * S + x) * 4;
+      const big  = fbm(x * 0.008, y * 0.008, sd + 2, 4);
+      const mid  = fbm(x * 0.045, y * 0.045, sd + 19, 3);
+      const fine = fbm(x * 0.28, y * 0.28, sd + 31, 2);
+      const grain = hash2i(x, y, sd + 53);
+      let v = 0.46 + big * 0.26 + mid * 0.16 + fine * 0.10 + (grain - 0.5) * 0.09;
+      v = Math.max(0.08, Math.min(1.2, v));
+      let r = 132 + v * 106, g = 120 + v * 96, b = 70 + v * 68;
+      const stain = fbm(x * 0.014 + 100, y * 0.014 + 40, sd + 71, 3);
+      if (stain < 0.36) {
+        const t = (0.36 - stain) * 2.4;
+        r *= 1 - t * 0.30; g *= 1 - t * 0.30; b *= 1 - t * 0.22;
+      }
+      D[i] = r > 255 ? 255 : r;
+      D[i + 1] = g > 255 ? 255 : g;
+      D[i + 2] = b > 255 ? 255 : b;
+      D[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  ctx.lineCap = 'round';
+  for (let k = 0; k < 150; k++) {
+    const light = Math.random() < 0.55;
+    ctx.globalAlpha = light ? 0.10 + Math.random() * 0.12 : 0.07 + Math.random() * 0.10;
+    ctx.strokeStyle = light ? '#fff3c8' : '#4a3c18';
+    ctx.lineWidth = Math.random() * 1.5 + 0.25;
+    const x0 = Math.random() * S, y0 = Math.random() * S;
+    const ang = (Math.random() - 0.5) * 1.2 + (Math.random() < 0.5 ? 0 : Math.PI / 2);
+    const len = 12 + Math.random() * 110;
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 0.16;
+  for (let k = 0; k < 10; k++) {
+    ctx.strokeStyle = '#3a3018';
+    ctx.lineWidth = 0.6 + Math.random() * 0.9;
+    let x0 = Math.random() * S, y0 = Math.random() * S;
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    const seg = 4 + (Math.random() * 6 | 0);
+    for (let s = 0; s < seg; s++) {
+      x0 += (Math.random() - 0.5) * 60;
+      y0 += (Math.random() - 0.5) * 60;
+      ctx.lineTo(x0, y0);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  return cv;
+}
+
+function makeCeilingTexture() {
+  const S = 512;
+  const cv = makeCanvas(S);
+  const ctx = cv.getContext('2d');
+  const img = ctx.createImageData(S, S);
+  const D = img.data;
+  const sd = (Math.random() * 99999) | 0;
+
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const i = (y * S + x) * 4;
+      const big  = fbm(x * 0.010, y * 0.010, sd + 5, 4);
+      const mid  = fbm(x * 0.070, y * 0.070, sd + 17, 3);
+      const fine = fbm(x * 0.40, y * 0.40, sd + 29, 2);
+      const grain = hash2i(x, y, sd + 61);
+      let v = 0.52 + big * 0.22 + mid * 0.14 + fine * 0.08 + (grain - 0.5) * 0.08;
+      v = Math.max(0.1, Math.min(1.2, v));
+      let r = 150 + v * 92, g = 138 + v * 84, b = 88 + v * 62;
+      D[i] = r > 255 ? 255 : r;
+      D[i + 1] = g > 255 ? 255 : g;
+      D[i + 2] = b > 255 ? 255 : b;
+      D[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const cell = S / 4;
+  for (let i = 0; i <= 4; i++) {
+    const p = i * cell;
+    const gv = ctx.createLinearGradient(p - 4, 0, p + 4, 0);
+    gv.addColorStop(0, 'rgba(90,78,46,0)');
+    gv.addColorStop(0.5, 'rgba(72,62,34,0.55)');
+    gv.addColorStop(1, 'rgba(90,78,46,0)');
+    ctx.fillStyle = gv;
+    ctx.fillRect(p - 4, 0, 8, S);
+    const gh = ctx.createLinearGradient(0, p - 4, 0, p + 4);
+    gh.addColorStop(0, 'rgba(90,78,46,0)');
+    gh.addColorStop(0.5, 'rgba(72,62,34,0.55)');
+    gh.addColorStop(1, 'rgba(90,78,46,0)');
+    ctx.fillStyle = gh;
+    ctx.fillRect(0, p - 4, S, 8);
+  }
+  ctx.globalAlpha = 0.18;
+  ctx.strokeStyle = '#ffe9b0';
+  ctx.lineWidth = 1.2;
+  for (let i = 0; i <= 4; i++) {
+    ctx.beginPath(); ctx.moveTo(i * cell + 3, 0); ctx.lineTo(i * cell + 3, S); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * cell + 3); ctx.lineTo(S, i * cell + 3); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.lineCap = 'round';
+  for (let k = 0; k < 70; k++) {
+    ctx.globalAlpha = 0.08 + Math.random() * 0.10;
+    ctx.strokeStyle = Math.random() < 0.5 ? '#fff0c0' : '#4a4020';
+    ctx.lineWidth = Math.random() * 1.2 + 0.25;
+    const x0 = Math.random() * S, y0 = Math.random() * S;
+    const ang = Math.random() * Math.PI * 2;
+    const len = 10 + Math.random() * 80;
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  return cv;
+}
+
+/* =========================================================================
+   4. GL 工具
+   ========================================================================= */
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s), src);
+    throw new Error('shader compile failed');
+  }
+  return s;
+}
+function program(vsSrc, fsSrc) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, vsSrc));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fsSrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    console.error(gl.getProgramInfoLog(p));
+    throw new Error('program link failed');
+  }
+  return p;
+}
+function texFromCanvas(cv) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  const ext = gl.getExtension('EXT_texture_filter_anisotropic');
+  if (ext) {
+    const max = gl.getParameter(ext.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+    gl.texParameterf(gl.TEXTURE_2D, ext.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, max));
+  }
+  return t;
+}
+
+/* =========================================================================
+   5. 矩阵
+   ========================================================================= */
+function perspectiveMat(fov, aspect, near, far) {
+  const f = 1 / Math.tan(fov / 2);
+  const nf = 1 / (near - far);
+  return new Float32Array([
+    f / aspect, 0, 0, 0,
+    0, f, 0, 0,
+    0, 0, (far + near) * nf, -1,
+    0, 0, 2 * far * near * nf, 0
+  ]);
+}
+function viewMat(ex, ey, ez, yaw, pitch) {
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
+  const fx = -sy * cp, fy = sp, fz = -cy * cp;
+  const rx = cy, ry = 0, rz = -sy;
+  const ux = ry * fz - rz * fy;
+  const uy = rz * fx - rx * fz;
+  const uz = rx * fy - ry * fx;
+  return new Float32Array([
+    rx, ux, -fx, 0,
+    ry, uy, -fy, 0,
+    rz, uz, -fz, 0,
+    -(rx * ex + ry * ey + rz * ez),
+    -(ux * ex + uy * ey + uz * ez),
+    (fx * ex + fy * ey + fz * ez),
+    1
+  ]);
+}
+function matMul(a, b) {
+  const o = new Float32Array(16);
+  for (let i = 0; i < 4; i++)
+    for (let j = 0; j < 4; j++) {
+      let s = 0;
+      for (let k = 0; k < 4; k++) s += a[k * 4 + j] * b[i * 4 + k];
+      o[i * 4 + j] = s;
+    }
+  return o;
+}
+
+/* =========================================================================
+   6. 着色器
+   ========================================================================= */
+const SCENE_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNormal;
+uniform mat4 uViewProj;
+out vec3 vWorldPos;
+out vec3 vNormal;
+void main(){
+  vWorldPos = aPos;
+  vNormal   = aNormal;
+  gl_Position = uViewProj * vec4(aPos, 1.0);
+}`;
+
+const SCENE_FS = `#version 300 es
+precision highp float;
+in vec3 vWorldPos;
+in vec3 vNormal;
+
+uniform sampler2D uTex;
+uniform vec3  uTint;
+uniform vec3  uAmbient;
+uniform float uUVScale;
+uniform float uBump;
+uniform float uLightFalloff;
+uniform int   uNumLamps;
+uniform vec3  uLampPos[8];
+uniform vec3  uLampCol[8];
+
+out vec4 fragColor;
+
+void main(){
+  vec3 N = normalize(vNormal);
+
+  vec2 uv;
+  if (abs(N.y) > 0.5) {
+    uv = vWorldPos.xz;
+  } else {
+    uv = vec2(dot(vWorldPos.xz, vec2(-N.z, N.x)), vWorldPos.y);
+  }
+  uv *= uUVScale;
+
+  vec3 T = (abs(N.y) > 0.5) ? vec3(1.0, 0.0, 0.0) : normalize(vec3(-N.z, 0.0, N.x));
+  vec3 B = (abs(N.y) > 0.5) ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+
+  vec3 c0 = texture(uTex, uv).rgb;
+  float e = 0.0022;
+  float h0 = dot(c0, vec3(0.33333));
+  float hT = dot(texture(uTex, uv + vec2(e, 0.0)).rgb, vec3(0.33333));
+  float hB = dot(texture(uTex, uv + vec2(0.0, e)).rgb, vec3(0.33333));
+  N = normalize(N - uBump * ((hT - h0) * T + (hB - h0) * B));
+
+  vec3 albedo = c0 * uTint;
+
+  vec3 light = uAmbient;
+  for (int i = 0; i < 8; i++) {
+    if (i >= uNumLamps) break;
+    vec3 d = uLampPos[i] - vWorldPos;
+    float dist2 = dot(d, d);
+    float att = 1.0 / (1.0 + dist2 * uLightFalloff);
+    float ndl = max(dot(N, normalize(d)), 0.0);
+    light += uLampCol[i] * att * (ndl * 0.86 + 0.14);
+  }
+
+  vec3 col = albedo * light;
+  col = pow(max(col, vec3(0.0)), vec3(0.88));
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const LAMP_VS = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec2 aUV;
+uniform mat4 uViewProj;
+out vec2 vUV;
+void main(){
+  vUV = aUV;
+  gl_Position = uViewProj * vec4(aPos, 1.0);
+}`;
+
+const LAMP_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+out vec4 fragColor;
+void main(){
+  vec2 q = abs(vUV - 0.5) * 2.0;
+  float b = max(q.x, q.y);
+  float inner = 1.0 - smoothstep(0.70, 0.76, b);
+  vec3 col = mix(vec3(0.015), vec3(1.0), inner);
+  col += vec3(0.06, 0.055, 0.045) * inner;
+  fragColor = vec4(col, 1.0);
+}`;
+
+const FS_VS = `#version 300 es
+layout(location=0) in vec2 aPos;
+out vec2 vUV;
+void main(){
+  vUV = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
+const ACC_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uCur;
+uniform sampler2D uPrev;
+uniform float uDecay;
+uniform float uInit;
+out vec4 fragColor;
+void main(){
+  vec3 c = texture(uCur,  vUV).rgb;
+  vec3 p = texture(uPrev, vUV).rgb;
+  fragColor = vec4(mix(c, p, uDecay * uInit), 1.0);
+}`;
+
+const FINAL_FS = `#version 300 es
+precision highp float;
+in vec2 vUV;
+uniform sampler2D uTex;
+uniform vec2  uRes;
+uniform float uTime;
+uniform float uCA;
+uniform float uGrain;
+uniform float uVig;
+out vec4 fragColor;
+
+float hash21(vec2 p){
+  p = fract(p * vec2(443.897, 441.423));
+  p += dot(p, p.yx + 19.19);
+  return fract((p.x + p.y) * p.x);
+}
+
+void main(){
+  vec2 uv = vUV;
+  vec2 cc = uv - 0.5;
+  float d = length(cc);
+
+  vec2 off = cc * d * uCA;
+  float r = texture(uTex, uv + off).r;
+  float g = texture(uTex, uv).g;
+  float b = texture(uTex, uv - off).b;
+  vec3 col = vec3(r, g, b);
+
+  float n = hash21(uv * uRes * 0.65 + vec2(uTime * 37.13, uTime * 71.7));
+  col += (n - 0.5) * uGrain;
+
+  float vig = smoothstep(1.02, 0.28, d);
+  col *= mix(1.0, vig, uVig);
+
+  fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
+}`;
+
+const sceneProg = program(SCENE_VS, SCENE_FS);
+const lampProg  = program(LAMP_VS, LAMP_FS);
+const accProg   = program(FS_VS, ACC_FS);
+const finalProg = program(FS_VS, FINAL_FS);
+
+const SU = {
+  viewProj:     gl.getUniformLocation(sceneProg, 'uViewProj'),
+  tex:          gl.getUniformLocation(sceneProg, 'uTex'),
+  tint:         gl.getUniformLocation(sceneProg, 'uTint'),
+  ambient:      gl.getUniformLocation(sceneProg, 'uAmbient'),
+  uvScale:      gl.getUniformLocation(sceneProg, 'uUVScale'),
+  bump:         gl.getUniformLocation(sceneProg, 'uBump'),
+  lightFalloff: gl.getUniformLocation(sceneProg, 'uLightFalloff'),
+  numLamps:     gl.getUniformLocation(sceneProg, 'uNumLamps'),
+  lampPos:      gl.getUniformLocation(sceneProg, 'uLampPos[0]'),
+  lampCol:      gl.getUniformLocation(sceneProg, 'uLampCol[0]')
+};
+const LU = { viewProj: gl.getUniformLocation(lampProg, 'uViewProj') };
+const AU = {
+  cur:   gl.getUniformLocation(accProg, 'uCur'),
+  prev:  gl.getUniformLocation(accProg, 'uPrev'),
+  decay: gl.getUniformLocation(accProg, 'uDecay'),
+  init:  gl.getUniformLocation(accProg, 'uInit')
+};
+const FU = {
+  tex:   gl.getUniformLocation(finalProg, 'uTex'),
+  res:   gl.getUniformLocation(finalProg, 'uRes'),
+  time:  gl.getUniformLocation(finalProg, 'uTime'),
+  ca:    gl.getUniformLocation(finalProg, 'uCA'),
+  grain: gl.getUniformLocation(finalProg, 'uGrain'),
+  vig:   gl.getUniformLocation(finalProg, 'uVig')
+};
+
+/* =========================================================================
+   7. 纹理实例
+   ========================================================================= */
+const texCarpet  = texFromCanvas(makeCarpetTexture());
+const texWall    = texFromCanvas(makeWallTexture());
+const texCeiling = texFromCanvas(makeCeilingTexture());
+
+/* =========================================================================
+   8. 几何体
+   ========================================================================= */
+let wallVAO = gl.createVertexArray();
+let wallVBO = gl.createBuffer();
+let wallVertCount = 0;
+
+gl.bindVertexArray(wallVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, wallVBO);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+gl.bindVertexArray(null);
+
+function makeQuadVAO() {
+  const vao = gl.createVertexArray();
+  const vbo = gl.createBuffer();
+  gl.bindVertexArray(vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.bufferData(gl.ARRAY_BUFFER, 6 * 6 * 4, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+  gl.enableVertexAttribArray(1);
+  gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+  gl.bindVertexArray(null);
+  return { vao, vbo };
+}
+const floorQuad = makeQuadVAO();
+const ceilQuad  = makeQuadVAO();
+
+let lampVAO = gl.createVertexArray();
+let lampVBO = gl.createBuffer();
+let lampVertCount = 0;
+gl.bindVertexArray(lampVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, lampVBO);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 20, 0);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 20, 12);
+gl.bindVertexArray(null);
+
+const fsVAO = gl.createVertexArray();
+const fsVBO = gl.createBuffer();
+gl.bindVertexArray(fsVAO);
+gl.bindBuffer(gl.ARRAY_BUFFER, fsVBO);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+  -1, -1,  1, -1,  -1, 1,
+  -1,  1,  1, -1,   1, 1
+]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 8, 0);
+gl.bindVertexArray(null);
+
+/* =========================================================================
+   9. 区块构建
+   ========================================================================= */
+let lampList = [];
+let builtCX = 1e9, builtCZ = 1e9;
+
+function pushQuad(arr, p0, p1, p2, p3, n) {
+  const pts = [p0, p1, p2, p0, p2, p3];
+  for (let i = 0; i < 6; i++) {
+    const p = pts[i];
+    arr.push(p[0], p[1], p[2], n[0], n[1], n[2]);
+  }
+}
+
+function rebuild(cx0, cz0) {
+  const arr = [];
+  const H = WALL_H;
+
+  for (let cz = cz0 - VIEW_R; cz <= cz0 + VIEW_R; cz++) {
+    for (let cx = cx0 - VIEW_R; cx <= cx0 + VIEW_R; cx++) {
+      if (!isWallCell(cx, cz)) continue;
+      const x0 = cx * CELL, x1 = (cx + 1) * CELL;
+      const z0 = cz * CELL, z1 = (cz + 1) * CELL;
+
+      if (!isWallCell(cx + 1, cz))
+        pushQuad(arr, [x1, 0, z1], [x1, 0, z0], [x1, H, z0], [x1, H, z1], [1, 0, 0]);
+      if (!isWallCell(cx - 1, cz))
+        pushQuad(arr, [x0, 0, z0], [x0, 0, z1], [x0, H, z1], [x0, H, z0], [-1, 0, 0]);
+      if (!isWallCell(cx, cz + 1))
+        pushQuad(arr, [x0, 0, z1], [x1, 0, z1], [x1, H, z1], [x0, H, z1], [0, 0, 1]);
+      if (!isWallCell(cx, cz - 1))
+        pushQuad(arr, [x1, 0, z0], [x0, 0, z0], [x0, H, z0], [x1, H, z0], [0, 0, -1]);
+    }
+  }
+
+  wallVertCount = arr.length / 6;
+  gl.bindBuffer(gl.ARRAY_BUFFER, wallVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.DYNAMIC_DRAW);
+
+  /* ---- 灯 ---- */
+  const larr = [];
+  lampList = [];
+  const y = CEIL_H - 0.02;
+  const s = 0.21 * CELL;
+
+  for (let cz = cz0 - VIEW_R; cz <= cz0 + VIEW_R; cz++) {
+    for (let cx = cx0 - VIEW_R; cx <= cx0 + VIEW_R; cx++) {
+      if (!lampAt(cx, cz)) continue;
+      const lx = (cx + 0.5) * CELL;
+      const lz = (cz + 0.5) * CELL;
+      const X0 = lx - s, X1 = lx + s, Z0 = lz - s, Z1 = lz + s;
+      const verts = [
+        [X0, y, Z0, 0, 0],
+        [X1, y, Z0, 1, 0],
+        [X1, y, Z1, 1, 1],
+        [X0, y, Z0, 0, 0],
+        [X1, y, Z1, 1, 1],
+        [X0, y, Z1, 0, 1]
+      ];
+      for (let i = 0; i < verts.length; i++) {
+        larr.push(verts[i][0], verts[i][1], verts[i][2], verts[i][3], verts[i][4]);
+      }
+      lampList.push({ x: lx, y: CEIL_H - 0.12, z: lz });
+    }
+  }
+  lampVertCount = larr.length / 5;
+  gl.bindBuffer(gl.ARRAY_BUFFER, lampVBO);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(larr), gl.DYNAMIC_DRAW);
+
+  builtCX = cx0; builtCZ = cz0;
+}
+
+/* =========================================================================
+   10. 玩家 / 相机
+   ========================================================================= */
+const player = {
+  x: 0.5 * CELL, z: 0.5 * CELL,
+  yaw: 0, pitch: 0,
+  bobT: 0, bobAmp: 0.008,
+  radius: 0.26 * CELL
+};
+
+function collides(x, z) {
+  const r = player.radius;
+  return isWallCell(Math.floor((x - r) / CELL), Math.floor((z - r) / CELL)) ||
+         isWallCell(Math.floor((x + r) / CELL), Math.floor((z - r) / CELL)) ||
+         isWallCell(Math.floor((x - r) / CELL), Math.floor((z + r) / CELL)) ||
+         isWallCell(Math.floor((x + r) / CELL), Math.floor((z + r) / CELL));
+}
+
+/* =========================================================================
+   11. 视野外房间重建（核心新增）
+   -------------------------------------------------------------------------
+   - 以角色为中心，半径 R_RANGE 个“房间格”（偶偶格）范围
+   - 每帧检测每个房间格是否在相机背后（夹角 > ~99°）
+   - 状态从“可见”变为“不可见”时，立即 bump 该房间版本
+     → 下次重建后该房间墙壁、灯位置都会变化
+   - 房间再次变为可见时更新状态（此时已展示新布局）
+   ========================================================================= */
+const R_RANGE = 3;
+const roomVisible = new Map();   // "rx,rz" → boolean
+
+function updateRoomVisibility() {
+  const prx = Math.floor(player.x / CELL / 2);
+  const prz = Math.floor(player.z / CELL / 2);
+
+  const fwdX = -Math.sin(player.yaw);
+  const fwdZ = -Math.cos(player.yaw);
+
+  let needRebuild = false;
+
+  for (let drz = -R_RANGE; drz <= R_RANGE; drz++) {
+    for (let drx = -R_RANGE; drx <= R_RANGE; drx++) {
+      const rx = prx + drx;
+      const rz = prz + drz;
+      const key = rx + ',' + rz;
+
+      // 房间格中心世界坐标
+      const wx = (2 * rx + 1) * CELL;
+      const wz = (2 * rz + 1) * CELL;
+      const dx = wx - player.x;
+      const dz = wz - player.z;
+      const dist = Math.hypot(dx, dz);
+
+      let visible;
+      if (dist < 1.6 * CELL) {
+        // 近处房间永远视为可见，避免脚下反复重建
+        visible = true;
+      } else {
+        const ndx = dx / dist, ndz = dz / dist;
+        const dotFwd = ndx * fwdX + ndz * fwdZ;
+        visible = dotFwd > -0.15;  // 背后约 >99° 视为不可见
+      }
+
+      const prev = roomVisible.get(key);
+
+      if (prev === true && !visible) {
+        // 刚刚进入背后：重建该房间
+        bumpRoomVersion(rx, rz);
+        needRebuild = true;
+        roomVisible.set(key, false);
+      } else if (prev === false && visible) {
+        // 重新回到视野：此时展示的是变化后的布局
+        roomVisible.set(key, true);
+      } else if (prev === undefined) {
+        roomVisible.set(key, visible);
+      }
+    }
+  }
+  return needRebuild;
+}
+
+/* =========================================================================
+   12. 输入
+   ========================================================================= */
+const keys = Object.create(null);
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+
+const stickBase = document.getElementById('stickBase');
+const stickKnob = document.getElementById('stickKnob');
+let joyId = null, joyX = 0, joyY = 0;
+let baseCX = 0, baseCY = 0;
+const JOY_R = 56;
+
+function layoutStick() {
+  const r = stickBase.getBoundingClientRect();
+  baseCX = r.left + r.width * 0.5;
+  baseCY = r.top + r.height * 0.5;
+}
+function updateJoy(e) {
+  let dx = e.clientX - baseCX;
+  let dy = e.clientY - baseCY;
+  const d = Math.hypot(dx, dy);
+  if (d > JOY_R) { dx = dx / d * JOY_R; dy = dy / d * JOY_R; }
+  joyX = dx / JOY_R;
+  joyY = dy / JOY_R;
+  stickKnob.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+}
+function resetJoy() {
+  joyId = null; joyX = 0; joyY = 0;
+  stickKnob.style.transform = 'translate(0px, 0px)';
+}
+
+let lookId = null, lastLX = 0, lastLY = 0;
+const PITCH_LIMIT = 1.35;
+
+canvas.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse') {
+    if (document.pointerLockElement !== canvas && canvas.requestPointerLock) {
+      canvas.requestPointerLock();
+    }
+    return;
+  }
+  if (e.clientX < innerWidth * 0.5 && e.clientY > innerHeight * 0.42) {
+    joyId = e.pointerId;
+    updateJoy(e);
+  } else if (lookId === null) {
+    lookId = e.pointerId;
+    lastLX = e.clientX; lastLY = e.clientY;
+  }
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerType === 'mouse') return;
+  if (e.pointerId === joyId) {
+    updateJoy(e);
+    e.preventDefault();
+  } else if (e.pointerId === lookId) {
+    const dx = e.clientX - lastLX;
+    const dy = e.clientY - lastLY;
+    lastLX = e.clientX; lastLY = e.clientY;
+    player.yaw -= dx * 0.0048;
+    player.pitch -= dy * 0.0048;
+    player.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, player.pitch));
+    e.preventDefault();
+  }
+}, { passive: false });
+
+function endPointer(e) {
+  if (e.pointerId === joyId) resetJoy();
+  if (e.pointerId === lookId) lookId = null;
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('pointerleave', endPointer);
+
+document.addEventListener('mousemove', e => {
+  if (document.pointerLockElement === canvas) {
+    player.yaw -= e.movementX * 0.0022;
+    player.pitch -= e.movementY * 0.0022;
+    player.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, player.pitch));
+  }
+});
+
+/* =========================================================================
+   13. 渲染目标
+   ========================================================================= */
+let sceneRT = null, accRT = [null, null];
+let accIndex = 0;
+let frameCount = 0;
+
+function createColorRT(w, h) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { tex, fbo, w, h };
+}
+
+function createSceneRT(w, h) {
+  const rt = createColorRT(w, h);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, rt.fbo);
+  const rb = gl.createRenderbuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, rb);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, w, h);
+  gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, rb);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  rt.depth = rb;
+  return rt;
+}
+
+function destroyRT(rt) {
+  if (!rt) return;
+  gl.deleteTexture(rt.tex);
+  gl.deleteFramebuffer(rt.fbo);
+  if (rt.depth) gl.deleteRenderbuffer(rt.depth);
+}
+
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+  const w = Math.max(1, Math.floor(innerWidth * dpr));
+  const h = Math.max(1, Math.floor(innerHeight * dpr));
+  if (canvas.width === w && canvas.height === h) return;
+  canvas.width = w;
+  canvas.height = h;
+
+  destroyRT(sceneRT);
+  destroyRT(accRT[0]);
+  destroyRT(accRT[1]);
+
+  sceneRT = createSceneRT(w, h);
+  accRT[0] = createColorRT(w, h);
+  accRT[1] = createColorRT(w, h);
+  accIndex = 0;
+  frameCount = 0;
+
+  layoutStick();
+}
+addEventListener('resize', resize);
+addEventListener('orientationchange', () => setTimeout(resize, 200));
+
+/* =========================================================================
+   14. 更新
+   ========================================================================= */
+function updatePlayer(dt) {
+  let ix = 0, iz = 0;
+  if (keys['KeyW'] || keys['ArrowUp'])    iz -= 1;
+  if (keys['KeyS'] || keys['ArrowDown'])  iz += 1;
+  if (keys['KeyA'] || keys['ArrowLeft'])  ix -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
+
+  ix += joyX;
+  iz += joyY;
+
+  let len = Math.hypot(ix, iz);
+  if (len > 1) { ix /= len; iz /= len; len = 1; }
+  if (len < 0.02) { ix = 0; iz = 0; len = 0; }
+
+  const speed = 2.55 * CELL;
+  const cy = Math.cos(player.yaw), sy = Math.sin(player.yaw);
+
+  const fwd = -iz;
+  const str = ix;
+
+  const dirX = -sy * fwd + cy * str;
+  const dirZ = -cy * fwd - sy * str;
+
+  const nx = player.x + dirX * speed * dt;
+  const nz = player.z + dirZ * speed * dt;
+
+  if (!collides(nx, player.z)) player.x = nx;
+  if (!collides(player.x, nz)) player.z = nz;
+
+  const moving = len > 0.1;
+  player.bobT += dt * (moving ? 9.2 : 1.8);
+  const targetAmp = moving ? 0.036 : 0.007;
+  player.bobAmp += (targetAmp - player.bobAmp) * Math.min(1, dt * 8);
+}
+
+/* =========================================================================
+   15. 渲染
+   ========================================================================= */
+const lampPosBuf = new Float32Array(24);
+const lampColBuf = new Float32Array(24);
+const AMBIENT = [0.255, 0.235, 0.190];
+
+function selectLamps(px, pz) {
+  const cands = [];
+  const maxD = 12 * CELL;
+  const maxD2 = maxD * maxD;
+  for (let i = 0; i < lampList.length; i++) {
+    const L = lampList[i];
+    const dx = L.x - px, dz = L.z - pz;
+    const d2 = dx * dx + dz * dz;
+    if (d2 < maxD2) cands.push({ L, d2 });
+  }
+  cands.sort((a, b) => a.d2 - b.d2);
+  const n = Math.min(8, cands.length);
+  const falloffK = 0.02 / (CELL * CELL);
+  for (let i = 0; i < n; i++) {
+    const L = cands[i].L;
+    lampPosBuf[i * 3]     = L.x;
+    lampPosBuf[i * 3 + 1] = L.y;
+    lampPosBuf[i * 3 + 2] = L.z;
+    const fall = 1.0 / (1.0 + cands[i].d2 * falloffK);
+    lampColBuf[i * 3]     = 2.55 * fall;
+    lampColBuf[i * 3 + 1] = 2.42 * fall;
+    lampColBuf[i * 3 + 2] = 2.02 * fall;
+  }
+  return n;
+}
+
+function updateGroundQuads(cx, cz) {
+  const R = VIEW_R + 3;
+  const x0 = (cx - R) * CELL, x1 = (cx + R) * CELL;
+  const z0 = (cz - R) * CELL, z1 = (cz + R) * CELL;
+
+  const f = new Float32Array([
+    x0, 0, z0, 0, 1, 0,
+    x0, 0, z1, 0, 1, 0,
+    x1, 0, z1, 0, 1, 0,
+    x0, 0, z0, 0, 1, 0,
+    x1, 0, z1, 0, 1, 0,
+    x1, 0, z0, 0, 1, 0
+  ]);
+  gl.bindBuffer(gl.ARRAY_BUFFER, floorQuad.vbo);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, f);
+
+  const c = new Float32Array([
+    x0, CEIL_H, z1, 0, -1, 0,
+    x0, CEIL_H, z0, 0, -1, 0,
+    x1, CEIL_H, z0, 0, -1, 0,
+    x0, CEIL_H, z1, 0, -1, 0,
+    x1, CEIL_H, z0, 0, -1, 0,
+    x1, CEIL_H, z1, 0, -1, 0
+  ]);
+  gl.bindBuffer(gl.ARRAY_BUFFER, ceilQuad.vbo);
+  gl.bufferSubData(gl.ARRAY_BUFFER, 0, c);
+}
+
+let elapsed = 0;
+
+function render(dt) {
+  elapsed += dt;
+
+  const cx0 = Math.floor(player.x / CELL);
+  const cz0 = Math.floor(player.z / CELL);
+
+  // ★ 视野外房间检测（在重建前执行）
+  const needRebuild = updateRoomVisibility();
+
+  if (cx0 !== builtCX || cz0 !== builtCZ || needRebuild) {
+    rebuild(cx0, cz0);
+  }
+
+  const bob = Math.sin(player.bobT) * player.bobAmp;
+  const eyeX = player.x;
+  const eyeY = 1.60 + bob;
+  const eyeZ = player.z;
+
+  const aspect = canvas.width / canvas.height;
+  const proj = perspectiveMat(72 * Math.PI / 180, aspect, 0.04, 60);
+  const view = viewMat(eyeX, eyeY, eyeZ, player.yaw, player.pitch);
+  const vp = matMul(proj, view);
+
+  const numLamps = selectLamps(player.x, player.z);
+  updateGroundQuads(cx0, cz0);
+
+  /* ===================== 场景 pass ===================== */
+  gl.bindFramebuffer(gl.FRAMEBUFFER, sceneRT.fbo);
+  gl.viewport(0, 0, sceneRT.w, sceneRT.h);
+  gl.clearColor(0.035, 0.028, 0.020, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.disable(gl.CULL_FACE);
+  gl.disable(gl.BLEND);
+
+  gl.useProgram(sceneProg);
+  gl.uniformMatrix4fv(SU.viewProj, false, vp);
+  gl.uniform3fv(SU.ambient, AMBIENT);
+  gl.uniform1i(SU.numLamps, numLamps);
+  gl.uniform3fv(SU.lampPos, lampPosBuf);
+  gl.uniform3fv(SU.lampCol, lampColBuf);
+  gl.uniform1f(SU.lightFalloff, 1.05 / (CELL * CELL));
+  gl.uniform1i(SU.tex, 0);
+  gl.activeTexture(gl.TEXTURE0);
+
+  /* --- 地板 --- */
+  gl.uniform1f(SU.uvScale, 1.6);
+  gl.uniform1f(SU.bump, 1.15);
+  gl.uniform3f(SU.tint, 1.00, 0.94, 0.86);
+  gl.bindTexture(gl.TEXTURE_2D, texCarpet);
+  gl.bindVertexArray(floorQuad.vao);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  /* --- 天花板 --- */
+  gl.uniform1f(SU.uvScale, 0.65);
+  gl.uniform1f(SU.bump, 0.85);
+  gl.uniform3f(SU.tint, 1.00, 0.98, 0.90);
+  gl.bindTexture(gl.TEXTURE_2D, texCeiling);
+  gl.bindVertexArray(ceilQuad.vao);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  /* --- 墙体 --- */
+  if (wallVertCount > 0) {
+    gl.uniform1f(SU.uvScale, 1.1);
+    gl.uniform1f(SU.bump, 1.45);
+    gl.uniform3f(SU.tint, 1.00, 0.97, 0.88);
+    gl.bindTexture(gl.TEXTURE_2D, texWall);
+    gl.bindVertexArray(wallVAO);
+    gl.drawArrays(gl.TRIANGLES, 0, wallVertCount);
+  }
+
+  /* --- 灯具（深度测试：被墙遮挡） --- */
+  if (lampVertCount > 0) {
+    gl.useProgram(lampProg);
+    gl.uniformMatrix4fv(LU.viewProj, false, vp);
+    gl.bindVertexArray(lampVAO);
+    gl.drawArrays(gl.TRIANGLES, 0, lampVertCount);
+  }
+
+  /* ===================== 累积 ===================== */
+  const src = accRT[accIndex];
+  const dst = accRT[1 - accIndex];
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fbo);
+  gl.viewport(0, 0, dst.w, dst.h);
+  gl.disable(gl.DEPTH_TEST);
+  gl.useProgram(accProg);
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, sceneRT.tex);
+  gl.uniform1i(AU.cur, 0);
+
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, src.tex);
+  gl.uniform1i(AU.prev, 1);
+
+  gl.uniform1f(AU.decay, 0.70);
+  gl.uniform1f(AU.init, frameCount === 0 ? 0.0 : 1.0);
+
+  gl.bindVertexArray(fsVAO);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  accIndex = 1 - accIndex;
+
+  /* ===================== 最终合成 ===================== */
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.useProgram(finalProg);
+
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, dst.tex);
+  gl.uniform1i(FU.tex, 0);
+  gl.uniform2f(FU.res, canvas.width, canvas.height);
+  gl.uniform1f(FU.time, elapsed);
+  gl.uniform1f(FU.ca, 0.020);
+  gl.uniform1f(FU.grain, 0.085);
+  gl.uniform1f(FU.vig, 0.55);
+
+  gl.bindVertexArray(fsVAO);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+  gl.bindVertexArray(null);
+
+  frameCount++;
+}
+
+/* =========================================================================
+   16. 主循环
+   ========================================================================= */
+let lastTime = performance.now();
+
+function loop(now) {
+  requestAnimationFrame(loop);
+  let dt = (now - lastTime) / 1000;
+  lastTime = now;
+  if (dt > 0.06) dt = 0.06;
+  if (dt < 0) dt = 0;
+
+  updatePlayer(dt);
+  render(dt);
+}
+
+/* =========================================================================
+   17. 启动
+   ========================================================================= */
+resize();
+layoutStick();
+rebuild(Math.floor(player.x / CELL), Math.floor(player.z / CELL));
+
+setTimeout(() => {
+  const h = document.getElementById('hint');
+  if (h) h.style.opacity = '0.28';
+}, 6000);
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
