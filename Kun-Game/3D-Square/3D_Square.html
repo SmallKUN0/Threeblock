@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+<title>CYBER MAZE · WebGL2</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#04060a;}
+  #c{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair;}
+  #hint{position:fixed;left:12px;top:12px;color:#5ff;font:12px/1.7 ui-monospace,Menlo,Consolas,monospace;
+        text-shadow:0 0 8px rgba(0,255,255,.55);pointer-events:none;opacity:.75;letter-spacing:.5px;}
+  #seedtxt{position:fixed;right:12px;top:12px;color:#f5a;font:11px ui-monospace,monospace;opacity:.6;pointer-events:none;}
+  #joyBase{position:fixed;left:26px;bottom:26px;width:118px;height:118px;border-radius:50%;
+    border:2px solid rgba(0,255,255,.28);
+    background:radial-gradient(circle,rgba(0,255,255,.10),rgba(0,255,255,.015));
+    touch-action:none;display:none;z-index:10;}
+  #joyKnob{position:absolute;left:50%;top:50%;width:50px;height:50px;border-radius:50%;
+    background:rgba(0,255,255,.25);border:1px solid rgba(0,255,255,.85);
+    box-shadow:0 0 16px rgba(0,255,255,.6);pointer-events:none;
+    transform:translate(-50%,-50%);}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">WASD / 方向键 移动 &nbsp;·&nbsp; 按住左键拖动 / 触摸拖动 转视角<br>贴墙持续推进可走上墙面与天花板 &nbsp;·&nbsp; 迷宫会在视线外悄悄变化</div>
+<div id="seedtxt">SEED</div>
+<div id="joyBase"><div id="joyKnob"></div></div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   0. 数学小工具
+   ========================================================= */
+const V3 = {
+  sub:(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],
+  add:(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]],
+  scale:(a,s)=>[a[0]*s,a[1]*s,a[2]*s],
+  dot:(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],
+  cross:(a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]],
+  len:a=>Math.hypot(a[0],a[1],a[2]),
+  norm:a=>{const l=Math.hypot(a[0],a[1],a[2])||1;return [a[0]/l,a[1]/l,a[2]/l];},
+  lerp:(a,b,t)=>[a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t]
+};
+function rotAxis(v,k,a){
+  const c=Math.cos(a), s=Math.sin(a);
+  const kv=V3.cross(k,v), kd=V3.dot(k,v), om=1-c;
+  return [
+    v[0]*c + kv[0]*s + k[0]*kd*om,
+    v[1]*c + kv[1]*s + k[1]*kd*om,
+    v[2]*c + kv[2]*s + k[2]*kd*om
+  ];
+}
+function pickPerp(u){
+  const a = Math.abs(u[1]) < 0.9 ? [0,1,0] : [1,0,0];
+  return V3.norm(V3.cross(u,a));
+}
+function perspective(fovy, aspect, near, far){
+  const f = 1/Math.tan(fovy*0.5);
+  const nf = 1/(near-far);
+  const m = new Float32Array(16);
+  m[0]=f/aspect; m[5]=f;
+  m[10]=(far+near)*nf; m[11]=-1;
+  m[14]=2*far*near*nf;
+  return m;
+}
+function lookAt(eye, center, up){
+  const z = V3.norm(V3.sub(eye,center));
+  let x = V3.cross(up,z);
+  if(V3.len(x) < 1e-5){ x = pickPerp(z); }
+  x = V3.norm(x);
+  const y = V3.cross(z,x);
+  const m = new Float32Array(16);
+  m[0]=x[0]; m[1]=y[0]; m[2]=z[0]; m[3]=0;
+  m[4]=x[1]; m[5]=y[1]; m[6]=z[1]; m[7]=0;
+  m[8]=x[2]; m[9]=y[2]; m[10]=z[2]; m[11]=0;
+  m[12]=-V3.dot(x,eye); m[13]=-V3.dot(y,eye); m[14]=-V3.dot(z,eye); m[15]=1;
+  return m;
+}
+
+/* =========================================================
+   1. 随机种子 + 迷宫体素生成
+   ========================================================= */
+const SEED = (Math.random()*1e9)>>>0;
+document.getElementById('seedtxt').textContent = 'SEED ' + SEED.toString(16).toUpperCase();
+
+function mulberry32(a){
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a>>>15), 1 | a);
+    t = (t + Math.imul(t ^ (t>>>7), 61 | t)) ^ t;
+    return ((t ^ (t>>>14))>>>0) / 4294967296;
+  };
+}
+const rnd = mulberry32(SEED);
+
+/* --- 体素网格参数 --- */
+const NX = 5, NY = 3, NZ = 5;
+const GX = NX*2+1, GY = NY*2+1, GZ = NZ*2+1;
+const VS = 4;
+const PLAYER_R = 0.5;
+
+const grid = new Uint8Array(GX*GY*GZ);
+grid.fill(1);
+const I = (x,y,z)=> x + GX*(y + GY*z);
+
+function isSolidRaw(x,y,z){
+  if(x<0||y<0||z<0||x>=GX||y>=GY||z>=GZ) return true;
+  return grid[I(x,y,z)] === 1;
+}
+
+/* --- 房间全部挖空 --- */
+for(let z=1;z<GZ;z+=2)
+  for(let y=1;y<GY;y+=2)
+    for(let x=1;x<GX;x+=2)
+      grid[I(x,y,z)] = 0;
+
+/* --- 3D 随机 Prim 生成主干 --- */
+const visited = new Uint8Array(GX*GY*GZ);
+const edgeList = [];
+const DIRS6 = [[2,0,0],[-2,0,0],[0,2,0],[0,-2,0],[0,0,2],[0,0,-2]];
+
+function pushEdges(x,y,z){
+  for(const d of DIRS6){
+    const nx=x+d[0], ny=y+d[1], nz=z+d[2];
+    if(nx<0||ny<0||nz<0||nx>=GX||ny>=GY||nz>=GZ) continue;
+    if(visited[I(nx,ny,nz)]) continue;
+    edgeList.push([x,y,z,nx,ny,nz]);
+  }
+}
+
+const startRoom = [
+  1 + 2*Math.floor(rnd()*NX),
+  1 + 2*Math.floor(rnd()*NY),
+  1 + 2*Math.floor(rnd()*NZ)
+];
+visited[I(startRoom[0],startRoom[1],startRoom[2])] = 1;
+pushEdges(startRoom[0],startRoom[1],startRoom[2]);
+
+while(edgeList.length){
+  const ei = Math.floor(rnd()*edgeList.length);
+  const e = edgeList[ei];
+  edgeList[ei] = edgeList[edgeList.length-1];
+  edgeList.pop();
+  const [ax,ay,az,bx,by,bz] = e;
+  if(visited[I(bx,by,bz)]) continue;
+  visited[I(bx,by,bz)] = 1;
+  grid[I((ax+bx)>>1,(ay+by)>>1,(az+bz)>>1)] = 0;
+  pushEdges(bx,by,bz);
+}
+
+/* --- 额外环路：四通八达 --- */
+let loops = 0;
+for(let t=0;t<1400 && loops<26;t++){
+  const x = 1 + 2*Math.floor(rnd()*NX);
+  const y = 1 + 2*Math.floor(rnd()*NY);
+  const z = 1 + 2*Math.floor(rnd()*NZ);
+  const axis = Math.floor(rnd()*3);
+  const sgn = rnd()<0.5 ? 1 : -1;
+  const nx = x + (axis===0?2*sgn:0);
+  const ny = y + (axis===1?2*sgn:0);
+  const nz = z + (axis===2?2*sgn:0);
+  if(nx<=0||ny<=0||nz<=0||nx>=GX-1||ny>=GY-1||nz>=GZ-1) continue;
+  const wx = (x+nx)>>1, wy=(y+ny)>>1, wz=(z+nz)>>1;
+  if(grid[I(wx,wy,wz)] === 1){
+    grid[I(wx,wy,wz)] = 0;
+    loops++;
+  }
+}
+
+/* --- 不规则扭曲：随机侵蚀掉部分墙体 --- */
+let eroded = 0;
+for(let t=0;t<4000 && eroded<60;t++){
+  const x = 1 + Math.floor(rnd()*(GX-2));
+  const y = 1 + Math.floor(rnd()*(GY-2));
+  const z = 1 + Math.floor(rnd()*(GZ-2));
+  if(grid[I(x,y,z)] !== 1) continue;
+  let air = 0;
+  if(!isSolidRaw(x+1,y,z)) air++;
+  if(!isSolidRaw(x-1,y,z)) air++;
+  if(!isSolidRaw(x,y+1,z)) air++;
+  if(!isSolidRaw(x,y-1,z)) air++;
+  if(!isSolidRaw(x,y,z+1)) air++;
+  if(!isSolidRaw(x,y,z-1)) air++;
+  if(air>=2 && air<=3){ grid[I(x,y,z)] = 0; eroded++; }
+}
+
+/* =========================================================
+   2. 体素颜色缓存（★ 计算一次后永久锁定）
+   ========================================================= */
+const PALETTE = [
+  [0.05, 0.32, 0.60],   // 原青
+  [0.85, 0.10, 0.75],   // 品红
+  [0.30, 0.90, 0.15],   // 亮绿
+  [0.95, 0.45, 0.05]    // 橙
+];
+const voxelColorCache = new Array(GX*GY*GZ).fill(null);
+
+function getVoxelColor(x,y,z){
+  const idx = I(x,y,z);
+  let c = voxelColorCache[idx];
+  if(c) return c;                      // 命中缓存 → 不再改变
+  const h = Math.random();
+  let pi;
+  if(h < 0.45)      pi = 0;            // 45% 原青
+  else if(h < 0.65) pi = 1;
+  else if(h < 0.85) pi = 2;
+  else              pi = 3;
+  c = PALETTE[pi];
+  voxelColorCache[idx] = c;            // 永久缓存
+  return c;
+}
+
+/* =========================================================
+   3. 构建网格（只生成朝向空气的面）
+   ========================================================= */
+const FACES = [
+  {d:[ 1, 0, 0], base:[1,0,0], u:[0,1,0], v:[0,0,1]},
+  {d:[-1, 0, 0], base:[0,0,0], u:[0,0,1], v:[0,1,0]},
+  {d:[ 0, 1, 0], base:[0,1,0], u:[0,0,1], v:[1,0,0]},
+  {d:[ 0,-1, 0], base:[0,0,0], u:[1,0,0], v:[0,0,1]},
+  {d:[ 0, 0, 1], base:[0,0,1], u:[1,0,0], v:[0,1,0]},
+  {d:[ 0, 0,-1], base:[0,0,0], u:[0,1,0], v:[1,0,0]}
+];
+
+function buildMesh(){
+  const P=[], N=[], U=[], C=[], COL=[], IDX=[];
+  let vi = 0;
+  const CORNERS = [[0,0],[1,0],[1,1],[0,1]];
+  for(let z=0;z<GZ;z++){
+    for(let y=0;y<GY;y++){
+      for(let x=0;x<GX;x++){
+        if(grid[I(x,y,z)] === 0) continue;
+        const vc = getVoxelColor(x,y,z);   // ★ 取缓存颜色
+        for(let f=0;f<6;f++){
+          const F = FACES[f];
+          if(isSolidRaw(x+F.d[0], y+F.d[1], z+F.d[2])) continue;
+          const bx = x+F.base[0], by = y+F.base[1], bz = z+F.base[2];
+          const ux = F.u[0], uy = F.u[1], uz = F.u[2];
+          const vx = F.v[0], vy = F.v[1], vz = F.v[2];
+          for(let c=0;c<4;c++){
+            const a = CORNERS[c][0], b = CORNERS[c][1];
+            P.push((bx + ux*a + vx*b)*VS,
+                   (by + uy*a + vy*b)*VS,
+                   (bz + uz*a + vz*b)*VS);
+            N.push(F.d[0], F.d[1], F.d[2]);
+            U.push(a, b);
+            C.push(x, y, z);
+            COL.push(vc[0], vc[1], vc[2]);
+          }
+          IDX.push(vi, vi+1, vi+2, vi, vi+2, vi+3);
+          vi += 4;
+        }
+      }
+    }
+  }
+  return {P,N,U,C,COL,IDX};
+}
+
+/* =========================================================
+   4. WebGL2 初始化
+   ========================================================= */
+const canvas = document.getElementById('c');
+const gl = canvas.getContext('webgl2', {antialias:true, alpha:false, powerPreference:'high-performance'});
+if(!gl){
+  document.body.innerHTML = '<div style="color:#0ff;font:16px monospace;padding:40px">当前浏览器不支持 WebGL2</div>';
+  throw new Error('no webgl2');
+}
+
+const VERT_SRC = `#version 300 es
+layout(location=0) in vec3 aPos;
+layout(location=1) in vec3 aNrm;
+layout(location=2) in vec2 aUV;
+layout(location=3) in vec3 aCell;
+layout(location=4) in vec3 aColor;
+uniform mat4 uProj;
+uniform mat4 uView;
+out vec3 vPos;
+out vec3 vNrm;
+out vec2 vUV;
+out float vDepth;
+out vec3 vColor;
+void main(){
+  vPos = aPos;
+  vNrm = aNrm;
+  vUV  = aUV;
+  vColor = aColor;
+  vec4 vp = uView * vec4(aPos, 1.0);
+  vDepth = -vp.z;
+  gl_Position = uProj * vp;
+}`;
+
+const FRAG_SRC = `#version 300 es
+precision highp float;
+in vec3 vPos;
+in vec3 vNrm;
+in vec2 vUV;
+in float vDepth;
+in vec3 vColor;
+uniform vec3 uCam;
+out vec4 oColor;
+
+void main(){
+  vec3 n = normalize(vNrm);
+
+  // ---- 双方向光 ----
+  vec3 L1 = normalize(vec3( 0.35, 0.90, 0.25));
+  vec3 L2 = normalize(vec3(-0.60, 0.20,-0.70));
+  float d1 = max(dot(n, L1), 0.0);
+  float d2 = max(dot(n, L2), 0.0);
+  vec3 lit = vec3(0.09,0.15,0.26) * (0.55 + 0.55*d1)
+           + vec3(0.16,0.05,0.24) * (0.35 + 0.65*d2);
+
+  // ---- 面内 2x2 图块网格 ----
+  vec2 g = abs(fract(vUV*2.0) - 0.5);
+  float lineM = 1.0 - smoothstep(0.435, 0.500, max(g.x, g.y));
+
+  // ---- 面板边框 ----
+  vec2 e = min(vUV, 1.0 - vUV);
+  float edge = 1.0 - smoothstep(0.0, 0.05, min(e.x, e.y));
+
+  // ---- 使用缓存好的体素颜色（不再随时间变化）----
+  vec3 col = lit;
+  col += vec3(0.00, 0.55, 0.90) * edge * 0.95;
+  col += vColor * lineM * 0.65;
+  col += vColor * lineM * edge * 0.9;
+
+  // ---- 距离雾 ----
+  float fog = 1.0 - exp(-vDepth * 0.020);
+  col = mix(col, vec3(0.012,0.020,0.040), clamp(fog, 0.0, 0.93));
+
+  oColor = vec4(col, 1.0);
+}`;
+
+function compile(type, src){
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)){
+    console.error(gl.getShaderInfoLog(s), src);
+  }
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT_SRC));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG_SRC));
+gl.linkProgram(prog);
+if(!gl.getProgramParameter(prog, gl.LINK_STATUS)){
+  console.error(gl.getProgramInfoLog(prog));
+}
+gl.useProgram(prog);
+
+const uProj = gl.getUniformLocation(prog,'uProj');
+const uView = gl.getUniformLocation(prog,'uView');
+const uCam  = gl.getUniformLocation(prog,'uCam');
+
+/* ---- VAO / Buffer 管理（支持动态重建） ---- */
+const vao = gl.createVertexArray();
+const bufs = [null, null, null, null, null];
+let ibo = null;
+let indexCount = 0;
+
+function attrib(loc, data, size){
+  let b = bufs[loc];
+  if(!b){ b = gl.createBuffer(); bufs[loc] = b; }
+  gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+}
+
+function rebuildMesh(){
+  const m = buildMesh();
+  indexCount = m.IDX.length;
+  gl.bindVertexArray(vao);
+  attrib(0, new Float32Array(m.P), 3);
+  attrib(1, new Float32Array(m.N), 3);
+  attrib(2, new Float32Array(m.U), 2);
+  attrib(3, new Float32Array(m.C), 3);
+  attrib(4, new Float32Array(m.COL), 3);
+  if(!ibo) ibo = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(m.IDX), gl.STATIC_DRAW);
+  gl.bindVertexArray(null);
+}
+
+rebuildMesh();
+gl.enable(gl.DEPTH_TEST);
+gl.enable(gl.CULL_FACE);
+gl.cullFace(gl.BACK);
+
+/* =========================================================
+   5. 玩家状态
+   ========================================================= */
+const SPEED   = 7.5;
+const GRAVITY = 22.0;
+const EYE_OFF = 0.85;
+
+const pos   = [ (startRoom[0]+0.5)*VS, (startRoom[1]+0.5)*VS, (startRoom[2]+0.5)*VS ];
+const vel   = [0,0,0];
+let   up    = [0,1,0];
+let   fwd   = [0,0,-1];
+let   pitch = 0;
+
+let upTarget    = null;
+let fwdTarget   = null;
+let upCooldown  = 0;
+let upFlipFrom  = [0,1,0];
+let upFlipStart = 0;
+let airborneTime = 0;
+const UP_FLIP_DURATION = 1.5;
+
+/* =========================================================
+   6. 碰撞（球 vs 体素 AABB）
+   ========================================================= */
+function resolveCollisions(p, v){
+  const contacts = [];
+  const cs = VS, R = PLAYER_R;
+  const i0 = Math.floor((p[0]-R)/cs), i1 = Math.floor((p[0]+R)/cs);
+  const j0 = Math.floor((p[1]-R)/cs), j1 = Math.floor((p[1]+R)/cs);
+  const k0 = Math.floor((p[2]-R)/cs), k1 = Math.floor((p[2]+R)/cs);
+
+  for(let k=k0;k<=k1;k++){
+    for(let j=j0;j<=j1;j++){
+      for(let i=i0;i<=i1;i++){
+        if(!isSolidRaw(i,j,k)) continue;
+
+        const ax=i*cs, ay=j*cs, az=k*cs;
+        const bx=ax+cs, by=ay+cs, bz=az+cs;
+
+        const qx = p[0]<ax?ax:(p[0]>bx?bx:p[0]);
+        const qy = p[1]<ay?ay:(p[1]>by?by:p[1]);
+        const qz = p[2]<az?az:(p[2]>bz?bz:p[2]);
+
+        const dx = p[0]-qx, dy = p[1]-qy, dz = p[2]-qz;
+        const d2 = dx*dx + dy*dy + dz*dz;
+        if(d2 >= R*R) continue;
+
+        let nx, ny, nz, pen;
+        if(d2 > 1e-10){
+          const d = Math.sqrt(d2);
+          nx = dx/d; ny = dy/d; nz = dz/d;
+          pen = R - d;
+        } else {
+          const px = Math.min(p[0]-ax, bx-p[0]);
+          const py = Math.min(p[1]-ay, by-p[1]);
+          const pz = Math.min(p[2]-az, bz-p[2]);
+          if(px <= py && px <= pz){
+            nx = (p[0] < (ax+bx)*0.5) ? -1 : 1; ny = 0; nz = 0; pen = px + R;
+          } else if(py <= pz){
+            nx = 0; ny = (p[1] < (ay+by)*0.5) ? -1 : 1; nz = 0; pen = py + R;
+          } else {
+            nx = 0; ny = 0; nz = (p[2] < (az+bz)*0.5) ? -1 : 1; pen = pz + R;
+          }
+        }
+
+        p[0] += nx*pen; p[1] += ny*pen; p[2] += nz*pen;
+
+        const vn = v[0]*nx + v[1]*ny + v[2]*nz;
+        if(vn < 0){
+          v[0] -= nx*vn; v[1] -= ny*vn; v[2] -= nz*vn;
+        }
+        contacts.push([nx,ny,nz]);
+      }
+    }
+  }
+  return contacts;
+}
+
+/* =========================================================
+   7. 输入
+   ========================================================= */
+const keys = Object.create(null);
+addEventListener('keydown', e=>{
+  keys[e.code] = true;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].indexOf(e.code) >= 0) e.preventDefault();
+});
+addEventListener('keyup', e=>{ keys[e.code] = false; });
+
+function look(dx, dy){
+  const s = 0.0028;
+  fwd = V3.norm(rotAxis(fwd, up, -dx*s));
+  pitch -= dy*s;
+  if(pitch >  1.45) pitch =  1.45;
+  if(pitch < -1.45) pitch = -1.45;
+}
+
+let lookId = null, lastX = 0, lastY = 0;
+canvas.addEventListener('pointerdown', e=>{
+  if(e.pointerType === 'mouse' && e.button !== 0) return;
+  lookId = e.pointerId;
+  lastX = e.clientX; lastY = e.clientY;
+  try{ canvas.setPointerCapture(e.pointerId); }catch(_){}
+  e.preventDefault();
+});
+canvas.addEventListener('pointermove', e=>{
+  if(e.pointerId !== lookId) return;
+  const dx = e.clientX - lastX, dy = e.clientY - lastY;
+  lastX = e.clientX; lastY = e.clientY;
+  look(dx, dy);
+  e.preventDefault();
+});
+function endLook(e){ if(e.pointerId === lookId) lookId = null; }
+canvas.addEventListener('pointerup', endLook);
+canvas.addEventListener('pointercancel', endLook);
+
+/* --- 虚拟摇杆 --- */
+let joyX = 0, joyY = 0;
+const joyBase = document.getElementById('joyBase');
+const joyKnob = document.getElementById('joyKnob');
+let joyId = null;
+
+if(window.matchMedia && window.matchMedia('(pointer:coarse)').matches){
+  joyBase.style.display = 'block';
+}
+
+function moveJoy(e){
+  const r = joyBase.getBoundingClientRect();
+  const cx = r.left + r.width*0.5;
+  const cy = r.top  + r.height*0.5;
+  let dx = e.clientX - cx;
+  let dy = e.clientY - cy;
+  const max = r.width*0.5;
+  const len = Math.hypot(dx, dy);
+  if(len > max){ dx = dx/len*max; dy = dy/len*max; }
+  joyX = dx/max;
+  joyY = -dy/max;
+  joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+}
+joyBase.addEventListener('pointerdown', e=>{
+  joyId = e.pointerId;
+  try{ joyBase.setPointerCapture(e.pointerId); }catch(_){}
+  moveJoy(e);
+  e.preventDefault();
+});
+joyBase.addEventListener('pointermove', e=>{
+  if(e.pointerId !== joyId) return;
+  moveJoy(e);
+  e.preventDefault();
+});
+function endJoy(e){
+  if(e.pointerId !== joyId) return;
+  joyId = null; joyX = 0; joyY = 0;
+  joyKnob.style.transform = 'translate(-50%,-50%)';
+}
+joyBase.addEventListener('pointerup', endJoy);
+joyBase.addEventListener('pointercancel', endJoy);
+
+/* =========================================================
+   8. 背后体素悄悄变化（动态迷宫）
+   ========================================================= */
+let nextMorphTime = 2.5;
+
+function tryMorph(now){
+  if(now < nextMorphTime) return;
+  nextMorphTime = now + 1.5 + Math.random() * 1.8;
+
+  const camPos = pos;
+  const camFwd = fwd;
+  const seedNow = (SEED ^ (Math.floor(now * 1000) >>> 0)) >>> 0;
+  const mrnd = mulberry32(seedNow);
+
+  const minDist = 14;
+  const cands = [];
+  for(let z=1;z<GZ-1;z++)
+    for(let y=1;y<GY-1;y++)
+      for(let x=1;x<GX-1;x++){
+        const cx = (x+0.5)*VS, cy=(y+0.5)*VS, cz=(z+0.5)*VS;
+        const dx = cx-camPos[0], dy=cy-camPos[1], dz=cz-camPos[2];
+        const dist = Math.hypot(dx,dy,dz);
+        if(dist < minDist) continue;
+        if(dx*camFwd[0] + dy*camFwd[1] + dz*camFwd[2] > 0) continue;  // 相机后方
+        cands.push([x,y,z]);
+      }
+
+  if(cands.length === 0) return;
+
+  const num = Math.min(28, Math.max(6, Math.floor(cands.length * 0.07)));
+  let changed = 0;
+  for(let i=0;i<num;i++){
+    const idx = Math.floor(mrnd() * cands.length);
+    const [x,y,z] = cands[idx];
+    grid[I(x,y,z)] ^= 1;            // 实心↔空心 翻转
+    changed++;
+  }
+
+  if(changed > 0) rebuildMesh();
+}
+
+/* =========================================================
+   9. 更新逻辑
+   ========================================================= */
+function update(dt, now){
+  /* --- 输入方向 --- */
+  let f = 0, r = 0;
+  if(keys['KeyW'] || keys['ArrowUp'])    f += 1;
+  if(keys['KeyS'] || keys['ArrowDown'])  f -= 1;
+  if(keys['KeyD'] || keys['ArrowRight']) r += 1;
+  if(keys['KeyA'] || keys['ArrowLeft'])  r -= 1;
+  f += joyY;
+  r += joyX;
+
+  const right = V3.norm(V3.cross(fwd, up));
+  let inDir = V3.add(V3.scale(fwd, f), V3.scale(right, r));
+  let inLen = V3.len(inDir);
+  if(inLen > 1){ inDir = V3.scale(inDir, 1/inLen); inLen = 1; }
+
+  /* --- 子步物理 --- */
+  const STEPS = 3;
+  const sh = dt / STEPS;
+  let lastContacts = [];
+
+  for(let s=0;s<STEPS;s++){
+    const vUp = V3.dot(vel, up);
+    let vPerp = V3.sub(vel, V3.scale(up, vUp));
+
+    const target = V3.scale(inDir, SPEED);
+    vPerp = V3.lerp(vPerp, target, 1 - Math.exp(-14*sh));
+
+    let nvUp = vUp - GRAVITY*sh;
+    if(nvUp < -40) nvUp = -40;
+
+    vel[0] = vPerp[0] + up[0]*nvUp;
+    vel[1] = vPerp[1] + up[1]*nvUp;
+    vel[2] = vPerp[2] + up[2]*nvUp;
+
+    pos[0] += vel[0]*sh;
+    pos[1] += vel[1]*sh;
+    pos[2] += vel[2]*sh;
+
+    lastContacts = resolveCollisions(pos, vel);
+
+    if(upCooldown > 0) upCooldown -= sh;
+
+    // 抓墙 / 抓天花板判定
+    if(!upTarget && upCooldown <= 0 && inLen > 0.15){
+      for(let i=0;i<lastContacts.length;i++){
+        const n = lastContacts[i];
+        const dn = V3.dot(n, up);
+        if(dn > 0.70) continue;                  // 与 up 同向（地面）不触发
+        if(V3.dot(n, inDir) < -0.45){            // 正把身体推向该面
+          upFlipFrom  = up.slice();
+          upFlipStart = now;
+          upTarget    = [n[0], n[1], n[2]];
+
+          let ft = V3.sub(up, V3.scale(n, V3.dot(up, n)));
+          if(V3.len(ft) < 0.2) ft = V3.sub(fwd, V3.scale(n, V3.dot(fwd, n)));
+          if(V3.len(ft) < 0.2) ft = pickPerp(n);
+          fwdTarget = V3.norm(ft);
+
+          upCooldown   = 0.75;
+          airborneTime = 0;
+          break;
+        }
+      }
+    }
+  }
+
+  /* --- 走出墙面后回正 up --- */
+  const worldUp = [0,1,0];
+  const upDotW = V3.dot(up, worldUp);
+  if(upDotW < 0.95 && !upTarget){
+    let onSurface = false;
+    for(let i=0;i<lastContacts.length;i++){
+      if(V3.dot(lastContacts[i], up) > 0.70){ onSurface = true; break; }
+    }
+    if(onSurface){
+      airborneTime = 0;
+    } else {
+      airborneTime += dt;
+      if(airborneTime > 0.35){
+        upFlipFrom  = up.slice();
+        upFlipStart = now;
+        upTarget    = worldUp.slice();
+        let ft = V3.sub(fwd, V3.scale(worldUp, V3.dot(fwd, worldUp)));
+        if(V3.len(ft) < 0.2) ft = [0,0,-1];
+        fwdTarget    = V3.norm(ft);
+        upCooldown   = 0.5;
+        airborneTime = 0;
+      }
+    }
+  } else if(upDotW >= 0.95){
+    airborneTime = 0;
+  }
+
+  /* --- 1.5 秒平滑翻转 up（smoothstep） --- */
+  if(upTarget){
+    const t = Math.min((now - upFlipStart) / UP_FLIP_DURATION, 1);
+    const s = t*t*(3-2*t);
+    const nu = V3.lerp(upFlipFrom, upTarget, s);
+    up = V3.norm(nu);
+    if(t >= 1){
+      up = [upTarget[0], upTarget[1], upTarget[2]];
+      upTarget = null;
+    }
+  }
+
+  /* --- 保持 fwd ⟂ up --- */
+  if(upTarget && fwdTarget){
+    let fw = V3.sub(fwdTarget, V3.scale(up, V3.dot(fwdTarget, up)));
+    if(V3.len(fw) < 1e-3){
+      fw = V3.sub(fwd, V3.scale(up, V3.dot(fwd, up)));
+    }
+    if(V3.len(fw) > 1e-3){
+      fwd = V3.norm(fw);
+    } else {
+      fwd = pickPerp(up);
+    }
+  } else {
+    let fw = V3.sub(fwd, V3.scale(up, V3.dot(fwd, up)));
+    let fl = V3.len(fw);
+    if(fl < 0.02){ fw = pickPerp(up); fl = 1; }
+    fwd = V3.scale(fw, 1/fl);
+  }
+
+  /* --- 背后体素悄悄变化 --- */
+  tryMorph(now);
+}
+
+/* =========================================================
+   10. 渲染
+   ========================================================= */
+function render(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = Math.floor(innerWidth * dpr);
+  const H = Math.floor(innerHeight * dpr);
+  if(canvas.width !== W || canvas.height !== H){
+    canvas.width = W; canvas.height = H;
+    canvas.style.width = innerWidth + 'px';
+    canvas.style.height = innerHeight + 'px';
+  }
+
+  gl.viewport(0,0,canvas.width,canvas.height);
+  gl.clearColor(0.012, 0.020, 0.038, 1.0);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  const right  = V3.norm(V3.cross(fwd, up));
+  const camFwd = V3.add(V3.scale(fwd, Math.cos(pitch)), V3.scale(up, Math.sin(pitch)));
+  const camUp  = V3.cross(right, camFwd);
+  const camPos = V3.add(pos, V3.scale(up, EYE_OFF));
+
+  const proj = perspective(Math.PI/3, canvas.width/canvas.height, 0.06, 400);
+  const view = lookAt(camPos, V3.add(camPos, camFwd), camUp);
+
+  gl.useProgram(prog);
+  gl.uniformMatrix4fv(uProj, false, proj);
+  gl.uniformMatrix4fv(uView, false, view);
+  gl.uniform3f(uCam, camPos[0], camPos[1], camPos[2]);
+
+  gl.bindVertexArray(vao);
+  gl.drawElements(gl.TRIANGLES, indexCount, gl.UNSIGNED_INT, 0);
+  gl.bindVertexArray(null);
+}
+
+/* =========================================================
+   11. 主循环
+   ========================================================= */
+let prevTime = performance.now() / 1000;
+
+function loop(now){
+  now /= 1000;
+  let dt = now - prevTime;
+  prevTime = now;
+  if(dt > 0.1) dt = 0.1;
+  if(dt < 0)   dt = 0;
+
+  update(dt, now);
+  render();
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+</script>
+</body>
+</html>
