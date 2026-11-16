@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>晕3D的迷宫</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body {
+    width:100%; height:100%; overflow:hidden; background:#05060a;
+    touch-action:none; user-select:none; -webkit-user-select:none;
+    -webkit-tap-highlight-color: transparent;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+  canvas { display:block; width:100%; height:100%; }
+
+  /* ============ 游戏内 UI ============ */
+  #gameUI { position:fixed; inset:0; pointer-events:none; z-index:10; }
+  #joy {
+    position:fixed; left:28px; bottom:28px; width:140px; height:140px;
+    border-radius:50%; background:rgba(255,255,255,.07);
+    border:2px solid rgba(255,255,255,.18); touch-action:none;
+    pointer-events:auto; display:none;
+  }
+  #knob {
+    position:absolute; left:50%; top:50%; width:64px; height:64px;
+    margin:-32px 0 0 -32px; border-radius:50%;
+    background:rgba(255,255,255,.28); border:2px solid rgba(255,255,255,.42);
+    will-change: transform;
+  }
+  #hint {
+    position:fixed; top:20px; left:50%; transform:translateX(-50%);
+    color:#fff; font:13px/1.6 system-ui,sans-serif; opacity:.5;
+    pointer-events:none; text-align:center; z-index:10;
+    transition:opacity 1s; display:none;
+  }
+
+  /* ============ 主菜单 ============ */
+  #menu {
+    position:fixed; inset:0; z-index:100;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    background:#05060a;
+    overflow:hidden;
+  }
+  #menuCanvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #menuOverlay {
+    position:absolute; inset:0;
+    background: radial-gradient(ellipse at center, rgba(5,6,10,0.35) 0%, rgba(5,6,10,0.85) 80%);
+    pointer-events:none;
+  }
+  #menuContent {
+    position:relative; z-index:2; text-align:center;
+    display:flex; flex-direction:column; align-items:center;
+    padding:0 24px;
+  }
+  #menuTitle {
+    font-size: clamp(30px, 8vw, 60px);
+    font-weight: 800;
+    color:#fff;
+    letter-spacing: 0.12em;
+    line-height: 1.35;
+    text-shadow:
+      0 0 20px rgba(255,255,255,.6),
+      0 0 40px rgba(100,150,255,.55),
+      0 0 80px rgba(255,80,150,.35);
+    margin-bottom: clamp(36px, 10vh, 72px);
+    animation: titleGlow 3s ease-in-out infinite;
+  }
+  @keyframes titleGlow {
+    0%,100% { text-shadow: 0 0 20px rgba(255,255,255,.5), 0 0 40px rgba(100,150,255,.45), 0 0 80px rgba(255,80,150,.3); }
+    50%     { text-shadow: 0 0 28px rgba(255,255,255,.85), 0 0 60px rgba(120,180,255,.7), 0 0 110px rgba(255,100,170,.5); }
+  }
+  #startBtn {
+    font: 600 18px/1 system-ui, sans-serif;
+    color:#fff;
+    background: rgba(255,255,255,.08);
+    border: 2px solid rgba(255,255,255,.5);
+    padding: 18px 56px;
+    border-radius: 999px;
+    cursor: pointer;
+    letter-spacing: 0.28em;
+    text-indent: 0.28em;
+    transition: all .3s cubic-bezier(.2,.8,.2,1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+  }
+  #startBtn:hover, #startBtn:active {
+    background: rgba(255,255,255,.22);
+    border-color: rgba(255,255,255,.95);
+    box-shadow: 0 0 30px rgba(255,255,255,.5), 0 0 60px rgba(120,180,255,.35);
+    transform: translateY(-2px) scale(1.03);
+  }
+
+  /* ============ 胜利界面 ============ */
+  #victory {
+    position:fixed; inset:0; z-index:200;
+    display:none;
+    flex-direction:column;
+    align-items:center; justify-content:center;
+    background: rgba(5,6,10,.82);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    animation: fadeIn .5s ease-out;
+  }
+  @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+  #victory h2 {
+    font-size: clamp(36px, 10vw, 72px);
+    font-weight: 800;
+    color:#fff;
+    letter-spacing: 0.15em;
+    margin-bottom: 18px;
+    text-shadow:
+      0 0 24px rgba(255,255,255,.9),
+      0 0 60px rgba(120,180,255,.7),
+      0 0 120px rgba(255,120,180,.5);
+    animation: vicPulse 2s ease-in-out infinite;
+  }
+  @keyframes vicPulse {
+    0%,100% { transform: scale(1); }
+    50%     { transform: scale(1.04); }
+  }
+  #victory p {
+    color: rgba(255,255,255,.6);
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    margin-bottom: 48px;
+  }
+  #restartBtn {
+    font: 600 16px/1 system-ui, sans-serif;
+    color:#fff;
+    background: rgba(255,255,255,.1);
+    border: 2px solid rgba(255,255,255,.5);
+    padding: 16px 44px;
+    border-radius: 999px;
+    cursor: pointer;
+    letter-spacing: 0.24em;
+    text-indent: 0.24em;
+    transition: all .3s;
+    backdrop-filter: blur(10px);
+  }
+  #restartBtn:hover, #restartBtn:active {
+    background: rgba(255,255,255,.25);
+    border-color: #fff;
+    box-shadow: 0 0 30px rgba(255,255,255,.5);
+  }
+</style>
+</head>
+<body>
+
+<!-- 游戏 3D Canvas -->
+<canvas id="c"></canvas>
+
+<!-- 游戏内 UI -->
+<div id="gameUI">
+  <div id="joy"><div id="knob"></div></div>
+  <div id="hint">WASD / 摇杆移动 · 拖拽屏幕转视角</div>
+</div>
+
+<!-- 主菜单 -->
+<div id="menu">
+  <canvas id="menuCanvas"></canvas>
+  <div id="menuOverlay"></div>
+  <div id="menuContent">
+    <h1 id="menuTitle">晕3D的迷宫</h1>
+    <button id="startBtn">开始游戏</button>
+  </div>
+</div>
+
+<!-- 胜利界面 -->
+<div id="victory">
+  <h2>✦ 通关 ✦</h2>
+  <p>你找到了发光的面</p>
+  <button id="restartBtn">返回主菜单</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ============================================================
+   0. 游戏状态
+   ============================================================ */
+let gameState = 'menu';   // 'menu' | 'playing' | 'victory'
+
+/* ============================================================
+   1. 基础常量与二十面体几何  （棱长 = 25）
+   ============================================================ */
+const EDGE      = 25;
+const PHI       = (1 + Math.sqrt(5)) / 2;
+const R_OUT     = EDGE / 4 * Math.sqrt(10 + 2 * Math.sqrt(5));
+const R_IN      = EDGE / 12 * Math.sqrt(3) * (3 + Math.sqrt(5));
+const SCALE     = R_OUT / Math.sqrt(1 + PHI * PHI);
+const EYE       = 1.6;
+const MOVE_SPEED= 11;
+
+// 无限世界参数
+const GEN_RADIUS   = 280;
+const CULL_RADIUS  = 420;
+const GROW_PROB    = 0.72;
+const SPATIAL_CELL = 120;
+const MAX_ICOS     = 2500;
+
+// 胜利面概率
+const VICTORY_CHANCE = 0.001;   // 0.1%
+
+const RAW_VERTS = [
+  [-1, PHI, 0], [1, PHI, 0], [-1, -PHI, 0], [1, -PHI, 0],
+  [0, -1, PHI], [0, 1, PHI], [0, -1, -PHI], [0, 1, -PHI],
+  [PHI, 0, -1], [PHI, 0, 1], [-PHI, 0, -1], [-PHI, 0, 1]
+];
+const BASE_VERTS = RAW_VERTS.map(v => new THREE.Vector3(v[0]*SCALE, v[1]*SCALE, v[2]*SCALE));
+
+const FACE_IDX = [
+  [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
+  [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
+  [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
+  [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]
+];
+
+/* ============================================================
+   2. 场景 / 相机 / 渲染器
+   ============================================================ */
+const canvas   = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x05060a);
+scene.fog = new THREE.Fog(0x05060a, 90, 400);
+
+const camera = new THREE.PerspectiveCamera(74, window.innerWidth/window.innerHeight, 0.05, 600);
+camera.up.set(0,1,0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+
+/* ---- RGB 三色点光源（强度 x2） ---- */
+const rgbLights = [
+  new THREE.PointLight(0xff2244, 6.4, 260, 2),
+  new THREE.PointLight(0x22ff88, 6.4, 260, 2),
+  new THREE.PointLight(0x4488ff, 6.4, 260, 2)
+];
+rgbLights.forEach(l => scene.add(l));
+
+/* ============================================================
+   3. Canvas 随机像素格纹理（5×5 拼图）
+   ============================================================ */
+const maxAniso = renderer.capabilities.getMaxAnisotropy();
+
+function makePixelTexture() {
+  const GRID = 5;
+  const CELL = 32;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = GRID * CELL;
+  const ctx = cv.getContext('2d');
+
+  const baseHue = Math.random() * 360;
+  for (let y = 0; y < GRID; y++) {
+    for (let x = 0; x < GRID; x++) {
+      const h = (baseHue + (Math.random()*120 - 60) + 360) % 360;
+      const s = 55 + Math.random() * 45;
+      const l = 32 + Math.random() * 38;
+      ctx.fillStyle = `hsl(${h}, ${s}%, ${l}%)`;
+      ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
+    }
+  }
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 3;
+  for (let i = 0; i <= GRID; i++) {
+    ctx.beginPath(); ctx.moveTo(i*CELL, 0); ctx.lineTo(i*CELL, GRID*CELL); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i*CELL); ctx.lineTo(GRID*CELL, i*CELL); ctx.stroke();
+  }
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.anisotropy = maxAniso;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const TEX_POOL = [];
+for (let i = 0; i < 10; i++) TEX_POOL.push(makePixelTexture());
+
+/* ============================================================
+   4. 确定性哈希 / 空间索引 / 位置键
+   ============================================================ */
+function posKey(v) {
+  return Math.round(v.x * 10) + ',' + Math.round(v.y * 10) + ',' + Math.round(v.z * 10);
+}
+
+function hashRandom(x, y, z, i) {
+  let h = 0x811c9dc5 >>> 0;
+  h = Math.imul(h ^ (Math.round(x * 10) | 0), 0x01000193);
+  h = Math.imul(h ^ (Math.round(y * 10) | 0), 0x01000193);
+  h = Math.imul(h ^ (Math.round(z * 10) | 0), 0x01000193);
+  h = Math.imul(h ^ i, 0x01000193);
+  h = (h ^ (h >>> 15)) >>> 0;
+  return h / 4294967296;
+}
+
+const icoMap      = new Map();
+const spatialHash = new Map();
+
+function spatialKey(v) {
+  return Math.floor(v.x / SPATIAL_CELL) + ',' +
+         Math.floor(v.y / SPATIAL_CELL) + ',' +
+         Math.floor(v.z / SPATIAL_CELL);
+}
+
+function spatialAdd(ico) {
+  const k = spatialKey(ico.center);
+  let arr = spatialHash.get(k);
+  if (!arr) { arr = []; spatialHash.set(k, arr); }
+  arr.push(ico);
+}
+
+function spatialRemove(ico) {
+  const k = spatialKey(ico.center);
+  const arr = spatialHash.get(k);
+  if (!arr) return;
+  const idx = arr.indexOf(ico);
+  if (idx >= 0) arr.splice(idx, 1);
+  if (arr.length === 0) spatialHash.delete(k);
+}
+
+function getNearbyIcos(p, radius) {
+  const result = [];
+  const cr = Math.max(1, Math.ceil(radius / SPATIAL_CELL));
+  const cx = Math.floor(p.x / SPATIAL_CELL);
+  const cy = Math.floor(p.y / SPATIAL_CELL);
+  const cz = Math.floor(p.z / SPATIAL_CELL);
+  for (let dx = -cr; dx <= cr; dx++) {
+    for (let dy = -cr; dy <= cr; dy++) {
+      for (let dz = -cr; dz <= cr; dz++) {
+        const arr = spatialHash.get((cx+dx)+','+(cy+dy)+','+(cz+dz));
+        if (arr) for (const ico of arr) result.push(ico);
+      }
+    }
+  }
+  return result;
+}
+
+/* ============================================================
+   5. 二十面体数据结构
+   ============================================================ */
+const icos = [];
+const victoryMeshes = [];
+
+function makeIco(worldVerts) {
+  const ico = {
+    verts: worldVerts,
+    center: new THREE.Vector3(),
+    faces: [],
+    removed: new Set(),
+    dead: new Set(),
+    conn: {},
+    mesh: null,
+    victoryMesh: null
+  };
+  for (const v of worldVerts) ico.center.add(v);
+  ico.center.multiplyScalar(1/12);
+
+  for (const [a,b,c] of FACE_IDX) {
+    const va = worldVerts[a], vb = worldVerts[b], vc = worldVerts[c];
+    const cen = va.clone().add(vb).add(vc).multiplyScalar(1/3);
+    const n = cen.clone().sub(ico.center).normalize();
+    const face = {
+      idx: [a,b,c],
+      normal: n,
+      d: n.dot(cen),
+      centroid: cen,
+      isVictory: false
+    };
+    ico.faces.push(face);
+  }
+
+  for (let i = 0; i < 20; i++) {
+    const r = hashRandom(ico.center.x, ico.center.y, ico.center.z, i + 7777);
+    if (r < VICTORY_CHANCE) ico.faces[i].isVictory = true;
+  }
+
+  return ico;
+}
+
+function buildIcoGeometry(ico, wantVictory) {
+  const pos = [], nor = [], uv = [];
+  for (let i = 0; i < 20; i++) {
+    if (ico.removed.has(i)) continue;
+    const f = ico.faces[i];
+    if (!!f.isVictory !== wantVictory) continue;
+    const [a,b,c] = f.idx;
+    const va = ico.verts[a], vb = ico.verts[b], vc = ico.verts[c];
+
+    const uAxis = vb.clone().sub(va).normalize();
+    const vAxis = new THREE.Vector3().crossVectors(f.normal, uAxis).normalize();
+
+    for (const p of [va, vb, vc]) {
+      pos.push(p.x, p.y, p.z);
+      nor.push(f.normal.x, f.normal.y, f.normal.z);
+      const rel = p.clone().sub(va);
+      uv.push(rel.dot(uAxis) / EDGE, rel.dot(vAxis) / EDGE);
+    }
+  }
+  if (pos.length === 0) return null;
+
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal',   new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('uv',       new THREE.Float32BufferAttribute(uv, 2));
+  g.computeBoundingSphere();
+  return g;
+}
+
+function pickTexture(center) {
+  const h = Math.abs(Math.round(center.x * 7 + center.y * 13 + center.z * 23));
+  return TEX_POOL[h % TEX_POOL.length];
+}
+
+function buildMesh(ico) {
+  const geo = buildIcoGeometry(ico, false);
+  if (geo) {
+    const mat = new THREE.MeshLambertMaterial({
+      map: pickTexture(ico.center),
+      side: THREE.DoubleSide,
+      emissive: new THREE.Color(0x0a0a12)
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
+    ico.mesh = mesh;
+    scene.add(mesh);
+  }
+
+  const vgeo = buildIcoGeometry(ico, true);
+  if (vgeo) {
+    const vmat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      side: THREE.DoubleSide,
+      fog: false
+    });
+    const vmesh = new THREE.Mesh(vgeo, vmat);
+    vmesh.matrixAutoUpdate = false;
+    vmesh.updateMatrix();
+    ico.victoryMesh = vmesh;
+    scene.add(vmesh);
+    victoryMeshes.push(vmesh);
+  }
+}
+
+function destroyMesh(ico) {
+  if (ico.mesh) {
+    scene.remove(ico.mesh);
+    ico.mesh.geometry.dispose();
+    ico.mesh.material.dispose();
+    ico.mesh = null;
+  }
+  if (ico.victoryMesh) {
+    scene.remove(ico.victoryMesh);
+    ico.victoryMesh.geometry.dispose();
+    ico.victoryMesh.material.dispose();
+    const i = victoryMeshes.indexOf(ico.victoryMesh);
+    if (i >= 0) victoryMeshes.splice(i, 1);
+    ico.victoryMesh = null;
+  }
+}
+
+function refreshIcoGeometry(ico) {
+  if (ico.mesh) {
+    ico.mesh.geometry.dispose();
+    const g = buildIcoGeometry(ico, false);
+    if (g) ico.mesh.geometry = g;
+    else { scene.remove(ico.mesh); ico.mesh = null; }
+  } else {
+    const g = buildIcoGeometry(ico, false);
+    if (g) {
+      const mat = new THREE.MeshLambertMaterial({
+        map: pickTexture(ico.center),
+        side: THREE.DoubleSide,
+        emissive: new THREE.Color(0x0a0a12)
+      });
+      const mesh = new THREE.Mesh(g, mat);
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      ico.mesh = mesh;
+      scene.add(mesh);
+    }
+  }
+
+  if (ico.victoryMesh) {
+    ico.victoryMesh.geometry.dispose();
+    const g = buildIcoGeometry(ico, true);
+    if (g) ico.victoryMesh.geometry = g;
+    else {
+      scene.remove(ico.victoryMesh);
+      ico.victoryMesh.material.dispose();
+      const i = victoryMeshes.indexOf(ico.victoryMesh);
+      if (i >= 0) victoryMeshes.splice(i, 1);
+      ico.victoryMesh = null;
+    }
+  } else {
+    const g = buildIcoGeometry(ico, true);
+    if (g) {
+      const vmat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, fog: false });
+      const vmesh = new THREE.Mesh(g, vmat);
+      vmesh.matrixAutoUpdate = false;
+      vmesh.updateMatrix();
+      ico.victoryMesh = vmesh;
+      scene.add(vmesh);
+      victoryMeshes.push(vmesh);
+    }
+  }
+}
+
+function addIco(ico) {
+  icos.push(ico);
+  icoMap.set(posKey(ico.center), ico);
+  spatialAdd(ico);
+  buildMesh(ico);
+}
+
+function removeIco(ico) {
+  destroyMesh(ico);
+  icoMap.delete(posKey(ico.center));
+  spatialRemove(ico);
+  const qi = growQueue.indexOf(ico);
+  if (qi >= 0) growQueue.splice(qi, 1);
+  growQueued.delete(ico);
+  const ii = icos.indexOf(ico);
+  if (ii >= 0) {
+    icos[ii] = icos[icos.length - 1];
+    icos.pop();
+  }
+}
+
+/* ============================================================
+   6. 生长逻辑
+   ============================================================ */
+const growQueue    = [];
+const growQueued   = new Set();
+
+function scheduleGrow(ico) {
+  if (!growQueued.has(ico)) {
+    growQueued.add(ico);
+    growQueue.push(ico);
+  }
+}
+
+function tryGrow(ico, fi) {
+  if (ico.removed.has(fi) || ico.dead.has(fi)) return null;
+  if (icos.length >= MAX_ICOS) return null;
+
+  const h = hashRandom(ico.center.x, ico.center.y, ico.center.z, fi);
+  if (h > GROW_PROB) { ico.dead.add(fi); return null; }
+
+  const f = ico.faces[fi];
+  const n = f.normal, d = f.d;
+  const signedDist = ico.center.dot(n) - d;
+  const childCenter = ico.center.clone().addScaledVector(n, -2 * signedDist);
+
+  const nearby = getNearbyIcos(childCenter, 2 * R_IN + SPATIAL_CELL * 0.5);
+  for (const o of nearby) {
+    if (o === ico) continue;
+    if (o.center.distanceTo(childCenter) < 2 * R_IN - 0.5) {
+      ico.dead.add(fi);
+      return null;
+    }
+  }
+
+  const key = posKey(childCenter);
+  let child = icoMap.get(key);
+
+  if (!child) {
+    const nv = ico.verts.map(v =>
+      v.clone().addScaledVector(n, -2 * (v.dot(n) - d))
+    );
+    child = makeIco(nv);
+    addIco(child);
+  }
+
+  let bj = 0, bestDot = 2;
+  for (let j = 0; j < 20; j++) {
+    const dp = child.faces[j].normal.dot(n);
+    if (dp < bestDot) { bestDot = dp; bj = j; }
+  }
+
+  ico.removed.add(fi);
+  refreshIcoGeometry(ico);
+
+  if (!child.removed.has(bj) || !child.conn[bj]) {
+    child.removed.add(bj);
+    refreshIcoGeometry(child);
+    ico.conn[fi] = { ico: child, faceIdx: bj };
+    child.conn[bj] = { ico: ico, faceIdx: fi };
+  } else {
+    ico.conn[fi] = child.conn[bj];
+  }
+
+  scheduleGrow(child);
+  return child;
+}
+
+function updateGeneration() {
+  const nearby = getNearbyIcos(playerPos, GEN_RADIUS + SPATIAL_CELL);
+  for (const ico of nearby) {
+    if (ico.center.distanceTo(playerPos) < GEN_RADIUS) {
+      scheduleGrow(ico);
+    }
+  }
+
+  let processed = 0;
+  while (growQueue.length > 0 && processed < 40) {
+    const ico = growQueue.shift();
+    growQueued.delete(ico);
+    if (ico.center.distanceTo(playerPos) > GEN_RADIUS) continue;
+    processed++;
+    for (let fi = 0; fi < 20; fi++) {
+      tryGrow(ico, fi);
+    }
+  }
+}
+
+function ensureSeed() {
+  const nearby = getNearbyIcos(playerPos, SPATIAL_CELL * 2);
+  let found = false;
+  for (const ico of nearby) {
+    if (ico.center.distanceTo(playerPos) < 80) { found = true; break; }
+  }
+  if (found) return;
+  if (icos.length >= MAX_ICOS) return;
+
+  const nv = BASE_VERTS.map(v => v.clone().add(playerPos));
+  const seed = makeIco(nv);
+  addIco(seed);
+  scheduleGrow(seed);
+}
+
+/* ============================================================
+   7. 剔除远处
+   ============================================================ */
+let rootIco = null;
+
+function cullFar() {
+  for (let i = icos.length - 1; i >= 0; i--) {
+    const ico = icos[i];
+    if (ico === rootIco) continue;
+    if (ico.center.distanceTo(playerPos) > CULL_RADIUS) {
+      for (const fi in ico.conn) {
+        const link = ico.conn[fi];
+        const other = link && link.ico;
+        if (!other) continue;
+        const ofi = link.faceIdx;
+        if (other.conn[ofi] && other.conn[ofi].ico === ico) {
+          delete other.conn[ofi];
+          other.removed.delete(ofi);
+          refreshIcoGeometry(other);
+          scheduleGrow(other);
+        }
+      }
+      ico.conn = {};
+      removeIco(ico);
+    }
+  }
+}
+
+/* ============================================================
+   8. 初始化根
+   ============================================================ */
+rootIco = makeIco(BASE_VERTS.map(v => v.clone()));
+addIco(rootIco);
+scheduleGrow(rootIco);
+
+/* ============================================================
+   9. 玩家状态
+   ============================================================ */
+const playerPos = new THREE.Vector3();
+const playerVel = new THREE.Vector3();   // 玩家速度（惯性）
+const up        = new THREE.Vector3(0, 1, 0);
+const forward   = new THREE.Vector3(0, 0, -1);
+let camPitch    = 0;
+
+// 视角惯性速度（弧度/秒）
+let yawVel = 0;
+let pitchVel = 0;
+
+// 鼠标灵敏度（提高 130%）
+const SENS = 0.0034 * 1.3;
+
+let spawnFace = null;
+for (let i = 0; i < 20; i++) {
+  if (!rootIco.removed.has(i)) { spawnFace = rootIco.faces[i]; break; }
+}
+if (!spawnFace) spawnFace = rootIco.faces[0];
+
+playerPos.copy(rootIco.center).addScaledVector(
+  spawnFace.normal,
+  spawnFace.d - rootIco.center.dot(spawnFace.normal) - EYE
+);
+up.copy(spawnFace.normal).negate();
+
+forward.set(0, 0, -1);
+forward.addScaledVector(up, -forward.dot(up));
+if (forward.lengthSq() < 1e-6) {
+  forward.set(1, 0, 0);
+  forward.addScaledVector(up, -forward.dot(up));
+}
+forward.normalize();
+
+/* ============================================================
+   10. 几何工具
+   ============================================================ */
+function closestPointOnTriangle(p, a, b, c) {
+  const ab = new THREE.Vector3().subVectors(b, a);
+  const ac = new THREE.Vector3().subVectors(c, a);
+  const ap = new THREE.Vector3().subVectors(p, a);
+  const d1 = ab.dot(ap), d2 = ac.dot(ap);
+  if (d1 <= 0 && d2 <= 0) return a.clone();
+
+  const bp = new THREE.Vector3().subVectors(p, b);
+  const d3 = ab.dot(bp), d4 = ac.dot(bp);
+  if (d3 >= 0 && d4 <= d3) return b.clone();
+
+  const vc = d1*d4 - d3*d2;
+  if (vc <= 0 && d1 >= 0 && d3 <= 0) {
+    const v = d1 / (d1 - d3);
+    return a.clone().addScaledVector(ab, v);
+  }
+
+  const cp = new THREE.Vector3().subVectors(p, c);
+  const d5 = ab.dot(cp), d6 = ac.dot(cp);
+  if (d6 >= 0 && d5 <= d6) return c.clone();
+
+  const vb = d5*d2 - d1*d6;
+  if (vb <= 0 && d2 >= 0 && d6 <= 0) {
+    const w = d2 / (d2 - d6);
+    return a.clone().addScaledVector(ac, w);
+  }
+
+  const va = d3*d6 - d5*d4;
+  if (va <= 0 && (d4-d3) >= 0 && (d5-d6) >= 0) {
+    const w = (d4-d3) / ((d4-d3) + (d5-d6));
+    return b.clone().addScaledVector(new THREE.Vector3().subVectors(c, b), w);
+  }
+
+  const denom = 1 / (va + vb + vc);
+  const v = vb * denom, w = vc * denom;
+  return a.clone().addScaledVector(ab, v).addScaledVector(ac, w);
+}
+
+function isInsideIco(ico, p) {
+  for (let i = 0; i < 20; i++) {
+    if (ico.removed.has(i)) continue;
+    const f = ico.faces[i];
+    if (f.normal.dot(p) > f.d + 0.001) return false;
+  }
+  return true;
+}
+
+function findBestIco(p) {
+  let best = null, bestD = Infinity;
+  for (const ico of icos) {
+    if (isInsideIco(ico, p)) {
+      const d = p.distanceToSquared(ico.center);
+      if (d < bestD) { bestD = d; best = ico; }
+    }
+  }
+  if (best) return best;
+  for (const ico of icos) {
+    const d = p.distanceToSquared(ico.center);
+    if (d < bestD) { bestD = d; best = ico; }
+  }
+  return best;
+}
+
+/* ============================================================
+   11. 输入系统
+   ============================================================ */
+const joyEl  = document.getElementById('joy');
+const knobEl = document.getElementById('knob');
+const joyVec = new THREE.Vector2(0, 0);
+let joyPointerId = null;
+
+function setKnob(x, y) {
+  knobEl.style.transform = `translate(${x*40}px, ${y*40}px)`;
+}
+function handleJoy(e) {
+  const r  = joyEl.getBoundingClientRect();
+  const cx = r.left + r.width * 0.5;
+  const cy = r.top  + r.height * 0.5;
+  let dx = (e.clientX - cx) / (r.width * 0.5);
+  let dy = (e.clientY - cy) / (r.height * 0.5);
+  const len = Math.hypot(dx, dy);
+  if (len > 1) { dx /= len; dy /= len; }
+  joyVec.set(dx, -dy);
+  setKnob(dx, dy);
+}
+joyEl.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  joyPointerId = e.pointerId;
+  try { joyEl.setPointerCapture(e.pointerId); } catch(_) {}
+  handleJoy(e);
+});
+joyEl.addEventListener('pointermove', e => {
+  if (e.pointerId !== joyPointerId) return;
+  e.preventDefault();
+  handleJoy(e);
+});
+function endJoy(e) {
+  if (e.pointerId !== joyPointerId) return;
+  joyPointerId = null;
+  joyVec.set(0, 0);
+  setKnob(0, 0);
+}
+joyEl.addEventListener('pointerup', endJoy);
+joyEl.addEventListener('pointercancel', endJoy);
+joyEl.addEventListener('lostpointercapture', endJoy);
+
+let viewPointerId = null;
+let lastPX = 0, lastPY = 0;
+
+window.addEventListener('pointerdown', e => {
+  if (gameState !== 'playing') return;
+  if (joyEl.contains(e.target)) return;
+  if (viewPointerId !== null) return;
+  viewPointerId = e.pointerId;
+  lastPX = e.clientX;
+  lastPY = e.clientY;
+});
+window.addEventListener('pointermove', e => {
+  if (e.pointerId !== viewPointerId) return;
+  const dx = e.clientX - lastPX;
+  const dy = e.clientY - lastPY;
+  lastPX = e.clientX;
+  lastPY = e.clientY;
+  // 设置角速度，实现拖拽跟手 + 松开惯性
+  yawVel = -dx * SENS * 60;
+  pitchVel = -dy * SENS * 60;
+});
+function endView(e) {
+  if (e.pointerId === viewPointerId) viewPointerId = null;
+}
+window.addEventListener('pointerup', endView);
+window.addEventListener('pointercancel', endView);
+
+const keys = Object.create(null);
+window.addEventListener('keydown', e => {
+  if (gameState !== 'playing') return;
+  keys[e.code] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+}, { passive: false });
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+/* ============================================================
+   12. 玩家物理 & 相机
+   ============================================================ */
+let bobTime = 0;
+let curIco  = rootIco;
+let smoothFov = 74;
+
+const _right   = new THREE.Vector3();
+const _move    = new THREE.Vector3();
+const _camDir  = new THREE.Vector3();
+const _camUp   = new THREE.Vector3();
+const _camPos  = new THREE.Vector3();
+
+// Up 向量过渡：1 秒
+const UP_LERP_RATE = 3.0;
+
+function triggerVictory() {
+  if (gameState !== 'playing') return;
+  gameState = 'victory';
+  document.getElementById('victory').style.display = 'flex';
+}
+
+function updatePlayer(dt) {
+  // ---- 输入 ----
+  let ix = joyVec.x;
+  let iy = joyVec.y;
+  if (keys['KeyW'] || keys['ArrowUp'])    iy += 1;
+  if (keys['KeyS'] || keys['ArrowDown'])  iy -= 1;
+  if (keys['KeyA'] || keys['ArrowLeft'])  ix -= 1;
+  if (keys['KeyD'] || keys['ArrowRight']) ix += 1;
+  const il = Math.hypot(ix, iy);
+  if (il > 1) { ix /= il; iy /= il; }
+
+  // ---- 基向量 ----
+  forward.addScaledVector(up, -forward.dot(up));
+  if (forward.lengthSq() < 1e-8) {
+    forward.set(0, 0, -1).addScaledVector(up, -forward.dot(up));
+    if (forward.lengthSq() < 1e-8) forward.set(1, 0, 0);
+  }
+  forward.normalize();
+  _right.crossVectors(forward, up).normalize();
+
+  // ---- 目标速度 ----
+  _move.set(0, 0, 0);
+  _move.addScaledVector(forward, iy);
+  _move.addScaledVector(_right,  ix);
+  const inputLen = _move.length();
+  if (inputLen > 1e-5) _move.multiplyScalar(1 / inputLen);
+  else _move.set(0, 0, 0);
+
+  const targetVel = _move.clone().multiplyScalar(MOVE_SPEED);
+
+  // ---- 惯性：有输入时快速加速，无输入时缓慢减速 ----
+  const accelRate = (inputLen > 0.01) ? 12 : 3.5;
+  playerVel.lerp(targetVel, 1 - Math.exp(-dt * accelRate));
+
+  // ---- 移动 ----
+  playerPos.addScaledVector(playerVel, dt);
+
+  // 速度比例（0~1）
+  const speedRatio = Math.min(1, playerVel.length() / MOVE_SPEED);
+
+  // ---- 找当前 ico ----
+  let ico = curIco;
+  if (!ico || !isInsideIco(ico, playerPos)) {
+    ico = findBestIco(playerPos);
+  }
+  if (!ico) return speedRatio;
+  curIco = ico;
+
+  // ---- 找最近的面 ----
+  let bestIdx = -1, bestFace = null, bestDist = Infinity;
+  for (let i = 0; i < 20; i++) {
+    const f = ico.faces[i];
+    const cp = closestPointOnTriangle(
+      playerPos,
+      ico.verts[f.idx[0]], ico.verts[f.idx[1]], ico.verts[f.idx[2]]
+    );
+    const d = playerPos.distanceTo(cp);
+    if (d < bestDist) { bestDist = d; bestIdx = i; bestFace = f; }
+  }
+
+  if (bestFace) {
+    const n  = bestFace.normal;
+    const sd = playerPos.dot(n) - bestFace.d;
+    const isHole = ico.removed.has(bestIdx);
+    const k = 1 - Math.exp(-dt * 16);
+
+    // 胜利检测
+    if (!isHole && bestFace.isVictory && bestDist < EYE * 1.6) {
+      triggerVictory();
+    }
+
+    if (isHole) {
+      const movingThrough = playerVel.dot(n) > 0.05 * MOVE_SPEED;
+
+      if (movingThrough || sd > 0) {
+        const conn = ico.conn[bestIdx];
+        if (conn) {
+          const newIco  = conn.ico;
+          const newFace = newIco.faces[conn.faceIdx];
+          const newN    = newFace.normal;
+          const newD    = newFace.d;
+          const newSd   = playerPos.dot(newN) - newD;
+
+          if (newSd < EYE) {
+            curIco = newIco;
+            const targetUp = newN.clone().negate();
+            up.lerp(targetUp, 1 - Math.exp(-dt * UP_LERP_RATE)).normalize();
+
+            if (newSd > -EYE) {
+              const pushIn = (-EYE - newSd);
+              playerPos.addScaledVector(newN, pushIn * k);
+            }
+          }
+        }
+      } else if (sd < 0 && sd > -EYE * 1.6) {
+        playerPos.addScaledVector(n, (-EYE - sd) * k * 0.9);
+        const targetUp = n.clone().multiplyScalar(sd >= 0 ? 1 : -1);
+        up.lerp(targetUp, 1 - Math.exp(-dt * UP_LERP_RATE)).normalize();
+      }
+    } else {
+      const t  = -EYE - sd;
+      const tc = Math.max(-EYE * 2, Math.min(EYE * 2, t));
+      playerPos.addScaledVector(n, tc * k);
+
+      const targetUp = n.clone().negate();
+      up.lerp(targetUp, 1 - Math.exp(-dt * UP_LERP_RATE)).normalize();
+    }
+  }
+
+  return speedRatio;
+}
+
+function updateCamera(dt, speedRatio) {
+  // ---- 走路晃动（增强到 250%：0.042 → 0.105）----
+  if (speedRatio > 0.05) bobTime += dt * (5.5 + speedRatio * 4.5);
+  const bobAmt = speedRatio * 0.105;
+  const bobY = Math.sin(bobTime * 2.0) * bobAmt;
+  const bobX = Math.cos(bobTime * 1.0) * bobAmt * 0.65;
+
+  const targetFov = 70 + speedRatio * 10;
+  smoothFov += (targetFov - smoothFov) * (1 - Math.exp(-dt * 6));
+  camera.fov = smoothFov;
+  camera.updateProjectionMatrix();
+
+  const cp = Math.cos(camPitch);
+  const sp = Math.sin(camPitch);
+  _camDir.set(0, 0, 0)
+    .addScaledVector(forward, cp)
+    .addScaledVector(up, sp)
+    .normalize();
+
+  _camUp.copy(up).addScaledVector(_camDir, -up.dot(_camDir));
+  if (_camUp.lengthSq() < 1e-8) _camUp.copy(up);
+  _camUp.normalize();
+
+  _right.crossVectors(forward, up).normalize();
+
+  _camPos.copy(playerPos);
+  _camPos.addScaledVector(up, bobY);
+  _camPos.addScaledVector(_right, bobX);
+
+  camera.position.copy(_camPos);
+  camera.up.copy(_camUp);
+  camera.lookAt(_camPos.x + _camDir.x, _camPos.y + _camDir.y, _camPos.z + _camDir.z);
+}
+
+/* ============================================================
+   13. RGB 光源动画（强度增强到 200%）
+   ============================================================ */
+function updateRGBLights(time) {
+  for (let i = 0; i < 3; i++) {
+    const a = time * 0.7 + i * Math.PI * 2 / 3;
+    rgbLights[i].position.set(
+      playerPos.x + Math.cos(a) * 9,
+      playerPos.y + Math.sin(a * 1.4) * 6 + 2,
+      playerPos.z + Math.sin(a) * 9
+    );
+    rgbLights[i].intensity = 5.6 + Math.sin(time * 2.1 + i * 1.7) * 2.0;
+  }
+}
+
+/* ============================================================
+   14. 胜利面脉动
+   ============================================================ */
+function updateVictoryPulse(time) {
+  const pulse = 0.5 + 0.5 * Math.sin(time * 3.2);
+  const c = 0.82 + 0.18 * pulse;
+  for (const m of victoryMeshes) {
+    m.material.color.setRGB(c, c, c);
+  }
+}
+
+/* ============================================================
+   15. 主菜单 2D 背景
+   ============================================================ */
+const menuEl      = document.getElementById('menu');
+const menuCanvas  = document.getElementById('menuCanvas');
+const menuCtx     = menuCanvas.getContext('2d');
+const menuTileCache = new Map();
+let menuOffX = 0, menuOffY = 0;
+
+function menuHash(a, b, c, d) {
+  let h = 0x811c9dc5 >>> 0;
+  h = Math.imul(h ^ (a|0), 0x01000193);
+  h = Math.imul(h ^ (b|0), 0x01000193);
+  h = Math.imul(h ^ (c|0), 0x01000193);
+  h = Math.imul(h ^ (d|0), 0x01000193);
+  h = (h ^ (h >>> 15)) >>> 0;
+  return h / 4294967296;
+}
+
+function resizeMenuCanvas() {
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const W = window.innerWidth, H = window.innerHeight;
+  menuCanvas.width  = Math.round(W * dpr);
+  menuCanvas.height = Math.round(H * dpr);
+  menuCanvas.style.width  = W + 'px';
+  menuCanvas.style.height = H + 'px';
+  menuCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function getMenuTileTexture(col, row, S) {
+  const key = col + ',' + row;
+  const cached = menuTileCache.get(key);
+  if (cached) return cached;
+
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  const cv = document.createElement('canvas');
+  cv.width  = Math.round(S * dpr);
+  cv.height = Math.round(S * dpr);
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const cx = S / 2, cy = S / 2;
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - S/2);
+  ctx.lineTo(cx + S/2, cy);
+  ctx.lineTo(cx, cy + S/2);
+  ctx.lineTo(cx - S/2, cy);
+  ctx.closePath();
+  ctx.save();
+  ctx.clip();
+
+  const baseHue = menuHash(col, row, 0, 0) * 360;
+  const cellSize = S / 5;
+  for (let gy = 0; gy < 5; gy++) {
+    for (let gx = 0; gx < 5; gx++) {
+      const r1 = menuHash(col * 31 + gx, row * 17 + gy, 1, 0);
+      const r2 = menuHash(col * 31 + gx, row * 17 + gy, 2, 0);
+      const r3 = menuHash(col * 31 + gx, row * 17 + gy, 3, 0);
+      const h = (baseHue + (r1 * 120 - 60) + 360) % 360;
+      const s = 55 + r2 * 45;
+      const l = 32 + r3 * 38;
+      ctx.fillStyle = `hsl(${h}, ${s}%, ${l}%)`;
+      ctx.fillRect(gx * cellSize, gy * cellSize, cellSize + 1, cellSize + 1);
+    }
+  }
+
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i <= 5; i++) {
+    ctx.beginPath(); ctx.moveTo(i * cellSize, 0); ctx.lineTo(i * cellSize, S); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * cellSize); ctx.lineTo(S, i * cellSize); ctx.stroke();
+  }
+  ctx.restore();
+
+  menuTileCache.set(key, cv);
+  if (menuTileCache.size > 900) {
+    const iter = menuTileCache.keys();
+    for (let i = 0; i < 250; i++) {
+      const k = iter.next().value;
+      if (k !== undefined) menuTileCache.delete(k);
+    }
+  }
+  return cv;
+}
+
+function updateMenu(dt) {
+  const W = window.innerWidth, H = window.innerHeight;
+  menuOffX += dt * 26;
+  menuOffY += dt * 16;
+
+  menuCtx.fillStyle = '#05060a';
+  menuCtx.fillRect(0, 0, W, H);
+
+  const S = 118;
+  const half = S / 2;
+
+  const colMin = Math.floor((menuOffX - S) / half);
+  const colMax = Math.ceil((menuOffX + W + S) / half);
+  const rowMin = Math.floor((menuOffY - S) / half);
+  const rowMax = Math.ceil((menuOffY + H + S) / half);
+
+  for (let row = rowMin; row <= rowMax; row++) {
+    for (let col = colMin; col <= colMax; col++) {
+      if (((col + row) & 1) !== 0) continue;
+      const sx = col * half - menuOffX;
+      const sy = row * half - menuOffY;
+      const tex = getMenuTileTexture(col, row, S);
+      menuCtx.drawImage(tex, sx - half, sy - half, S, S);
+    }
+  }
+}
+
+/* ============================================================
+   16. 主循环
+   ============================================================ */
+let lastTime = performance.now() / 1000;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const now = performance.now() / 1000;
+  let dt = now - lastTime;
+  lastTime = now;
+  if (dt > 0.06) dt = 0.06;
+  if (dt <= 0) return;
+
+  // ---- 菜单状态 ----
+  if (gameState === 'menu') {
+    updateMenu(dt);
+    return;
+  }
+
+  // ---- 胜利状态 ----
+  if (gameState === 'victory') {
+    updateVictoryPulse(now);
+    renderer.render(scene, camera);
+    return;
+  }
+
+  // ---- 游戏进行中 ----
+
+  // 视角惯性（拖拽跟手 + 松开后继续滑动）
+  forward.applyAxisAngle(up, yawVel * dt);
+  camPitch += pitchVel * dt;
+  camPitch = Math.max(-1.25, Math.min(1.25, camPitch));
+  const damp = Math.exp(-dt * 3.5);
+  yawVel *= damp;
+  pitchVel *= damp;
+  if (Math.abs(yawVel) < 1e-5) yawVel = 0;
+  if (Math.abs(pitchVel) < 1e-5) pitchVel = 0;
+
+  const speedRatio = updatePlayer(dt);
+
+  ensureSeed();
+  updateGeneration();
+  cullFar();
+
+  updateCamera(dt, speedRatio);
+  updateRGBLights(now);
+  updateVictoryPulse(now);
+
+  renderer.render(scene, camera);
+}
+
+/* ============================================================
+   17. 自适应窗口
+   ============================================================ */
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  resizeMenuCanvas();
+}
+window.addEventListener('resize', onResize);
+
+/* ============================================================
+   18. 开始游戏 / 重新开始
+   ============================================================ */
+function startGame() {
+  menuEl.style.display = 'none';
+  document.getElementById('victory').style.display = 'none';
+  document.getElementById('joy').style.display = 'block';
+  document.getElementById('hint').style.display = 'block';
+
+  for (const k in keys) keys[k] = false;
+  joyVec.set(0, 0);
+  setKnob(0, 0);
+  yawVel = 0;
+  pitchVel = 0;
+  playerVel.set(0, 0, 0);
+
+  gameState = 'playing';
+  lastTime = performance.now() / 1000;
+
+  setTimeout(() => {
+    const h = document.getElementById('hint');
+    if (h) h.style.opacity = '0';
+  }, 6000);
+}
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', () => {
+  location.reload();
+});
+
+/* ============================================================
+   19. 预热世界
+   ============================================================ */
+for (let i = 0; i < 12; i++) {
+  ensureSeed();
+  updateGeneration();
+}
+
+/* ============================================================
+   20. 启动
+   ============================================================ */
+resizeMenuCanvas();
+animate();
+</script>
+</body>
+</html>
